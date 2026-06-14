@@ -119,7 +119,7 @@ function ChatRoute() {
           <button onClick={toggleMic} className="p-2 rounded-lg glass">
             {listening ? <MicOff className="w-5 h-5 text-destructive" /> : <Mic className="w-5 h-5 text-primary" />}
           </button>
-          <button onClick={send} disabled={busy} className="p-2 rounded-lg bg-primary text-primary-foreground neon-border disabled:opacity-50">
+          <button onClick={() => send()} disabled={busy} className="p-2 rounded-lg bg-primary text-primary-foreground neon-border disabled:opacity-50">
             <Send className="w-5 h-5" />
           </button>
         </div>
