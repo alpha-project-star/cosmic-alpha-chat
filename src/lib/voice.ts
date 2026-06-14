@@ -93,19 +93,7 @@ export class ContinuousRecognizer {
     if (!SR) { this.handlers.onError?.("Speech recognition not supported in this browser"); return; }
     this.wantOn = true;
     if (this.active) return;
-    try {
-      if (!this.audioCtx) {
-        this.audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const src = this.audioCtx.createMediaStreamSource(this.micStream);
-        this.analyser = this.audioCtx.createAnalyser();
-        this.analyser.fftSize = 128;
-        src.connect(this.analyser);
-      }
-    } catch (e: any) {
-      this.handlers.onError?.("Microphone permission denied");
-      return;
-    }
+    // Build recognizer SYNCHRONOUSLY in the gesture — do NOT await before start().
     const rec = new SR();
     rec.continuous = true;
     rec.interimResults = true;
@@ -117,8 +105,10 @@ export class ContinuousRecognizer {
       if (this.wantOn) { try { rec.start(); } catch {} }
     };
     rec.onerror = (e: any) => {
-      this.handlers.onError?.(String(e?.error || "speech error"));
-      if (e?.error === "not-allowed" || e?.error === "service-not-allowed") this.wantOn = false;
+      const err = String(e?.error || "speech error");
+      if (err === "no-speech" || err === "aborted") return; // benign, will auto-restart
+      this.handlers.onError?.(err);
+      if (err === "not-allowed" || err === "service-not-allowed") this.wantOn = false;
     };
     rec.onresult = (e: any) => {
       let interim = ""; let finalText = "";
@@ -140,7 +130,28 @@ export class ContinuousRecognizer {
       }
     };
     this.rec = rec;
-    try { rec.start(); } catch {}
+    try { rec.start(); } catch (err: any) {
+      this.handlers.onError?.(err?.message || "Could not start recognition");
+      return;
+    }
+    // Set up analyser for the orb spectrum AFTER recognition has started.
+    // Failure here is non-fatal — recognition still works without the visualiser.
+    this.setupAnalyser().catch(() => {});
+  }
+
+  private async setupAnalyser() {
+    if (this.audioCtx) return;
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) return;
+    try {
+      this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const src = this.audioCtx.createMediaStreamSource(this.micStream);
+      this.analyser = this.audioCtx.createAnalyser();
+      this.analyser.fftSize = 128;
+      src.connect(this.analyser);
+    } catch {
+      // mic blocked in iframe or denied — silent, recognition still runs
+    }
   }
 
   private armSilence() {
