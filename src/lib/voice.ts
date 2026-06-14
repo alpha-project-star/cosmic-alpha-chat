@@ -74,41 +74,70 @@ export class ContinuousRecognizer {
   private rec: any = null;
   private active = false;
   private wantOn = false;
+  private restartTimer: number | null = null;
   private silenceTimer: number | null = null;
   private interimBuf = "";
   private handlers: RecHandlers = {};
-  // Web Audio for spectrum
-  private audioCtx: AudioContext | null = null;
-  private analyser: AnalyserNode | null = null;
-  private micStream: MediaStream | null = null;
 
   get isActive() { return this.active; }
-  get analyserNode() { return this.analyser; }
+  get analyserNode() { return null; }
 
   setHandlers(h: RecHandlers) { this.handlers = h; }
 
-  async start() {
+  start() {
     if (typeof window === "undefined") return;
     const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) { this.handlers.onError?.("Speech recognition not supported in this browser"); return; }
     this.wantOn = true;
     if (this.active) return;
+    const isAndroid = /android/i.test(navigator.userAgent);
+    const restartDelay = isAndroid ? 250 : 0;
+    if (this.restartTimer) {
+      window.clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
+
     // Build recognizer SYNCHRONOUSLY in the gesture — do NOT await before start().
     const rec = new SR();
-    rec.continuous = true;
+    rec.continuous = !isAndroid;
     rec.interimResults = true;
     rec.lang = "en-GB";
     rec.onstart = () => { this.active = true; this.handlers.onStart?.(); };
     rec.onend = () => {
       this.active = false;
-      this.handlers.onStop?.();
-      if (this.wantOn) { try { rec.start(); } catch {} }
+      if (!this.wantOn) {
+        this.handlers.onStop?.();
+        return;
+      }
+      this.restartTimer = window.setTimeout(() => {
+        this.restartTimer = null;
+        if (!this.wantOn) {
+          this.handlers.onStop?.();
+          return;
+        }
+        try {
+          rec.start();
+        } catch (err: any) {
+          this.wantOn = false;
+          this.handlers.onError?.(err?.message || "Could not restart recognition");
+          this.handlers.onStop?.();
+        }
+      }, restartDelay);
     };
     rec.onerror = (e: any) => {
       const err = String(e?.error || "speech error");
-      if (err === "no-speech" || err === "aborted") return; // benign, will auto-restart
+      if (err === "no-speech" || err === "aborted") return;
+      if (err === "not-allowed" || err === "service-not-allowed") {
+        this.wantOn = false;
+        this.handlers.onError?.("Speech recognition is blocked in this browser context");
+        return;
+      }
+      if (err === "audio-capture") {
+        this.wantOn = false;
+        this.handlers.onError?.("No usable microphone audio was captured");
+        return;
+      }
       this.handlers.onError?.(err);
-      if (err === "not-allowed" || err === "service-not-allowed") this.wantOn = false;
     };
     rec.onresult = (e: any) => {
       let interim = ""; let finalText = "";
@@ -134,24 +163,6 @@ export class ContinuousRecognizer {
       this.handlers.onError?.(err?.message || "Could not start recognition");
       return;
     }
-    // Set up analyser for the orb spectrum AFTER recognition has started.
-    // Failure here is non-fatal — recognition still works without the visualiser.
-    this.setupAnalyser().catch(() => {});
-  }
-
-  private async setupAnalyser() {
-    if (this.audioCtx) return;
-    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) return;
-    try {
-      this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      this.audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const src = this.audioCtx.createMediaStreamSource(this.micStream);
-      this.analyser = this.audioCtx.createAnalyser();
-      this.analyser.fftSize = 128;
-      src.connect(this.analyser);
-    } catch {
-      // mic blocked in iframe or denied — silent, recognition still runs
-    }
   }
 
   private armSilence() {
@@ -165,15 +176,23 @@ export class ContinuousRecognizer {
 
   stop() {
     this.wantOn = false;
-    try { this.rec?.stop(); } catch {}
+    if (this.restartTimer) {
+      window.clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
+    if (this.silenceTimer) {
+      window.clearTimeout(this.silenceTimer);
+      this.silenceTimer = null;
+    }
+    this.interimBuf = "";
+    try { this.rec?.abort?.(); } catch {}
+    try { this.rec?.stop?.(); } catch {}
     this.active = false;
   }
 
   dispose() {
     this.stop();
-    try { this.micStream?.getTracks().forEach(t => t.stop()); } catch {}
-    try { this.audioCtx?.close(); } catch {}
-    this.audioCtx = null; this.analyser = null; this.micStream = null;
+    this.rec = null;
   }
 }
 
