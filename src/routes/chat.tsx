@@ -18,6 +18,7 @@ function ChatRoute() {
   const [images, setImages] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
+  const [micError, setMicError] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { scrollRef.current?.scrollTo({ top: 999999, behavior: "smooth" }); }, [chat.length]);
@@ -50,15 +51,16 @@ function ChatRoute() {
 
   async function toggleMic() {
     prepareUtterance();
-    if (listening) { recognizer.stop(); setListening(false); return; }
+    if (listening) { recognizer.stop(); setListening(false); setMicError(""); return; }
+    setMicError("");
     recognizer.setHandlers({
       onInterim: t => setText(t),
       onFinal: t => { setText(t); recognizer.stop(); setListening(false); send(t); },
       onStart: () => setListening(true),
       onStop: () => setListening(false),
-      onError: () => setListening(false),
+      onError: e => { setListening(false); setMicError(e); },
     });
-    await recognizer.start();
+    recognizer.start();
   }
 
   return (
@@ -105,6 +107,7 @@ function ChatRoute() {
       )}
 
       <div className="p-3 glass border-t border-primary/20">
+        {micError && <div className="mb-2 text-xs text-destructive">{micError}</div>}
         <div className="flex items-end gap-2">
           <label className="cursor-pointer p-2 rounded-lg glass">
             <ImagePlus className="w-5 h-5 text-primary" />
