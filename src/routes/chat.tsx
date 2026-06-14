@@ -23,9 +23,9 @@ function ChatRoute() {
   useEffect(() => { scrollRef.current?.scrollTo({ top: 999999, behavior: "smooth" }); }, [chat.length]);
   useEffect(() => () => { recognizer.stop(); stopSpeaking(); }, []);
 
-  async function send() {
+  async function send(overrideText?: string) {
     if (busy) return;
-    const t = text.trim();
+    const t = (overrideText ?? text).trim();
     if (!t && images.length === 0) return;
     prepareUtterance();
     alphaStore.appendChat({ id: uid(), role: "user", text: t, images: images.length ? images : undefined, ts: Date.now() });
@@ -53,7 +53,7 @@ function ChatRoute() {
     if (listening) { recognizer.stop(); setListening(false); return; }
     recognizer.setHandlers({
       onInterim: t => setText(t),
-      onFinal: t => { setText(t); setTimeout(send, 50); },
+      onFinal: t => { setText(t); recognizer.stop(); setListening(false); send(t); },
       onStart: () => setListening(true),
       onStop: () => setListening(false),
       onError: () => setListening(false),
