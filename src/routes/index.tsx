@@ -73,7 +73,7 @@ function OrbHome() {
       onStop: () => setActive(false),
       onError: e => setStatus(e),
     });
-    await recognizer.start();
+    recognizer.start();
   }
 
   return (
