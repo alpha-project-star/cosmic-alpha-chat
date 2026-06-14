@@ -84,6 +84,12 @@ export class ContinuousRecognizer {
 
   setHandlers(h: RecHandlers) { this.handlers = h; }
 
+  private getRecognitionLang() {
+    if (typeof navigator === "undefined") return "en-US";
+    const lang = navigator.language?.trim();
+    return lang || "en-US";
+  }
+
   start() {
     if (typeof window === "undefined") return;
     const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -101,7 +107,7 @@ export class ContinuousRecognizer {
     const rec = new SR();
     rec.continuous = !isAndroid;
     rec.interimResults = true;
-    rec.lang = "en-GB";
+    rec.lang = this.getRecognitionLang();
     rec.onstart = () => { this.active = true; this.handlers.onStart?.(); };
     rec.onend = () => {
       this.active = false;
