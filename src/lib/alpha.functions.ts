@@ -93,13 +93,14 @@ export async function generateImage(prompt: string): Promise<{ dataUrl: string; 
 }
 
 async function readSseFinalImage(body: ReadableStream<Uint8Array>): Promise<string | null> {
-  const reader = body.pipeThrough(new TextDecoderStream()).getReader();
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
   let buf = ""; let last: string | null = null;
   try {
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
-      buf += value;
+      buf += decoder.decode(value, { stream: true });
       const events = buf.split("\n\n");
       buf = events.pop() ?? "";
       for (const ev of events) {
