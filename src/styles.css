@@ -170,6 +170,11 @@
   50% { box-shadow: 0 0 60px oklch(0.78 0.22 245 / 0.7), 0 0 140px oklch(0.6 0.25 250 / 0.5); }
 }
 
+@keyframes orb-beat {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
 @layer utilities {
   .glass {
     background: linear-gradient(135deg, oklch(0.18 0.08 265 / 0.55), oklch(0.08 0.05 265 / 0.65));
@@ -190,4 +195,6 @@
       radial-gradient(1200px 600px at 50% 20%, oklch(0.15 0.12 260 / 0.6), transparent),
       #000;
   }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; }
 }

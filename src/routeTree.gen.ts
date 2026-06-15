@@ -9,18 +9,10 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as NotesRouteImport } from './routes/notes'
 import { Route as ImageRouteImport } from './routes/image'
-import { Route as ChatRouteImport } from './routes/chat'
 import { Route as BillsRouteImport } from './routes/bills'
-import { Route as IndexRouteImport } from './routes/index'
 
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const NotesRoute = NotesRouteImport.update({
   id: '/notes',
   path: '/notes',
@@ -31,73 +23,44 @@ const ImageRoute = ImageRouteImport.update({
   path: '/image',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ChatRoute = ChatRouteImport.update({
-  id: '/chat',
-  path: '/chat',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const BillsRoute = BillsRouteImport.update({
   id: '/bills',
   path: '/bills',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
   '/bills': typeof BillsRoute
-  '/chat': typeof ChatRoute
   '/image': typeof ImageRoute
   '/notes': typeof NotesRoute
-  '/settings': typeof SettingsRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
   '/bills': typeof BillsRoute
-  '/chat': typeof ChatRoute
   '/image': typeof ImageRoute
   '/notes': typeof NotesRoute
-  '/settings': typeof SettingsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
   '/bills': typeof BillsRoute
-  '/chat': typeof ChatRoute
   '/image': typeof ImageRoute
   '/notes': typeof NotesRoute
-  '/settings': typeof SettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/bills' | '/chat' | '/image' | '/notes' | '/settings'
+  fullPaths: '/bills' | '/image' | '/notes'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/bills' | '/chat' | '/image' | '/notes' | '/settings'
-  id: '__root__' | '/' | '/bills' | '/chat' | '/image' | '/notes' | '/settings'
+  to: '/bills' | '/image' | '/notes'
+  id: '__root__' | '/bills' | '/image' | '/notes'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
   BillsRoute: typeof BillsRoute
-  ChatRoute: typeof ChatRoute
   ImageRoute: typeof ImageRoute
   NotesRoute: typeof NotesRoute
-  SettingsRoute: typeof SettingsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/notes': {
       id: '/notes'
       path: '/notes'
@@ -112,13 +75,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ImageRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/chat': {
-      id: '/chat'
-      path: '/chat'
-      fullPath: '/chat'
-      preLoaderRoute: typeof ChatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/bills': {
       id: '/bills'
       path: '/bills'
@@ -126,34 +82,14 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BillsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
   BillsRoute: BillsRoute,
-  ChatRoute: ChatRoute,
   ImageRoute: ImageRoute,
   NotesRoute: NotesRoute,
-  SettingsRoute: SettingsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
