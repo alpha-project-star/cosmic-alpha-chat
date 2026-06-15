@@ -8,7 +8,10 @@ let _speaking = false;
 const speakSubs = new Set<(v: boolean) => void>();
 export const speakingState = {
   get: () => _speaking,
-  sub: (fn: (v: boolean) => void) => { speakSubs.add(fn); fn(_speaking); return () => speakSubs.delete(fn); },
+  sub: (fn: (v: boolean) => void): (() => void) => {
+    speakSubs.add(fn); fn(_speaking);
+    return () => { speakSubs.delete(fn); };
+  },
 };
 function setSpeaking(v: boolean) { if (_speaking === v) return; _speaking = v; speakSubs.forEach(f => f(v)); }
 
