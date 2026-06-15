@@ -1,16 +1,27 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Mic, MicOff, Send, Sparkles, X } from "lucide-react";
+import { ImagePlus, Mic, MicOff, Send, Sparkles, X, ArrowDown, MessageSquare, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain, Settings as SettingsIcon } from "lucide-react";
 import { alphaStore, uid, useAlpha } from "../lib/alpha-store";
 import { sendChat } from "../lib/alpha.functions";
 import { MessageContent } from "../components/MessageContent";
 import { recognizer, prepareUtterance, speakWith, stopSpeaking } from "../lib/voice";
-import alphaAvatar from "../assets/alpha-avatar.png.asset.json";
+import { MiniOrb } from "../components/MiniOrb";
 
 export const Route = createFileRoute("/chat")({
   head: () => ({ meta: [{ title: "Alpha — Chat" }, { name: "description", content: "Talk with Alpha." }] }),
   component: ChatRoute,
 });
+
+const NAV = [
+  { to: "/", icon: Sparkles, label: "Orb" },
+  { to: "/notes", icon: NotebookPen, label: "Notes" },
+  { to: "/bills", icon: Wallet, label: "Bills" },
+  { to: "/image", icon: ImageIcon, label: "Image" },
+  { to: "/reminders", icon: Bell, label: "Reminders" },
+  { to: "/plans", icon: Map, label: "Plans" },
+  { to: "/memories", icon: Brain, label: "Memories" },
+  { to: "/settings", icon: SettingsIcon, label: "Settings" },
+] as const;
 
 function ChatRoute() {
   const chat = useAlpha(s => s.chat);
@@ -19,10 +30,22 @@ function ChatRoute() {
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
   const [micError, setMicError] = useState("");
+  const [showJump, setShowJump] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { scrollRef.current?.scrollTo({ top: 999999, behavior: "smooth" }); }, [chat.length]);
+  function scrollToBottom(smooth = true) {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+  }
+
+  useEffect(() => { scrollToBottom(true); }, [chat.length]);
+  // jump on mount
+  useEffect(() => { setTimeout(() => scrollToBottom(false), 0); }, []);
   useEffect(() => () => { recognizer.stop(); stopSpeaking(); }, []);
+
+  function onScroll() {
+    const el = scrollRef.current; if (!el) return;
+    setShowJump(el.scrollHeight - el.scrollTop - el.clientHeight > 200);
+  }
 
   async function send(overrideText?: string) {
     if (busy) return;
@@ -65,15 +88,24 @@ function ChatRoute() {
 
   return (
     <div className="starfield min-h-screen flex flex-col">
-      <header className="flex items-center justify-between p-3 glass border-b border-primary/20">
-        <Link to="/" className="flex items-center gap-2">
-          <img src={alphaAvatar.url} alt="Alpha" className="w-9 h-9 rounded-full ring-1 ring-primary/60" />
-          <span className="font-semibold neon-text">Alpha</span>
-        </Link>
-        <button onClick={() => alphaStore.clearChat()} className="text-xs text-muted-foreground">Clear</button>
+      <header className="glass border-b border-primary/20">
+        <div className="flex items-center justify-between px-3 py-2 relative">
+          <Link to="/" className="flex items-center gap-2 min-w-0">
+            <span className="text-xs tracking-[0.4em] text-muted-foreground">ALPHA</span>
+          </Link>
+          <div className="absolute left-1/2 -translate-x-1/2"><MiniOrb /></div>
+          <button onClick={() => alphaStore.clearChat()} className="text-xs text-muted-foreground">Clear</button>
+        </div>
+        <nav className="flex gap-1 overflow-x-auto px-2 pb-2 no-scrollbar">
+          {NAV.map(({ to, icon: Icon, label }) => (
+            <Link key={to} to={to as any} className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full glass text-xs text-foreground/80 active:scale-95">
+              <Icon className="w-3.5 h-3.5 text-primary" /> {label}
+            </Link>
+          ))}
+        </nav>
       </header>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
+      <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto px-3 py-4 space-y-3 relative">
         {chat.length === 0 && (
           <div className="text-center text-muted-foreground text-sm mt-20">
             <Sparkles className="w-6 h-6 mx-auto mb-2 text-primary" /> Say something or type to begin.
@@ -93,6 +125,13 @@ function ChatRoute() {
         ))}
         {busy && <div className="text-xs text-muted-foreground text-center">Alpha is thinking…</div>}
       </div>
+
+      {showJump && (
+        <button onClick={() => scrollToBottom(true)}
+          className="fixed bottom-28 right-4 z-20 glass rounded-full p-2 neon-border active:scale-95">
+          <ArrowDown className="w-4 h-4 text-primary" />
+        </button>
+      )}
 
       {images.length > 0 && (
         <div className="px-3 pb-2 flex gap-2 overflow-x-auto">

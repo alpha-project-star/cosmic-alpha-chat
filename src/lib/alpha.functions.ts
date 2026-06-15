@@ -1,15 +1,47 @@
 import { alphaStore, type ChatMessage } from "./alpha-store";
 
-export const DEFAULT_SYSTEM = (extra: string) => `You are Alpha — a hyper-intelligent, futuristic AI companion with a tasteful level-3 wit. Speak with warm acknowledgement cues (occasional "mm", "right"), and dynamic shifting tones. Be concise, helpful, never robotic.
+function ctxSummary() {
+  const s = alphaStore.get();
+  const briefList = (items: any[], pick: (x: any) => string) =>
+    items.slice(0, 8).map(pick).filter(Boolean).join("; ") || "—";
+  return [
+    `Notes (${s.notes.length}): ${briefList(s.notes, n => n.title || (n.body || "").slice(0, 40))}`,
+    `Bills (${s.bills.length}): ${briefList(s.bills, b => `${b.name} $${b.balance} (${b.status})`)}`,
+    `Reminders (${s.reminders.length}): ${briefList(s.reminders, r => `${r.title} @ ${r.when} [${r.done}]`)}`,
+    `Plans (${s.plans.length}): ${briefList(s.plans, p => `${p.title} ${p.from}→${p.to} ${p.date}`)}`,
+    `Memories (${s.memories.length}): ${briefList(s.memories, m => `${m.topic}: ${m.detail.slice(0, 60)}`)}`,
+    `Profile: ${s.profile.name || "(unset)"} — ${s.profile.bio || ""}`,
+  ].join("\n");
+}
 
-Temporal grounding: the current local time is ${new Date().toUTCString()}. Stay anchored to this present (year ${new Date().getUTCFullYear()}); never hallucinate that the year is earlier.
+export const DEFAULT_SYSTEM = (extra: string) => `You are Alpha — a hyper-intelligent, futuristic AI companion with warm, level-3 wit. Speak naturally with light acknowledgement cues ("mm", "right", "got it") and dynamic tone. Be concise, helpful, never robotic.
 
-Formatting rules:
-- Use clean Markdown.
-- For math, ALWAYS use proper LaTeX inside $...$ (inline) or $$...$$ (display). Verify each step.
-- Keep code in fenced blocks.
+You are fully aware of your own toolkit inside this app:
+- /chat — text + voice chat with you (this surface).
+- /  (the Orb) — voice-first hands-free mode. User can say "open chat / notes / bills / image / reminders / plans / memories / settings" to navigate.
+- /notes — quick notes (title + body).
+- /bills — bill ledger (name, amount, balance, due date, status).
+- /reminders — alarms / reminders (title, when, notes, done).
+- /plans — plans & routes (title, from, to, date, details).
+- /memories — long-term memory the user wants you to keep (topic, detail).
+- /image — image generation dashboard.
+- /settings — Gemini key, model, Kokoro TTS endpoint, voice prefs.
 
-Safety recovery: if a topic feels blocked, recover gracefully into a helpful conversational alternative rather than refusing flatly.
+You ALWAYS have live context of the user's data and may proactively reference it, follow up on it, or casually weave it into conversation when relevant.
+
+Current local time: ${new Date().toUTCString()}. Year: ${new Date().getUTCFullYear()}. Never claim it's earlier.
+
+Live user data snapshot:
+${ctxSummary()}
+
+If the user asks to remember something, suggest "I'll add that to memories — say open memories." If they mention a deadline, offer to add a reminder. If they mention a trip, offer to add a plan. Be casual about it; one sentence.
+
+Formatting:
+- Clean Markdown.
+- Math in LaTeX: $...$ inline, $$...$$ display. Verify each step.
+- Code in fenced blocks.
+
+If a topic is safety-blocked, recover gracefully with a helpful alternative — never refuse flatly.
 ${extra ? "\nUser personalisation:\n" + extra : ""}`;
 
 type GeminiPart = { text?: string } | { inlineData: { mimeType: string; data: string } };
@@ -29,9 +61,7 @@ function toGeminiContents(history: ChatMessage[]) {
 }
 
 function getKey(): string {
-  const ls = typeof window !== "undefined" ? localStorage.getItem("alpha.settings.v1") : null;
-  if (ls) { try { const p = JSON.parse(ls); if (p?.geminiApiKey) return p.geminiApiKey; } catch {} }
-  return "";
+  return alphaStore.get().settings.geminiApiKey || "";
 }
 
 export async function sendChat(history: ChatMessage[]): Promise<string> {
@@ -45,21 +75,17 @@ export async function sendChat(history: ChatMessage[]): Promise<string> {
     generationConfig: { temperature: 0.85, topP: 0.95 },
   };
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(`Gemini ${res.status}: ${t.slice(0, 400)}`);
-  }
+  if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 400)}`);
   const j: any = await res.json();
   const cand = j?.candidates?.[0];
   if (cand?.finishReason === "SAFETY") {
-    return "Mm—that one tripped a safety filter. Let's reframe: tell me the underlying goal in plain terms and I'll route around it.";
+    return "Mm — that one tripped a safety filter. Let's reframe: tell me the underlying goal in plain terms and I'll route around it.";
   }
   const text = cand?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "";
   if (!text) throw new Error("Empty response from Gemini.");
   return text;
 }
 
-/** Image gen: direct Gemini only — never touches Lovable credits. */
 export async function generateImage(prompt: string): Promise<{ dataUrl: string; via: "gemini" }> {
   const key = getKey();
   if (!key) throw new Error("No Gemini API key set. Open Settings to paste your key.");

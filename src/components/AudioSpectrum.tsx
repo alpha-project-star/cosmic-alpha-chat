@@ -1,9 +1,13 @@
 import { useEffect, useRef } from "react";
 
-export function AudioSpectrum({ analyser, bars = 48, className = "" }: {
-  analyser: AnalyserNode | null; bars?: number; className?: string;
+export function AudioSpectrum({ analyser, bars = 48, className = "", speaking = false }: {
+  analyser: AnalyserNode | null; bars?: number; className?: string; speaking?: boolean;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const rotRef = useRef(0);
+  const spkRef = useRef(speaking);
+  useEffect(() => { spkRef.current = speaking; }, [speaking]);
+
   useEffect(() => {
     const canvas = ref.current; if (!canvas) return;
     const ctx = canvas.getContext("2d"); if (!ctx) return;
@@ -15,10 +19,14 @@ export function AudioSpectrum({ analyser, bars = 48, className = "" }: {
       ctx.clearRect(0, 0, w, h);
       if (analyser) analyser.getByteFrequencyData(data);
       const cx = w / 2, cy = h / 2, r = Math.min(w, h) * 0.35;
+      rotRef.current += spkRef.current ? 0.012 : 0.003;
+      const phase = rotRef.current;
       for (let i = 0; i < bars; i++) {
-        const v = analyser ? data[i % data.length] / 255 : 0;
-        const a = (i / bars) * Math.PI * 2 - Math.PI / 2;
-        const len = r * 0.15 + v * r * 0.45;
+        const seed = spkRef.current
+          ? 0.4 + 0.6 * Math.abs(Math.sin(phase * 2 + i * 0.4))
+          : (analyser ? data[i % data.length] / 255 : 0.05 + 0.05 * Math.sin(phase + i));
+        const a = (i / bars) * Math.PI * 2 - Math.PI / 2 + phase;
+        const len = r * 0.15 + seed * r * 0.45;
         const x1 = cx + Math.cos(a) * r;
         const y1 = cy + Math.sin(a) * r;
         const x2 = cx + Math.cos(a) * (r + len);

@@ -10,7 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as RemindersRouteImport } from './routes/reminders'
+import { Route as PlansRouteImport } from './routes/plans'
 import { Route as NotesRouteImport } from './routes/notes'
+import { Route as MemoriesRouteImport } from './routes/memories'
 import { Route as ImageRouteImport } from './routes/image'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as BillsRouteImport } from './routes/bills'
@@ -21,9 +24,24 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RemindersRoute = RemindersRouteImport.update({
+  id: '/reminders',
+  path: '/reminders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlansRoute = PlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NotesRoute = NotesRouteImport.update({
   id: '/notes',
   path: '/notes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MemoriesRoute = MemoriesRouteImport.update({
+  id: '/memories',
+  path: '/memories',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImageRoute = ImageRouteImport.update({
@@ -52,7 +70,10 @@ export interface FileRoutesByFullPath {
   '/bills': typeof BillsRoute
   '/chat': typeof ChatRoute
   '/image': typeof ImageRoute
+  '/memories': typeof MemoriesRoute
   '/notes': typeof NotesRoute
+  '/plans': typeof PlansRoute
+  '/reminders': typeof RemindersRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesByTo {
@@ -60,7 +81,10 @@ export interface FileRoutesByTo {
   '/bills': typeof BillsRoute
   '/chat': typeof ChatRoute
   '/image': typeof ImageRoute
+  '/memories': typeof MemoriesRoute
   '/notes': typeof NotesRoute
+  '/plans': typeof PlansRoute
+  '/reminders': typeof RemindersRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesById {
@@ -69,15 +93,46 @@ export interface FileRoutesById {
   '/bills': typeof BillsRoute
   '/chat': typeof ChatRoute
   '/image': typeof ImageRoute
+  '/memories': typeof MemoriesRoute
   '/notes': typeof NotesRoute
+  '/plans': typeof PlansRoute
+  '/reminders': typeof RemindersRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/bills' | '/chat' | '/image' | '/notes' | '/settings'
+  fullPaths:
+    | '/'
+    | '/bills'
+    | '/chat'
+    | '/image'
+    | '/memories'
+    | '/notes'
+    | '/plans'
+    | '/reminders'
+    | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/bills' | '/chat' | '/image' | '/notes' | '/settings'
-  id: '__root__' | '/' | '/bills' | '/chat' | '/image' | '/notes' | '/settings'
+  to:
+    | '/'
+    | '/bills'
+    | '/chat'
+    | '/image'
+    | '/memories'
+    | '/notes'
+    | '/plans'
+    | '/reminders'
+    | '/settings'
+  id:
+    | '__root__'
+    | '/'
+    | '/bills'
+    | '/chat'
+    | '/image'
+    | '/memories'
+    | '/notes'
+    | '/plans'
+    | '/reminders'
+    | '/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -85,7 +140,10 @@ export interface RootRouteChildren {
   BillsRoute: typeof BillsRoute
   ChatRoute: typeof ChatRoute
   ImageRoute: typeof ImageRoute
+  MemoriesRoute: typeof MemoriesRoute
   NotesRoute: typeof NotesRoute
+  PlansRoute: typeof PlansRoute
+  RemindersRoute: typeof RemindersRoute
   SettingsRoute: typeof SettingsRoute
 }
 
@@ -98,11 +156,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reminders': {
+      id: '/reminders'
+      path: '/reminders'
+      fullPath: '/reminders'
+      preLoaderRoute: typeof RemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/plans': {
+      id: '/plans'
+      path: '/plans'
+      fullPath: '/plans'
+      preLoaderRoute: typeof PlansRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/notes': {
       id: '/notes'
       path: '/notes'
       fullPath: '/notes'
       preLoaderRoute: typeof NotesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/memories': {
+      id: '/memories'
+      path: '/memories'
+      fullPath: '/memories'
+      preLoaderRoute: typeof MemoriesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/image': {
@@ -141,19 +220,12 @@ const rootRouteChildren: RootRouteChildren = {
   BillsRoute: BillsRoute,
   ChatRoute: ChatRoute,
   ImageRoute: ImageRoute,
+  MemoriesRoute: MemoriesRoute,
   NotesRoute: NotesRoute,
+  PlansRoute: PlansRoute,
+  RemindersRoute: RemindersRoute,
   SettingsRoute: SettingsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

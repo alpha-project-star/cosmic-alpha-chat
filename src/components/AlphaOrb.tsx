@@ -1,9 +1,15 @@
 import { useEffect, useState } from "react";
 import alphaAvatar from "../assets/alpha-avatar.png.asset.json";
 import { AudioSpectrum } from "./AudioSpectrum";
+import { speakingState } from "../lib/voice";
 
 export function AlphaOrb({ analyser, active, size = 280 }: { analyser: AnalyserNode | null; active: boolean; size?: number }) {
   const [level, setLevel] = useState(0);
+  const [speaking, setSpeaking] = useState(false);
+  const [beat, setBeat] = useState(0);
+
+  useEffect(() => speakingState.sub(setSpeaking), []);
+
   useEffect(() => {
     if (!analyser) return;
     let raf = 0; const data = new Uint8Array(64);
@@ -16,24 +22,33 @@ export function AlphaOrb({ analyser, active, size = 280 }: { analyser: AnalyserN
     tick(); return () => cancelAnimationFrame(raf);
   }, [analyser]);
 
-  const pulse = active ? 1 + level * 0.18 : 1;
+  // Soft heartbeat while Alpha speaks
+  useEffect(() => {
+    if (!speaking) { setBeat(0); return; }
+    let raf = 0; const t0 = performance.now();
+    const loop = () => {
+      const t = (performance.now() - t0) / 1000;
+      setBeat(0.5 + 0.5 * Math.sin(t * 4)); // ~0.6 Hz pulse
+      raf = requestAnimationFrame(loop);
+    };
+    loop(); return () => cancelAnimationFrame(raf);
+  }, [speaking]);
+
+  const pulse = 1 + (active ? level * 0.18 : 0) + (speaking ? beat * 0.08 : 0);
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
-      {/* aurora bloom */}
       <div
         className="absolute inset-[-30%] rounded-full pointer-events-none"
         style={{
           background: "radial-gradient(circle, oklch(0.6 0.28 250 / 0.45), transparent 65%)",
           filter: "blur(30px)",
-          opacity: 0.5 + (active ? level * 0.7 : 0.1),
-          transition: "opacity .1s",
+          opacity: 0.4 + (active ? level * 0.6 : 0.1) + (speaking ? beat * 0.4 : 0),
+          transition: "opacity .15s",
         }}
       />
-      {/* spectrum ring */}
-      <AudioSpectrum analyser={active ? analyser : null} bars={56} className="absolute inset-[-18%] w-[136%] h-[136%]" />
-      {/* conic rotating border */}
-      <div className="absolute inset-0 rounded-full p-[3px] conic-ring" style={{ animationDuration: active ? "6s" : "18s" }}>
+      <AudioSpectrum analyser={active ? analyser : null} speaking={speaking} bars={56} className="absolute inset-[-18%] w-[136%] h-[136%]" />
+      <div className="absolute inset-0 rounded-full p-[3px] conic-ring" style={{ animationDuration: (active || speaking) ? "5s" : "18s" }}>
         <div className="w-full h-full rounded-full overflow-hidden relative"
           style={{ transform: `scale(${pulse})`, transition: "transform .08s linear", boxShadow: "var(--shadow-glow)" }}>
           <img src={alphaAvatar.url} alt="Alpha" className="w-full h-full object-cover" draggable={false} />
@@ -42,7 +57,6 @@ export function AlphaOrb({ analyser, active, size = 280 }: { analyser: AnalyserN
           }} />
         </div>
       </div>
-      {/* outer ring */}
       <div className="absolute inset-[-8%] rounded-full border border-primary/30 pointer-events-none"
         style={{ animation: "pulse-glow 4s ease-in-out infinite" }} />
     </div>
