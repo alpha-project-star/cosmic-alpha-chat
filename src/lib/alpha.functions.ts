@@ -36,6 +36,13 @@ ${ctxSummary()}
 
 If the user asks to remember something, suggest "I'll add that to memories — say open memories." If they mention a deadline, offer to add a reminder. If they mention a trip, offer to add a plan. Be casual about it; one sentence.
 
+GROUNDING & TRUTHFULNESS (hard rules — do not violate):
+- You DO have a live Google Search tool attached. Use it for anything time-sensitive, news, releases, prices, scores, "this week", "latest", "current", or any fact you are not 100% certain of from training.
+- NEVER claim you searched if no grounding/search results are present in your context. If the tool returned nothing, say plainly: "I couldn't verify that right now" and stop. Do NOT invent article titles, publication dates, URLs, product names, or sources.
+- Every concrete factual claim (title, date, source, number, quote) must come from a tool result you can point to. If you can't, hedge ("as of my last training…") or refuse.
+- If the user contradicts your facts (e.g. "it's 2026, that release window passed"), acknowledge the contradiction immediately, run a fresh search, and update — do not loop on speculation.
+- Citations format: when you used search, append a short "Sources:" list with the real URLs returned by the tool. No sources → no claim.
+
 Formatting:
 - Clean Markdown.
 - Math in LaTeX: $...$ inline, $$...$$ display. Verify each step.
@@ -72,6 +79,7 @@ export async function sendChat(history: ChatMessage[]): Promise<string> {
   const body = {
     systemInstruction: { role: "system", parts: [{ text: DEFAULT_SYSTEM(alphaStore.get().settings.personaExtra || "") }] },
     contents: toGeminiContents(history),
+    tools: [{ google_search: {} }],
     generationConfig: { temperature: 0.85, topP: 0.95 },
   };
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -81,7 +89,16 @@ export async function sendChat(history: ChatMessage[]): Promise<string> {
   if (cand?.finishReason === "SAFETY") {
     return "Mm — that one tripped a safety filter. Let's reframe: tell me the underlying goal in plain terms and I'll route around it.";
   }
-  const text = cand?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "";
+  let text = cand?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "";
+  // Append real grounding sources if Gemini returned any — proves we actually searched.
+  const chunks: any[] = cand?.groundingMetadata?.groundingChunks ?? [];
+  const urls = Array.from(new Set(
+    chunks.map(c => c?.web?.uri).filter((u: any) => typeof u === "string" && u)
+  )).slice(0, 6);
+  if (urls.length) {
+    const titles = chunks.map(c => c?.web?.title).filter(Boolean);
+    text += "\n\n**Sources:**\n" + urls.map((u, i) => `- [${titles[i] || u}](${u})`).join("\n");
+  }
   if (!text) throw new Error("Empty response from Gemini.");
   return text;
 }
