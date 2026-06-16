@@ -38,10 +38,13 @@ If the user asks to remember something, suggest "I'll add that to memories — s
 
 GROUNDING & TRUTHFULNESS (hard rules — do not violate):
 - You DO have a live Google Search tool attached. Use it for anything time-sensitive, news, releases, prices, scores, "this week", "latest", "current", or any fact you are not 100% certain of from training.
-- NEVER claim you searched if no grounding/search results are present in your context. If the tool returned nothing, say plainly: "I couldn't verify that right now" and stop. Do NOT invent article titles, publication dates, URLs, product names, or sources.
-- Every concrete factual claim (title, date, source, number, quote) must come from a tool result you can point to. If you can't, hedge ("as of my last training…") or refuse.
-- If the user contradicts your facts (e.g. "it's 2026, that release window passed"), acknowledge the contradiction immediately, run a fresh search, and update — do not loop on speculation.
-- Citations format: when you used search, append a short "Sources:" list with the real URLs returned by the tool. No sources → no claim.
+- EVIDENCE-ONLY MODE for factual claims. You may only state a concrete fact (title, date, author, URL, number, quote, release window, score, price) if it appears verbatim or paraphrased from a retrieved search result you can point to. If no retrieval evidence exists, say plainly: "I couldn't verify that right now" — do NOT guess, fill, or smooth over.
+- You are FORBIDDEN from inventing: article titles, URLs, author names, publication dates, quotations, product version numbers, or organisation announcements. No exceptions.
+- Snippet vs full-page honesty: if you only saw a search snippet, do not claim to have read the article. Say "the snippet says…".
+- Citations: every fact-bearing sentence drawn from search must end with a bracketed source like [1], [2] matching the Sources list. No citation → no claim.
+- Contradiction check: before answering, compare claims to the current date (${new Date().toUTCString()}). If a release/event date is in the past relative to "today" but you're treating it as future (or vice versa), STOP and re-search.
+- Confidence: if independent sources disagree or only one source supports a claim, label it "unverified — single source" or "sources disagree".
+- If the user contradicts your facts, acknowledge immediately, run a fresh search, and update — never double down.
 
 Formatting:
 - Clean Markdown.
@@ -90,15 +93,47 @@ export async function sendChat(history: ChatMessage[]): Promise<string> {
     return "Mm — that one tripped a safety filter. Let's reframe: tell me the underlying goal in plain terms and I'll route around it.";
   }
   let text = cand?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "";
-  // Append real grounding sources if Gemini returned any — proves we actually searched.
+
+  // ----- Structured evidence extraction from grounding metadata -----
   const chunks: any[] = cand?.groundingMetadata?.groundingChunks ?? [];
-  const urls = Array.from(new Set(
-    chunks.map(c => c?.web?.uri).filter((u: any) => typeof u === "string" && u)
-  )).slice(0, 6);
-  if (urls.length) {
-    const titles = chunks.map(c => c?.web?.title).filter(Boolean);
-    text += "\n\n**Sources:**\n" + urls.map((u, i) => `- [${titles[i] || u}](${u})`).join("\n");
+  const supports: any[] = cand?.groundingMetadata?.groundingSupports ?? [];
+  const evidence = chunks.map((c, i) => ({
+    n: i + 1,
+    title: c?.web?.title || "",
+    url: c?.web?.uri || "",
+  })).filter(e => e.url);
+
+  // ----- Hallucination guard: second pass that strips unsupported claims -----
+  // Only run if the user's question looks factual AND we have evidence to check against.
+  const lastUser = [...history].reverse().find(m => m.role === "user")?.text || "";
+  const looksFactual = /\b(who|what|when|where|how many|release|price|score|news|latest|today|yesterday|this week|version|date)\b/i.test(lastUser);
+
+  if (looksFactual && text) {
+    try {
+      const guardBody = {
+        systemInstruction: { role: "system", parts: [{ text:
+          "You are a strict fact-checker. You will receive (A) an assistant draft and (B) a list of evidence sources with titles + URLs. Rewrite the draft so that every concrete factual claim (dates, titles, names, numbers, quotes, releases, prices) is either supported by the evidence list (cite as [n]) OR removed and replaced with 'I couldn't verify that right now'. Do not add new facts. Preserve helpful tone and structure. If there is NO evidence at all and the question was factual, output exactly: \"I couldn't verify that right now — my search returned nothing usable. Want me to try a narrower query?\""
+        }] },
+        contents: [{ role: "user", parts: [{ text:
+          `EVIDENCE:\n${evidence.length ? evidence.map(e => `[${e.n}] ${e.title} — ${e.url}`).join("\n") : "(none)"}\n\nCURRENT DATE: ${new Date().toUTCString()}\n\nDRAFT:\n${text}`
+        }] }],
+        generationConfig: { temperature: 0.1, topP: 0.9 },
+      };
+      const gRes = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(guardBody) });
+      if (gRes.ok) {
+        const gj: any = await gRes.json();
+        const guarded = gj?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "";
+        if (guarded.trim()) text = guarded.trim();
+      }
+    } catch { /* fall through with original text */ }
   }
+
+  if (evidence.length) {
+    text += "\n\n**Sources:**\n" + evidence.slice(0, 6).map(e => `- [${e.n}] [${e.title || e.url}](${e.url})`).join("\n");
+  } else if (looksFactual) {
+    text += "\n\n_No web sources were returned for this answer — treat any specifics as uncertain._";
+  }
+
   if (!text) throw new Error("Empty response from Gemini.");
   return text;
 }
