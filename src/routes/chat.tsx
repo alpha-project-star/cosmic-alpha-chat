@@ -113,13 +113,13 @@ function ChatRoute() {
         )}
         {chat.map(m => (
           <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[85%] rounded-2xl px-4 py-2 ${
+            <div className={`max-w-[85%] min-w-0 rounded-2xl px-4 py-2 break-words [overflow-wrap:anywhere] ${
               m.role === "user" ? "bg-primary/20 border border-primary/40"
               : m.error ? "bg-destructive/15 border border-destructive/40 text-destructive-foreground"
               : "glass"
             }`}>
-              {m.images?.map((src, i) => <img key={i} src={src} className="rounded-lg max-h-48 mb-2" alt="" />)}
-              {m.role === "model" ? <MessageContent text={m.text} /> : <div className="whitespace-pre-wrap text-sm">{m.text}</div>}
+              {m.images?.map((src, i) => <img key={i} src={src} className="rounded-lg max-h-48 mb-2 max-w-full" alt="" />)}
+              {m.role === "model" ? <MessageContent text={m.text} /> : <div className="whitespace-pre-wrap text-sm break-words [overflow-wrap:anywhere]">{m.text}</div>}
             </div>
           </div>
         ))}
