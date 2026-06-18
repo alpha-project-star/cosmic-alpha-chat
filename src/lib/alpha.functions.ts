@@ -1,4 +1,5 @@
 import { alphaStore, type ChatMessage } from "./alpha-store";
+import { tryLocalIntent } from "./local-intents";
 
 function ctxSummary() {
   const s = alphaStore.get();
@@ -105,7 +106,13 @@ function getKey(): string {
 export async function sendChat(history: ChatMessage[]): Promise<string> {
   const key = getKey();
   if (!key) throw new Error("No Gemini API key set. Open Settings to paste your key.");
-  const model = alphaStore.get().settings.chatModel || "gemini-2.5-flash";
+  // Local intent shortcut so simple CRUD commands don't burn API credit
+  const lastUserMsg = [...history].reverse().find(m => m.role === "user");
+  if (lastUserMsg?.text && !lastUserMsg.images?.length) {
+    const local = tryLocalIntent(lastUserMsg.text);
+    if (local) return local;
+  }
+  const model = alphaStore.get().settings.chatModel || "gemini-2.5-pro";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
   const body = {
     systemInstruction: { role: "system", parts: [{ text: DEFAULT_SYSTEM(alphaStore.get().settings.personaExtra || "") }] },
@@ -131,30 +138,10 @@ export async function sendChat(history: ChatMessage[]): Promise<string> {
     url: c?.web?.uri || "",
   })).filter(e => e.url);
 
-  // ----- Hallucination guard: second pass that strips unsupported claims -----
-  // Only run if the user's question looks factual AND we have evidence to check against.
-  const lastUser = [...history].reverse().find(m => m.role === "user")?.text || "";
+  // NOTE: removed the second "fact-checker" pass — it doubled the API cost per
+  // user message. The system prompt already enforces evidence-only mode.
+  const lastUser = lastUserMsg?.text || "";
   const looksFactual = /\b(who|what|when|where|how many|release|price|score|news|latest|today|yesterday|this week|version|date)\b/i.test(lastUser);
-
-  if (looksFactual && text) {
-    try {
-      const guardBody = {
-        systemInstruction: { role: "system", parts: [{ text:
-          "You are a strict fact-checker. You will receive (A) an assistant draft and (B) a list of evidence sources with titles + URLs. Rewrite the draft so that every concrete factual claim (dates, titles, names, numbers, quotes, releases, prices) is either supported by the evidence list (cite as [n]) OR removed and replaced with 'I couldn't verify that right now'. Do not add new facts. Preserve helpful tone and structure. If there is NO evidence at all and the question was factual, output exactly: \"I couldn't verify that right now — my search returned nothing usable. Want me to try a narrower query?\""
-        }] },
-        contents: [{ role: "user", parts: [{ text:
-          `EVIDENCE:\n${evidence.length ? evidence.map(e => `[${e.n}] ${e.title} — ${e.url}`).join("\n") : "(none)"}\n\nCURRENT DATE: ${new Date().toUTCString()}\n\nDRAFT:\n${text}`
-        }] }],
-        generationConfig: { temperature: 0.1, topP: 0.9 },
-      };
-      const gRes = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(guardBody) });
-      if (gRes.ok) {
-        const gj: any = await gRes.json();
-        const guarded = gj?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "";
-        if (guarded.trim()) text = guarded.trim();
-      }
-    } catch { /* fall through with original text */ }
-  }
 
   if (evidence.length) {
     text += "\n\n**Sources:**\n" + evidence.slice(0, 6).map(e => `- [${e.n}] [${e.title || e.url}](${e.url})`).join("\n");
