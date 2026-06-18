@@ -204,3 +204,20 @@ function ChatRoute() {
     </div>
   );
 }
+
+function MessageActions({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="flex items-center gap-2 mt-2 opacity-70">
+      <button onClick={() => { prepareUtterance(); speakWith(text); }}
+        aria-label="Speak again" className="p-1.5 rounded-md hover:bg-primary/10">
+        <Volume2 className="w-4 h-4 text-primary" />
+      </button>
+      <button onClick={async () => {
+        try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {}
+      }} aria-label="Copy" className="p-1.5 rounded-md hover:bg-primary/10">
+        {copied ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4 text-primary" />}
+      </button>
+    </div>
+  );
+}
