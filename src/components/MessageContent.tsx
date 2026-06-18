@@ -17,9 +17,13 @@ export function MessageContent({ text }: { text: string }) {
   return (
     <div
       className="prose prose-invert prose-sm max-w-full w-full min-w-0 overflow-hidden break-words [overflow-wrap:anywhere] [word-break:break-word]
-        prose-headings:text-foreground prose-headings:font-semibold prose-h2:text-base prose-h3:text-sm
-        prose-p:my-2 prose-p:leading-relaxed prose-p:break-words
-        prose-li:my-1 prose-ul:my-2 prose-ol:my-2
+        prose-headings:text-foreground prose-headings:font-bold prose-headings:tracking-tight
+        prose-h1:text-xl prose-h1:mt-6 prose-h1:mb-3
+        prose-h2:text-lg prose-h2:mt-6 prose-h2:mb-3
+        prose-h3:text-base prose-h3:mt-5 prose-h3:mb-2
+        prose-p:my-3 prose-p:leading-7 prose-p:break-words
+        prose-li:my-1.5 prose-li:leading-7 prose-ul:my-3 prose-ol:my-3 prose-ul:pl-5 prose-ol:pl-5
+        prose-hr:my-5 prose-hr:border-primary/20
         prose-strong:text-primary
         prose-a:text-primary prose-a:underline prose-a:break-all
         prose-code:text-accent-foreground prose-code:bg-black/40 prose-code:px-1 prose-code:rounded
