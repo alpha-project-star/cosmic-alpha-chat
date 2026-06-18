@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Home } from "lucide-react";
+import { ArrowLeft, Check } from "lucide-react";
 import { alphaStore, useAlpha } from "../lib/alpha-store";
 import { listVoices, speakWith } from "../lib/voice";
 
@@ -27,6 +27,8 @@ const KOKORO_VOICES = [
 function SettingsRoute() {
   const s = useAlpha(x => x.settings);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [saved, setSaved] = useState(false);
+  const [kokoroStatus, setKokoroStatus] = useState<string>("");
   useEffect(() => {
     const update = () => setVoices(listVoices());
     update();
@@ -35,10 +37,31 @@ function SettingsRoute() {
     }
   }, []);
 
+  async function testKokoro() {
+    setKokoroStatus("Testing…");
+    const url = s.kokoroEndpoint.trim();
+    if (!url) { setKokoroStatus("⚠️ No endpoint set."); return; }
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: "Hello, this is Alpha.", text: "Hello, this is Alpha.", model: "kokoro", voice: s.kokoroVoice, response_format: "mp3", speed: s.ttsRate }),
+      });
+      if (!res.ok) { setKokoroStatus(`❌ HTTP ${res.status}. Check the URL & CORS on your Kokoro server.`); return; }
+      const blob = await res.blob();
+      if (!blob.size) { setKokoroStatus("❌ Empty audio returned."); return; }
+      const audio = new Audio(URL.createObjectURL(blob));
+      audio.play().catch(() => {});
+      setKokoroStatus(`✅ Kokoro is working (${(blob.size / 1024).toFixed(1)} KB).`);
+    } catch (e: any) {
+      setKokoroStatus(`❌ ${e?.message || "Fetch failed"}. Most likely CORS — your Kokoro server must allow this origin.`);
+    }
+  }
+
   return (
-    <div className="starfield min-h-screen">
+    <div className="starfield min-h-screen pb-24">
       <header className="p-3 flex items-center gap-3 glass border-b border-primary/20">
-        <Link to="/" className="p-1.5 rounded-full glass"><Home className="w-4 h-4 text-primary" /></Link>
+        <Link to="/" aria-label="Back" className="p-1.5 rounded-full glass neon-border"><ArrowLeft className="w-4 h-4 text-primary" /></Link>
         <span className="text-xs tracking-[0.4em] text-muted-foreground">SETTINGS</span>
       </header>
 
@@ -51,9 +74,11 @@ function SettingsRoute() {
         <Section title="Chat Model">
           <select value={s.chatModel} onChange={e => alphaStore.setSettings({ chatModel: e.target.value })}
             className="w-full bg-input rounded-md px-3 py-2 border border-border">
+            <option value="gemini-2.5-pro">gemini-2.5-pro (most powerful)</option>
             <option value="gemini-2.5-flash">gemini-2.5-flash (fast)</option>
-            <option value="gemini-2.5-pro">gemini-2.5-pro (strong)</option>
+            <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (cheapest)</option>
             <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+            <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp</option>
           </select>
         </Section>
 
@@ -69,8 +94,13 @@ function SettingsRoute() {
           <div className="text-xs text-muted-foreground mb-1">Rate ({s.ttsRate.toFixed(2)}x)</div>
           <input type="range" min={0.7} max={1.4} step={0.05} value={s.ttsRate}
             onChange={e => alphaStore.setSettings({ ttsRate: Number(e.target.value) })} className="w-full" />
-          <button onClick={() => speakWith("Mm — hi. This is Alpha. Voice check, one two.")}
-            className="mt-2 px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Test voice</button>
+          <div className="mt-2 flex gap-2 flex-wrap">
+            <button onClick={() => speakWith("Mm — hi. This is Alpha. Voice check, one two.")}
+              className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Test voice</button>
+            <button onClick={testKokoro}
+              className="px-3 py-1.5 text-sm rounded-md glass neon-border">Diagnose Kokoro</button>
+          </div>
+          {kokoroStatus && <div className="mt-2 text-xs break-words">{kokoroStatus}</div>}
         </Section>
 
         <Section title="Voice">
@@ -94,6 +124,17 @@ function SettingsRoute() {
           <textarea value={s.personaExtra} onChange={e => alphaStore.setSettings({ personaExtra: e.target.value })}
             className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[100px]" />
         </Section>
+      </div>
+
+      {/* Sticky Save bar — settings auto-save on each keystroke, but this gives
+          the user explicit confirmation. */}
+      <div className="fixed bottom-0 inset-x-0 z-30 glass border-t border-primary/30 p-3 flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">Changes save automatically.</span>
+        <button
+          onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 1500); }}
+          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold inline-flex items-center gap-2">
+          {saved ? <><Check className="w-4 h-4" /> Saved</> : "Save"}
+        </button>
       </div>
     </div>
   );
