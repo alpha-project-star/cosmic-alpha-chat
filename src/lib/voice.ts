@@ -50,10 +50,10 @@ export function prepareUtterance() {
 
 async function tryKokoro(text: string): Promise<HTMLAudioElement | null> {
   const { kokoroEndpoint, kokoroVoice } = alphaStore.get().settings;
-  if (!kokoroEndpoint) return null;
+  if (!kokoroEndpoint || !kokoroEndpoint.trim()) return null;
   try {
     // OpenAI-compatible Kokoro-FastAPI shape: POST /v1/audio/speech { input, voice, model }
-    const res = await fetch(kokoroEndpoint, {
+    const res = await fetch(kokoroEndpoint.trim(), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -62,13 +62,17 @@ async function tryKokoro(text: string): Promise<HTMLAudioElement | null> {
         response_format: "mp3", speed: alphaStore.get().settings.ttsRate || 1,
       }),
     });
-    if (!res.ok) throw new Error(`kokoro ${res.status}`);
+    if (!res.ok) throw new Error(`Kokoro HTTP ${res.status} — ${(await res.text().catch(() => "")).slice(0, 120)}`);
     const blob = await res.blob();
+    if (!blob.size) throw new Error("Kokoro returned empty audio");
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     return audio;
   } catch (e) {
-    console.warn("[voice] Kokoro failed, falling back to browser TTS", e);
+    console.warn("[voice] Kokoro failed, falling back to browser TTS:", e);
+    // Broadcast so the UI can surface why Kokoro isn't being used. Most common
+    // cause is CORS — the server must send Access-Control-Allow-Origin for this site.
+    try { window.dispatchEvent(new CustomEvent("kokoro-fail", { detail: String((e as any)?.message || e) })); } catch {}
     return null;
   }
 }
