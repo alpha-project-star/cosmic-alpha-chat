@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Mic, MicOff, Send, Sparkles, X, ArrowDown, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain, Settings as SettingsIcon, Grid3x3 } from "lucide-react";
+import { ImagePlus, Mic, MicOff, Send, Sparkles, X, ArrowDown, ArrowUp, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain, Settings as SettingsIcon, Grid3x3, Volume2, Copy, Check, ArrowLeft } from "lucide-react";
 import { alphaStore, uid, useAlpha } from "../lib/alpha-store";
 import { sendChat } from "../lib/alpha.functions";
 import { MessageContent } from "../components/MessageContent";
 import { recognizer, prepareUtterance, speakWith, stopSpeaking } from "../lib/voice";
 import { MiniOrb } from "../components/MiniOrb";
+import { tryLocalIntent } from "../lib/local-intents";
 
 export const Route = createFileRoute("/chat")({
   head: () => ({ meta: [{ title: "Alpha — Chat" }, { name: "description", content: "Talk with Alpha." }] }),
@@ -56,7 +57,9 @@ function ChatRoute() {
     alphaStore.appendChat({ id: uid(), role: "user", text: t, images: images.length ? images : undefined, ts: Date.now() });
     setText(""); setImages([]); setBusy(true);
     try {
-      const reply = await sendChat(alphaStore.get().chat);
+      // Local intents first (add reminder / note / memory / delete X / ...) — no API call
+      const local = t ? tryLocalIntent(t) : null;
+      const reply = local ?? await sendChat(alphaStore.get().chat);
       alphaStore.appendChat({ id: uid(), role: "model", text: reply, ts: Date.now() });
       speakWith(reply);
     } catch (e: any) {
@@ -89,17 +92,17 @@ function ChatRoute() {
 
   return (
     <div className="starfield min-h-screen flex flex-col overflow-x-hidden w-full max-w-full">
-      <header className="glass border-b border-primary/20">
-        <div className="flex items-center justify-between px-3 py-2 relative">
-          <Link to="/" className="flex items-center gap-2 min-w-0">
-            <span className="text-xs tracking-[0.4em] text-muted-foreground">ALPHA</span>
+      <header className="glass border-b border-primary/20 sticky top-0 z-30">
+        <div className="flex items-center justify-between gap-2 px-3 py-3 relative">
+          <Link to="/" aria-label="Back" className="p-1.5 rounded-full glass neon-border shrink-0">
+            <ArrowLeft className="w-4 h-4 text-primary" />
           </Link>
-          <div className="absolute left-1/2 -translate-x-1/2"><MiniOrb /></div>
-          <button onClick={() => alphaStore.clearChat()} className="text-xs text-muted-foreground shrink-0">Clear</button>
+          <div className="flex-1 flex items-center justify-center"><MiniOrb size={56} /></div>
+          <button onClick={() => alphaStore.clearChat()} className="text-xs text-muted-foreground shrink-0 px-2">Clear</button>
         </div>
       </header>
 
-      <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-3 relative w-full max-w-full">
+      <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-4 relative w-full max-w-full">
         {chat.length === 0 && (
           <div className="text-center text-muted-foreground text-sm mt-20">
             <Sparkles className="w-6 h-6 mx-auto mb-2 text-primary" /> Say something or type to begin.
@@ -128,18 +131,25 @@ function ChatRoute() {
             <div key={m.id} className="w-full min-w-0 overflow-hidden px-1 py-2 break-words [overflow-wrap:anywhere] [word-break:break-word]">
               {m.images?.map((src, i) => <img key={i} src={src} className="rounded-lg max-h-60 mb-2 max-w-full" alt="" />)}
               <MessageContent text={m.text} />
+              <MessageActions text={m.text} />
             </div>
           );
         })}
         {busy && <div className="text-xs text-muted-foreground text-center">Alpha is thinking…</div>}
       </div>
 
-      {showJump && (
-        <button onClick={() => scrollToBottom(true)}
-          className="fixed bottom-28 right-4 z-20 glass rounded-full p-2 neon-border active:scale-95">
-          <ArrowDown className="w-4 h-4 text-primary" />
+      <div className="fixed bottom-28 right-4 z-20 flex flex-col gap-2">
+        <button onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
+          className="glass rounded-full p-2 neon-border active:scale-95 opacity-80">
+          <ArrowUp className="w-4 h-4 text-primary" />
         </button>
-      )}
+        {showJump && (
+          <button onClick={() => scrollToBottom(true)}
+            className="glass rounded-full p-2 neon-border active:scale-95">
+            <ArrowDown className="w-4 h-4 text-primary" />
+          </button>
+        )}
+      </div>
 
       {images.length > 0 && (
         <div className="px-3 pb-2 flex gap-2 overflow-x-auto">
@@ -153,7 +163,7 @@ function ChatRoute() {
         </div>
       )}
 
-      <div className="p-3 glass border-t border-primary/20 relative">
+      <div className="p-3 glass border-t border-primary/20 relative sticky bottom-0 z-20">
         {toolsOpen && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setToolsOpen(false)} />
