@@ -53,7 +53,7 @@ const K = {
 
 const DEFAULT_SETTINGS: Settings = {
   geminiApiKey: "",
-  chatModel: "gemini-2.5-flash",
+  chatModel: "gemini-2.5-pro",
   voiceEnabled: true,
   continuousListen: true,
   preferredVoice: "",
