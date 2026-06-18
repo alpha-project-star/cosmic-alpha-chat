@@ -16,16 +16,18 @@ function prettyHost(url: string): string {
 export function MessageContent({ text }: { text: string }) {
   return (
     <div
-      className="prose prose-invert prose-sm max-w-full w-full min-w-0 overflow-hidden break-words [overflow-wrap:anywhere] [word-break:break-word]
+      className="prose prose-invert prose-base max-w-full w-full min-w-0 overflow-hidden break-words [overflow-wrap:anywhere] [word-break:break-word]
         prose-headings:text-foreground prose-headings:font-bold prose-headings:tracking-tight
-        prose-h1:text-xl prose-h1:mt-6 prose-h1:mb-3
-        prose-h2:text-lg prose-h2:mt-6 prose-h2:mb-3
-        prose-h3:text-base prose-h3:mt-5 prose-h3:mb-2
-        prose-p:my-3 prose-p:leading-7 prose-p:break-words
-        prose-li:my-1.5 prose-li:leading-7 prose-ul:my-3 prose-ol:my-3 prose-ul:pl-5 prose-ol:pl-5
-        prose-hr:my-5 prose-hr:border-primary/20
-        prose-strong:text-primary
+        prose-h1:text-2xl prose-h1:mt-8 prose-h1:mb-4 prose-h1:leading-tight
+        prose-h2:text-xl prose-h2:mt-7 prose-h2:mb-3 prose-h2:leading-tight
+        prose-h3:text-lg prose-h3:mt-6 prose-h3:mb-2
+        prose-p:my-4 prose-p:leading-7 prose-p:break-words
+        prose-li:my-2 prose-li:leading-7 prose-li:marker:text-primary/70
+        prose-ul:my-4 prose-ol:my-4 prose-ul:pl-6 prose-ol:pl-6
+        prose-hr:my-6 prose-hr:border-primary/20
+        prose-strong:text-foreground prose-strong:font-semibold
         prose-a:text-primary prose-a:underline prose-a:break-all
+        prose-blockquote:border-l-primary/40 prose-blockquote:text-muted-foreground prose-blockquote:my-4
         prose-code:text-accent-foreground prose-code:bg-black/40 prose-code:px-1 prose-code:rounded
         prose-pre:bg-black/60 prose-pre:border prose-pre:border-primary/30 prose-pre:overflow-x-auto prose-pre:max-w-full prose-pre:whitespace-pre-wrap
         prose-th:border prose-th:border-primary/30 prose-th:px-2 prose-th:py-1
