@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SimpleCrud } from "../components/SimpleCrud";
 import { alphaStore, uid, useAlpha, type Bill } from "../lib/alpha-store";
-import { Home } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/bills")({
   head: () => ({ meta: [{ title: "Alpha — Bills" }, { name: "description", content: "Track bills & balances." }] }),
@@ -15,7 +15,7 @@ function BillsRoute() {
     <div className="starfield min-h-screen">
       <header className="p-3 flex items-center justify-between glass border-b border-primary/20">
         <div className="flex items-center gap-3">
-          <Link to="/" className="p-1.5 rounded-full glass"><Home className="w-4 h-4 text-primary" /></Link>
+          <Link to="/" className="p-1.5 rounded-full glass"><ArrowLeft className="w-4 h-4 text-primary" /></Link>
           <span className="font-semibold neon-text">Ledger</span>
         </div>
         <span className="text-sm text-muted-foreground">Outstanding: <span className="text-primary font-semibold">${total.toFixed(2)}</span></span>
