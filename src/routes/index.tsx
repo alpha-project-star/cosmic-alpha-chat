@@ -6,7 +6,7 @@ import { recognizer, prepareUtterance, speakWith, stopSpeaking, speakingState } 
 import { parseIntent } from "../lib/voice-router";
 import { sendChat } from "../lib/alpha.functions";
 import { alphaStore, uid, useAlpha } from "../lib/alpha-store";
-import { Mic, MicOff, Settings as SettingsIcon } from "lucide-react";
+import { Mic, MicOff, Settings as SettingsIcon, MessageSquare } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -46,6 +46,9 @@ function OrbHome() {
 
     thinkingRef.current = true;
     setStatus("Thinking…");
+    // Suspend mic while thinking so Alpha doesn't hear ambient noise / its own pre-speech
+    const wasListening = recognizer.isWanted;
+    if (wasListening) recognizer.suspend();
     alphaStore.appendChat({ id: uid(), role: "user", text, ts: Date.now() });
     try {
       const reply = await sendChat(alphaStore.get().chat);
@@ -57,7 +60,11 @@ function OrbHome() {
       const msg = e?.message || "Error";
       alphaStore.appendChat({ id: uid(), role: "system", text: msg, ts: Date.now(), error: true });
       setStatus(msg.slice(0, 80));
-    } finally { thinkingRef.current = false; }
+    } finally {
+      thinkingRef.current = false;
+      // Give a small grace window then resume listening
+      if (wasListening) setTimeout(() => { if (recognizer.isWanted) recognizer.resume(); }, 500);
+    }
   }
 
   async function toggleMic() {
@@ -79,6 +86,11 @@ function OrbHome() {
       <div className="absolute top-4 right-4">
         <Link to="/settings" className="glass rounded-full p-2 inline-flex"><SettingsIcon className="w-5 h-5 text-primary" /></Link>
       </div>
+      <div className="absolute top-4 left-4">
+        <Link to="/chat" className="glass rounded-full p-2 inline-flex" aria-label="Open chat">
+          <MessageSquare className="w-5 h-5 text-primary" />
+        </Link>
+      </div>
       <h1 className="text-xs tracking-[0.5em] text-muted-foreground mb-8">ALPHA</h1>
 
       <div onClick={toggleMic} className="cursor-pointer select-none">
@@ -92,6 +104,9 @@ function OrbHome() {
         <button onClick={toggleMic} className="glass rounded-full p-4 neon-border">
           {active ? <MicOff className="w-6 h-6 text-primary" /> : <Mic className="w-6 h-6 text-primary" />}
         </button>
+        <Link to="/chat" className="ml-4 glass rounded-full px-4 py-3 inline-flex items-center gap-2 text-sm">
+          <MessageSquare className="w-4 h-4 text-primary" /> Chat
+        </Link>
       </div>
 
       <div className="mt-8 max-w-sm text-center text-[11px] leading-relaxed text-muted-foreground/70 italic space-y-1">

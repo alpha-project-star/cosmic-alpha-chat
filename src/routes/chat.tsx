@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Mic, MicOff, Send, Sparkles, X, ArrowDown, MessageSquare, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain, Settings as SettingsIcon } from "lucide-react";
+import { ImagePlus, Mic, MicOff, Send, Sparkles, X, ArrowDown, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain, Settings as SettingsIcon, Grid3x3 } from "lucide-react";
 import { alphaStore, uid, useAlpha } from "../lib/alpha-store";
 import { sendChat } from "../lib/alpha.functions";
 import { MessageContent } from "../components/MessageContent";
@@ -32,6 +32,7 @@ function ChatRoute() {
   const [micError, setMicError] = useState("");
   const [showJump, setShowJump] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   function scrollToBottom(smooth = true) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: smooth ? "smooth" : "auto" });
@@ -94,15 +95,8 @@ function ChatRoute() {
             <span className="text-xs tracking-[0.4em] text-muted-foreground">ALPHA</span>
           </Link>
           <div className="absolute left-1/2 -translate-x-1/2"><MiniOrb /></div>
-          <button onClick={() => alphaStore.clearChat()} className="text-xs text-muted-foreground">Clear</button>
+          <button onClick={() => alphaStore.clearChat()} className="text-xs text-muted-foreground shrink-0">Clear</button>
         </div>
-        <nav className="flex gap-1 overflow-x-auto px-2 pb-2 no-scrollbar">
-          {NAV.map(({ to, icon: Icon, label }) => (
-            <Link key={to} to={to as any} className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full glass text-xs text-foreground/80 active:scale-95">
-              <Icon className="w-3.5 h-3.5 text-primary" /> {label}
-            </Link>
-          ))}
-        </nav>
       </header>
 
       <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-3 relative w-full max-w-full">
@@ -111,18 +105,32 @@ function ChatRoute() {
             <Sparkles className="w-6 h-6 mx-auto mb-2 text-primary" /> Say something or type to begin.
           </div>
         )}
-        {chat.map(m => (
-          <div key={m.id} className={`flex w-full min-w-0 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[85%] min-w-0 overflow-hidden rounded-2xl px-4 py-2 break-words [overflow-wrap:anywhere] [word-break:break-word] ${
-              m.role === "user" ? "bg-primary/20 border border-primary/40"
-              : m.error ? "bg-destructive/15 border border-destructive/40 text-destructive-foreground"
-              : "glass"
-            }`}>
-              {m.images?.map((src, i) => <img key={i} src={src} className="rounded-lg max-h-48 mb-2 max-w-full" alt="" />)}
-              {m.role === "model" ? <MessageContent text={m.text} /> : <div className="whitespace-pre-wrap text-sm break-words [overflow-wrap:anywhere]">{m.text}</div>}
+        {chat.map(m => {
+          if (m.role === "user") {
+            return (
+              <div key={m.id} className="flex w-full min-w-0 justify-end">
+                <div className="max-w-[85%] min-w-0 overflow-hidden rounded-2xl px-4 py-2 bg-primary/20 border border-primary/40 break-words [overflow-wrap:anywhere] [word-break:break-word]">
+                  {m.images?.map((src, i) => <img key={i} src={src} className="rounded-lg max-h-48 mb-2 max-w-full" alt="" />)}
+                  <div className="whitespace-pre-wrap text-sm break-words [overflow-wrap:anywhere]">{m.text}</div>
+                </div>
+              </div>
+            );
+          }
+          if (m.error) {
+            return (
+              <div key={m.id} className="w-full min-w-0 rounded-xl px-3 py-2 bg-destructive/15 border border-destructive/40 text-destructive-foreground text-sm break-words [overflow-wrap:anywhere]">
+                {m.text}
+              </div>
+            );
+          }
+          // assistant: NO bubble — full width like ChatGPT/Gemini
+          return (
+            <div key={m.id} className="w-full min-w-0 overflow-hidden px-1 py-2 break-words [overflow-wrap:anywhere] [word-break:break-word]">
+              {m.images?.map((src, i) => <img key={i} src={src} className="rounded-lg max-h-60 mb-2 max-w-full" alt="" />)}
+              <MessageContent text={m.text} />
             </div>
-          </div>
-        ))}
+          );
+        })}
         {busy && <div className="text-xs text-muted-foreground text-center">Alpha is thinking…</div>}
       </div>
 
@@ -145,9 +153,26 @@ function ChatRoute() {
         </div>
       )}
 
-      <div className="p-3 glass border-t border-primary/20">
+      <div className="p-3 glass border-t border-primary/20 relative">
+        {toolsOpen && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setToolsOpen(false)} />
+            <div className="absolute bottom-full left-2 right-2 mb-2 z-20 glass neon-border rounded-2xl p-2 grid grid-cols-4 gap-2">
+              {NAV.map(({ to, icon: Icon, label }) => (
+                <Link key={to} to={to as any} onClick={() => setToolsOpen(false)}
+                  className="flex flex-col items-center gap-1 px-2 py-2 rounded-xl bg-background/40 active:scale-95">
+                  <Icon className="w-5 h-5 text-primary" />
+                  <span className="text-[10px] text-foreground/80">{label}</span>
+                </Link>
+              ))}
+            </div>
+          </>
+        )}
         {micError && <div className="mb-2 text-xs text-destructive">{micError}</div>}
         <div className="flex items-end gap-2">
+          <button onClick={() => setToolsOpen(v => !v)} className="p-2 rounded-lg glass" aria-label="Tools">
+            <Grid3x3 className="w-5 h-5 text-primary" />
+          </button>
           <label className="cursor-pointer p-2 rounded-lg glass">
             <ImagePlus className="w-5 h-5 text-primary" />
             <input type="file" accept="image/*" multiple hidden onChange={e => pickImages(e.target.files)} />
