@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Home, Wand2 } from "lucide-react";
+import { ArrowLeft, Wand2 } from "lucide-react";
 import { generateImage } from "../lib/alpha.functions";
 
 export const Route = createFileRoute("/image")({
@@ -28,7 +28,7 @@ function ImageRoute() {
   return (
     <div className="starfield min-h-screen">
       <header className="p-3 flex items-center gap-3 glass border-b border-primary/20">
-        <Link to="/" className="p-1.5 rounded-full glass"><Home className="w-4 h-4 text-primary" /></Link>
+        <Link to="/" className="p-1.5 rounded-full glass"><ArrowLeft className="w-4 h-4 text-primary" /></Link>
         <span className="font-semibold neon-text">Image Studio</span>
       </header>
       <div className="p-4 max-w-xl mx-auto space-y-4">

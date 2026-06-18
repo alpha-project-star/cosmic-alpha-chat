@@ -14,6 +14,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import "katex/dist/katex.min.css";
 import { AlphaLock } from "../components/AlphaLock";
 import alphaAvatar from "../assets/alpha-avatar.png.asset.json";
+import { GlobalDock } from "../components/GlobalDock";
 
 function NotFoundComponent() {
   return (
@@ -131,6 +132,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AlphaLock>
         <Outlet />
+        <GlobalDock />
       </AlphaLock>
     </QueryClientProvider>
   );

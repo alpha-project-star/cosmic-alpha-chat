@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Home } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { SimpleCrud } from "../components/SimpleCrud";
 import { alphaStore, uid, useAlpha, type Plan } from "../lib/alpha-store";
 
@@ -13,7 +13,7 @@ function PlansRoute() {
   return (
     <div className="starfield min-h-screen">
       <header className="p-3 flex items-center gap-3 glass border-b border-primary/20">
-        <Link to="/" className="p-1.5 rounded-full glass"><Home className="w-4 h-4 text-primary" /></Link>
+        <Link to="/" className="p-1.5 rounded-full glass"><ArrowLeft className="w-4 h-4 text-primary" /></Link>
         <span className="text-xs tracking-[0.4em] text-muted-foreground">PLANS</span>
       </header>
       <SimpleCrud<Plan>

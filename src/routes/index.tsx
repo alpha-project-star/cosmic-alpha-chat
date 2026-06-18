@@ -5,8 +5,9 @@ import { LiveTranscript } from "../components/LiveTranscript";
 import { recognizer, prepareUtterance, speakWith, stopSpeaking, speakingState } from "../lib/voice";
 import { parseIntent } from "../lib/voice-router";
 import { sendChat } from "../lib/alpha.functions";
+import { tryLocalIntent } from "../lib/local-intents";
 import { alphaStore, uid, useAlpha } from "../lib/alpha-store";
-import { Mic, MicOff, Settings as SettingsIcon, MessageSquare } from "lucide-react";
+import { Settings as SettingsIcon, MessageSquare, Grid3x3, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -29,6 +30,7 @@ function OrbHome() {
   const hasKey = useAlpha(s => !!s.settings.geminiApiKey);
   const thinkingRef = useRef(false);
   const [speaking, setSpeaking] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   useEffect(() => speakingState.sub(setSpeaking), []);
   useEffect(() => () => { recognizer.dispose(); stopSpeaking(); }, []);
@@ -42,6 +44,17 @@ function OrbHome() {
       return;
     }
     if (intent.kind === "stop") { recognizer.stop(); setActive(false); setStatus("Paused"); return; }
+
+    // Local CRUD intents (add reminder / note / memory etc) — no API call
+    const local = tryLocalIntent(text);
+    if (local) {
+      alphaStore.appendChat({ id: uid(), role: "user", text, ts: Date.now() });
+      alphaStore.appendChat({ id: uid(), role: "model", text: local, ts: Date.now() });
+      setStatus("Speaking…"); await speakWith(local);
+      setStatus(recognizer.isWanted ? "Listening…" : "Tap the orb to begin");
+      return;
+    }
+
     if (!hasKey) { setStatus("No API key — opening settings"); router.navigate({ to: "/settings" }); return; }
 
     thinkingRef.current = true;
@@ -83,13 +96,36 @@ function OrbHome() {
 
   return (
     <div className="starfield min-h-screen flex flex-col items-center px-4 pt-10 pb-12 relative overflow-hidden">
-      <div className="absolute top-4 right-4">
-        <Link to="/settings" className="glass rounded-full p-2 inline-flex"><SettingsIcon className="w-5 h-5 text-primary" /></Link>
+      <div className="absolute top-4 right-4 z-10">
+        <Link to="/settings" aria-label="Settings" className="glass rounded-full p-2 inline-flex"><SettingsIcon className="w-5 h-5 text-primary" /></Link>
       </div>
-      <div className="absolute top-4 left-4">
-        <Link to="/chat" className="glass rounded-full p-2 inline-flex" aria-label="Open chat">
-          <MessageSquare className="w-5 h-5 text-primary" />
-        </Link>
+      <div className="absolute top-4 left-4 z-10">
+        <button onClick={() => setToolsOpen(v => !v)} aria-label="Tools" className="glass rounded-full p-2 inline-flex neon-border">
+          <Grid3x3 className="w-5 h-5 text-primary" />
+        </button>
+        {toolsOpen && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setToolsOpen(false)} />
+            <div className="absolute top-12 left-0 z-20 glass neon-border rounded-2xl p-2 grid grid-cols-3 gap-2 w-60">
+              {[
+                { to: "/chat", icon: MessageSquare, label: "Chat" },
+                { to: "/notes", icon: NotebookPen, label: "Notes" },
+                { to: "/bills", icon: Wallet, label: "Bills" },
+                { to: "/image", icon: ImageIcon, label: "Image" },
+                { to: "/reminders", icon: Bell, label: "Reminders" },
+                { to: "/plans", icon: Map, label: "Plans" },
+                { to: "/memories", icon: Brain, label: "Memories" },
+                { to: "/settings", icon: SettingsIcon, label: "Settings" },
+              ].map(({ to, icon: Icon, label }) => (
+                <Link key={to} to={to as any} onClick={() => setToolsOpen(false)}
+                  className="flex flex-col items-center gap-1 px-2 py-2 rounded-xl bg-background/40 active:scale-95">
+                  <Icon className="w-5 h-5 text-primary" />
+                  <span className="text-[10px] text-foreground/80">{label}</span>
+                </Link>
+              ))}
+            </div>
+          </>
+        )}
       </div>
       <h1 className="text-xs tracking-[0.5em] text-muted-foreground mb-8">ALPHA</h1>
 
@@ -101,11 +137,8 @@ function OrbHome() {
       {micError && <div className="mt-2 text-xs text-destructive">{micError}</div>}
 
       <div className="flex items-center justify-center mt-6">
-        <button onClick={toggleMic} className="glass rounded-full p-4 neon-border">
-          {active ? <MicOff className="w-6 h-6 text-primary" /> : <Mic className="w-6 h-6 text-primary" />}
-        </button>
-        <Link to="/chat" className="ml-4 glass rounded-full px-4 py-3 inline-flex items-center gap-2 text-sm">
-          <MessageSquare className="w-4 h-4 text-primary" /> Chat
+        <Link to="/chat" aria-label="Open chat" className="glass rounded-full p-4 neon-border inline-flex">
+          <MessageSquare className="w-6 h-6 text-primary" />
         </Link>
       </div>
 
