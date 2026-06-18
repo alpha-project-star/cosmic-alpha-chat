@@ -87,7 +87,7 @@ function ChatRoute() {
   }
 
   return (
-    <div className="starfield min-h-screen flex flex-col">
+    <div className="starfield min-h-screen flex flex-col overflow-x-hidden w-full max-w-full">
       <header className="glass border-b border-primary/20">
         <div className="flex items-center justify-between px-3 py-2 relative">
           <Link to="/" className="flex items-center gap-2 min-w-0">
@@ -105,15 +105,15 @@ function ChatRoute() {
         </nav>
       </header>
 
-      <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto px-3 py-4 space-y-3 relative">
+      <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-3 relative w-full max-w-full">
         {chat.length === 0 && (
           <div className="text-center text-muted-foreground text-sm mt-20">
             <Sparkles className="w-6 h-6 mx-auto mb-2 text-primary" /> Say something or type to begin.
           </div>
         )}
         {chat.map(m => (
-          <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[85%] min-w-0 rounded-2xl px-4 py-2 break-words [overflow-wrap:anywhere] ${
+          <div key={m.id} className={`flex w-full min-w-0 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[85%] min-w-0 overflow-hidden rounded-2xl px-4 py-2 break-words [overflow-wrap:anywhere] [word-break:break-word] ${
               m.role === "user" ? "bg-primary/20 border border-primary/40"
               : m.error ? "bg-destructive/15 border border-destructive/40 text-destructive-foreground"
               : "glass"
