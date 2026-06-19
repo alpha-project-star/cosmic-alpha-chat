@@ -1,4 +1,4 @@
-import { alphaStore, type ChatMessage } from "./alpha-store";
+import { alphaStore, uid, type ChatMessage } from "./alpha-store";
 import { tryLocalIntent } from "./local-intents";
 
 function ctxSummary() {
@@ -81,6 +81,16 @@ CONVERSATION AWARENESS:
 - If they correct you, acknowledge in one short line, then give the corrected answer — never double down.
 
 If a topic is safety-blocked, recover gracefully with a helpful alternative — never refuse flatly.
+
+TOOL ACTIONS — when the user asks you to add / save / store / remove anything in their data, you MUST emit one or more action tags inline in your reply. The app will execute them and confirm to the user.
+Use EXACTLY these formats, each on its own line:
+[[ADD_NOTE: title | body]]
+[[ADD_REMINDER: title | when]]
+[[ADD_MEMORY: topic | detail]]
+[[ADD_PLAN: title | from | to | date]]
+[[ADD_BILL: name | amount | dueDate]]
+[[DELETE_LAST: note|reminder|memory|plan|bill]]
+Always include the tag whenever a CRUD action is requested. Never say "I've added it" without emitting the tag.
 ${extra ? "\nUser personalisation:\n" + extra : ""}`;
 
 type GeminiPart = { text?: string } | { inlineData: { mimeType: string; data: string } };
@@ -150,7 +160,57 @@ export async function sendChat(history: ChatMessage[]): Promise<string> {
   }
 
   if (!text) throw new Error("Empty response from Gemini.");
-  return text;
+  return executeActionTags(text);
+}
+
+function executeActionTags(text: string): string {
+  const actions: string[] = [];
+  const apply = (re: RegExp, fn: (m: RegExpExecArray) => string | null) => {
+    text = text.replace(re, (_full, ...args) => {
+      const m = [_full, ...args] as unknown as RegExpExecArray;
+      const note = fn(m);
+      if (note) actions.push(note);
+      return "";
+    });
+  };
+  apply(/\[\[ADD_NOTE:\s*([^|\]]+?)\s*\|\s*([^\]]+?)\s*\]\]/gi, (m) => {
+    alphaStore.upsertNote({ id: uid(), title: m[1].trim().slice(0, 60), body: m[2].trim(), updatedAt: Date.now() });
+    return `📝 Note added: "${m[1].trim()}"`;
+  });
+  apply(/\[\[ADD_REMINDER:\s*([^|\]]+?)\s*\|\s*([^\]]+?)\s*\]\]/gi, (m) => {
+    alphaStore.upsertReminder({ id: uid(), title: m[1].trim(), when: m[2].trim(), notes: "", done: "no" });
+    return `⏰ Reminder added: "${m[1].trim()}" — ${m[2].trim()}`;
+  });
+  apply(/\[\[ADD_MEMORY:\s*([^|\]]+?)\s*\|\s*([^\]]+?)\s*\]\]/gi, (m) => {
+    alphaStore.upsertMemory({ id: uid(), topic: m[1].trim().slice(0, 60), detail: m[2].trim(), updatedAt: Date.now() });
+    return `🧠 Memory saved: "${m[1].trim()}"`;
+  });
+  apply(/\[\[ADD_PLAN:\s*([^|\]]+?)\s*\|\s*([^|\]]*?)\s*\|\s*([^|\]]*?)\s*\|\s*([^\]]*?)\s*\]\]/gi, (m) => {
+    alphaStore.upsertPlan({ id: uid(), title: m[1].trim(), from: m[2].trim(), to: m[3].trim(), date: m[4].trim(), details: "" });
+    return `🗺 Plan added: "${m[1].trim()}"`;
+  });
+  apply(/\[\[ADD_BILL:\s*([^|\]]+?)\s*\|\s*([^|\]]*?)\s*\|\s*([^\]]*?)\s*\]\]/gi, (m) => {
+    const amt = Number(m[2].trim().replace(/[^\d.]/g, "")) || 0;
+    alphaStore.upsertBill({ id: uid(), name: m[1].trim(), amount: amt, balance: amt, dueDate: m[3].trim(), status: "due" });
+    return `💳 Bill added: "${m[1].trim()}"${amt ? ` — $${amt}` : ""}`;
+  });
+  apply(/\[\[DELETE_LAST:\s*(note|reminder|memory|plan|bill)\s*\]\]/gi, (m) => {
+    const kind = m[1].toLowerCase();
+    const s = alphaStore.get();
+    const map: Record<string, { list: any[]; del: (id: string) => void }> = {
+      note: { list: s.notes, del: alphaStore.deleteNote },
+      reminder: { list: s.reminders, del: alphaStore.deleteReminder },
+      memory: { list: s.memories, del: alphaStore.deleteMemory },
+      plan: { list: s.plans, del: alphaStore.deletePlan },
+      bill: { list: s.bills, del: alphaStore.deleteBill },
+    };
+    const e = map[kind]; if (e?.list[0]) { e.del(e.list[0].id); return `🗑 Deleted last ${kind}.`; }
+    return `No ${kind}s to delete.`;
+  });
+  if (actions.length) {
+    text = text.trim() + (text.trim() ? "\n\n" : "") + actions.join("\n");
+  }
+  return text.trim();
 }
 
 export async function generateImage(prompt: string): Promise<{ dataUrl: string; via: "gemini" }> {
