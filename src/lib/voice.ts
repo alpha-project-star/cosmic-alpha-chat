@@ -225,6 +225,7 @@ export async function speakWith(text: string): Promise<void> {
 }
 
 export function stopSpeaking() {
+  speakToken++;
   try { window.speechSynthesis?.cancel(); } catch {}
   if (currentAudio) { try { currentAudio.pause(); } catch {} currentAudio = null; }
   currentUtter = null;
