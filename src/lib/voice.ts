@@ -22,6 +22,10 @@ let cachedVoice: SpeechSynthesisVoice | null = null;
 let currentAudio: HTMLAudioElement | null = null;
 let currentUtter: SpeechSynthesisUtterance | null = null;
 let unlockUtter: SpeechSynthesisUtterance | null = null;
+let audioUnlocked = false;
+// Tiny silent WAV (~0.05s) to unlock <audio> playback inside a user gesture.
+const SILENT_WAV =
+  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 
 function pickVoice(): SpeechSynthesisVoice | null {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return null;
@@ -45,6 +49,16 @@ export function prepareUtterance() {
     unlockUtter = new SpeechSynthesisUtterance("");
     if (cachedVoice) { unlockUtter.voice = cachedVoice; unlockUtter.lang = cachedVoice.lang; }
     try { window.speechSynthesis.cancel(); } catch {}
+  }
+  // Unlock <audio> playback for later Kokoro fetches (Android/iOS gesture rule)
+  if (!audioUnlocked) {
+    try {
+      const a = new Audio(SILENT_WAV);
+      a.volume = 0;
+      const p = a.play();
+      if (p && typeof p.then === "function") p.then(() => { audioUnlocked = true; }).catch(() => {});
+      else audioUnlocked = true;
+    } catch {}
   }
 }
 
@@ -130,12 +144,18 @@ export async function speakWith(text: string): Promise<void> {
     const audio = await tryKokoro(clean);
     if (audio) {
       currentAudio = audio;
+      let played = false;
       await new Promise<void>(resolve => {
         audio.onended = () => resolve();
         audio.onerror = () => resolve();
-        audio.play().catch(() => resolve());
+        const p = audio.play();
+        if (p && typeof p.then === "function") {
+          p.then(() => { played = true; }).catch(() => resolve());
+        } else { played = true; }
       });
       currentAudio = null;
+      // If autoplay was blocked (lost gesture after fetch), fall back to browser TTS
+      if (!played) await browserSpeak(clean);
     } else {
       await browserSpeak(clean);
     }

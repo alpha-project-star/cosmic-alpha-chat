@@ -17,20 +17,22 @@ export function tryLocalIntent(raw: string): string | null {
     return `Done — reminder added: "${title}"${when ? " at " + when : ""}.`;
   }
 
-  // Add note: "take a note: X" / "note that X" / "add a note X"
-  m = lower.match(/(?:take a note(?:[:,])?|note that|add (?:a )?note(?:[:,])?)\s+(.+)$/);
+  // Add note — broad: "take a note: X", "note that X", "add a note X",
+  // "add to (my) notes X", "save (this) to (my) notes X", "save a note X",
+  // "jot down X", "write down X", "make a note X", "new note X"
+  m = lower.match(/(?:take a note(?:[:,])?|note that|add (?:a )?note(?:[:,])?|add (?:this )?to (?:my )?notes(?:[:,])?|save (?:this )?(?:to (?:my )?notes|a note)(?:[:,])?|save note(?:[:,])?|jot (?:this )?down(?:[:,])?|write (?:this )?down(?:[:,])?|make (?:a )?note(?:[:,])?|new note(?:[:,])?)\s+(.+)$/);
   if (m) {
-    const body = trim(m[1]);
+    const body = trim(m[m.length - 1]);
     alphaStore.upsertNote({ id: uid(), title: body.slice(0, 40), body, updatedAt: Date.now() });
-    return `Got it — note saved.`;
+    return `Got it — note saved: "${body.slice(0, 60)}".`;
   }
 
-  // Memory: "remember that X" / "save a memory about X"
-  m = lower.match(/(?:remember(?: that)?|save (?:a )?memory(?: about)?)\s+(.+)$/);
+  // Memory: "remember that X" / "save a memory about X" / "store in memory X" / "keep in mind X"
+  m = lower.match(/(?:remember(?: that)?|save (?:a )?memory(?: about)?|store (?:this )?(?:in (?:my )?memory|to memory)|keep (?:this )?in mind(?:[:,])?|add (?:this )?to (?:my )?memor(?:y|ies)(?:[:,])?)\s+(.+)$/);
   if (m) {
-    const detail = trim(m[1]);
+    const detail = trim(m[m.length - 1]);
     alphaStore.upsertMemory({ id: uid(), topic: detail.slice(0, 40), detail, updatedAt: Date.now() });
-    return `Stored to memory.`;
+    return `Stored to memory: "${detail.slice(0, 60)}".`;
   }
 
   // Plan: "plan a trip from X to Y on Z" / "add a plan X"
