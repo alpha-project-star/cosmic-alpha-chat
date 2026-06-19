@@ -110,6 +110,28 @@ async function tryKokoro(text: string): Promise<HTMLAudioElement | null> {
   }
 }
 
+/** Split text into short chunks (≤220 chars) at sentence boundaries for low-latency streaming TTS. */
+function chunkForTTS(text: string, maxLen = 220): string[] {
+  const out: string[] = [];
+  const sentences = text.match(/[^.!?\n]+[.!?]+|[^.!?\n]+$/g) ?? [text];
+  let buf = "";
+  for (const s of sentences) {
+    const t = s.trim();
+    if (!t) continue;
+    if (t.length > maxLen) {
+      if (buf) { out.push(buf); buf = ""; }
+      // hard-split very long sentences on commas/spaces
+      const parts = t.match(new RegExp(`.{1,${maxLen}}(\\s|,|;|:|$)`, "g")) ?? [t];
+      for (const p of parts) out.push(p.trim());
+      continue;
+    }
+    if ((buf + " " + t).trim().length > maxLen) { out.push(buf); buf = t; }
+    else { buf = buf ? buf + " " + t : t; }
+  }
+  if (buf) out.push(buf);
+  return out.filter(Boolean);
+}
+
 function browserSpeak(text: string): Promise<void> {
   return new Promise(resolve => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) { resolve(); return; }
@@ -131,39 +153,73 @@ function browserSpeak(text: string): Promise<void> {
  * Speak text. Suspends STT for the duration so Alpha doesn't hear itself.
  * Falls back to browser male voice if Kokoro endpoint isn't set / fails.
  */
+let speakToken = 0;
+
+function playAudio(audio: HTMLAudioElement): Promise<boolean> {
+  return new Promise(resolve => {
+    let played = false;
+    audio.onended = () => resolve(played);
+    audio.onerror = () => resolve(played);
+    const p = audio.play();
+    if (p && typeof p.then === "function") {
+      p.then(() => { played = true; }).catch(() => resolve(false));
+    } else { played = true; }
+  });
+}
+
 export async function speakWith(text: string): Promise<void> {
   if (!alphaStore.get().settings.voiceEnabled) return;
   const clean = normalizeForSpeech(text);
   if (!clean) return;
   stopSpeaking();
+  const myToken = ++speakToken;
   setSpeaking(true);
   const wasListening = recognizer.isWanted;
   if (wasListening) recognizer.suspend();
 
   try {
-    const audio = await tryKokoro(clean);
-    if (audio) {
-      currentAudio = audio;
-      let played = false;
-      await new Promise<void>(resolve => {
-        audio.onended = () => resolve();
-        audio.onerror = () => resolve();
-        const p = audio.play();
-        if (p && typeof p.then === "function") {
-          p.then(() => { played = true; }).catch(() => resolve());
-        } else { played = true; }
-      });
-      currentAudio = null;
-      // If autoplay was blocked (lost gesture after fetch), fall back to browser TTS
-      if (!played) await browserSpeak(clean);
-    } else {
+    const { kokoroEndpoint } = alphaStore.get().settings;
+    if (!kokoroEndpoint || !kokoroEndpoint.trim()) {
       await browserSpeak(clean);
+      return;
+    }
+
+    // Pipeline: split into chunks, fetch next while playing current.
+    const chunks = chunkForTTS(clean);
+    let nextFetch: Promise<HTMLAudioElement | null> = tryKokoro(chunks[0]);
+    let kokoroBroken = false;
+
+    for (let i = 0; i < chunks.length; i++) {
+      if (myToken !== speakToken) return; // cancelled by a newer speakWith / stopSpeaking
+      const audioP = nextFetch;
+      // pre-fetch the next chunk in parallel
+      nextFetch = i + 1 < chunks.length && !kokoroBroken
+        ? tryKokoro(chunks[i + 1])
+        : Promise.resolve(null);
+
+      const audio = await audioP;
+      if (myToken !== speakToken) return;
+      if (!audio) {
+        kokoroBroken = true;
+        await browserSpeak(chunks[i]);
+        continue;
+      }
+      currentAudio = audio;
+      const played = await playAudio(audio);
+      currentAudio = null;
+      if (myToken !== speakToken) return;
+      if (!played) {
+        // autoplay blocked — fall back for remaining chunks
+        kokoroBroken = true;
+        await browserSpeak(chunks[i]);
+      }
     }
   } finally {
-    setSpeaking(false);
-    // small grace gap so STT doesn't pick up echo tail
-    if (wasListening) {
-      setTimeout(() => { if (recognizer.isWanted) recognizer.resume(); }, 350);
+    if (myToken === speakToken) {
+      setSpeaking(false);
+      if (wasListening) {
+        setTimeout(() => { if (recognizer.isWanted) recognizer.resume(); }, 350);
+      }
     }
   }
 }
