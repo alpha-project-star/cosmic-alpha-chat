@@ -216,16 +216,31 @@ function executeActionTags(text: string): string {
 export async function generateImage(prompt: string): Promise<{ dataUrl: string; via: "gemini" }> {
   const key = getKey();
   if (!key) throw new Error("No Gemini API key set. Open Settings to paste your key.");
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${encodeURIComponent(key)}`;
+  // Try current model names in order — Google has renamed this several times.
+  const models = [
+    "gemini-2.5-flash-image",
+    "gemini-2.5-flash-image-preview",
+    "gemini-2.0-flash-preview-image-generation",
+    "imagen-3.0-generate-002",
+  ];
   const body = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     generationConfig: { responseModalities: ["IMAGE", "TEXT"] },
   };
-  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (!res.ok) throw new Error(`Gemini image ${res.status}: ${(await res.text()).slice(0,300)}`);
-  const j: any = await res.json();
-  const parts: any[] = j?.candidates?.[0]?.content?.parts ?? [];
-  const inline = parts.find(p => p.inlineData?.data);
-  if (!inline) throw new Error("No image returned by Gemini.");
-  return { dataUrl: `data:${inline.inlineData.mimeType || "image/png"};base64,${inline.inlineData.data}`, via: "gemini" };
+  let lastErr = "";
+  for (const model of models) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+    try {
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) { lastErr = `${model}: ${res.status} ${(await res.text()).slice(0,200)}`; continue; }
+      const j: any = await res.json();
+      const parts: any[] = j?.candidates?.[0]?.content?.parts ?? [];
+      const inline = parts.find(p => p.inlineData?.data);
+      if (!inline) { lastErr = `${model}: no image in response`; continue; }
+      return { dataUrl: `data:${inline.inlineData.mimeType || "image/png"};base64,${inline.inlineData.data}`, via: "gemini" };
+    } catch (e: any) {
+      lastErr = `${model}: ${e?.message || e}`;
+    }
+  }
+  throw new Error(`Image generation failed. Your API key may not have access to image models on AI Studio. Last error: ${lastErr}`);
 }
