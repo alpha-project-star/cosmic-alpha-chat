@@ -1,6 +1,5 @@
-import { alphaStore, type ChatMessage } from "./alpha-store";
+import { alphaStore, uid, type ChatMessage } from "./alpha-store";
 import { tryLocalIntent } from "./local-intents";
-import { uid } from "./alpha-store";
 
 function ctxSummary() {
   const s = alphaStore.get();
