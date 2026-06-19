@@ -51,27 +51,46 @@ export function prepareUtterance() {
 async function tryKokoro(text: string): Promise<HTMLAudioElement | null> {
   const { kokoroEndpoint, kokoroVoice } = alphaStore.get().settings;
   if (!kokoroEndpoint || !kokoroEndpoint.trim()) return null;
+  const raw = kokoroEndpoint.trim();
+  const voice = kokoroVoice || "am_michael";
+  const speed = alphaStore.get().settings.ttsRate || 1;
+
+  // Build the two candidate request shapes we know:
+  //   1) OpenAI-compatible Kokoro-FastAPI   → POST {endpoint}              { input, voice, model, response_format }
+  //   2) xxparthparekhxx Kokoro-TTS-FastAPI → POST {origin}/tts            { text, voice, output_format, speed }
+  let origin = raw;
+  try { origin = new URL(raw).origin; } catch {}
+  const attempts: Array<{ url: string; body: any }> = [
+    { url: raw, body: { input: text, model: "kokoro", voice, response_format: "mp3", speed } },
+    { url: `${origin}/tts`, body: { text, voice, output_format: "mp3", speed } },
+    { url: `${origin}/v1/audio/speech`, body: { input: text, model: "kokoro", voice, response_format: "mp3", speed } },
+  ];
+  // De-dupe
+  const seen = new Set<string>();
+  const tries = attempts.filter(a => (seen.has(a.url) ? false : (seen.add(a.url), true)));
+
+  let lastErr = "";
   try {
-    // OpenAI-compatible Kokoro-FastAPI shape: POST /v1/audio/speech { input, voice, model }
-    const res = await fetch(kokoroEndpoint.trim(), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        input: text, text, model: "kokoro",
-        voice: kokoroVoice || "am_michael",
-        response_format: "mp3", speed: alphaStore.get().settings.ttsRate || 1,
-      }),
-    });
-    if (!res.ok) throw new Error(`Kokoro HTTP ${res.status} — ${(await res.text().catch(() => "")).slice(0, 120)}`);
-    const blob = await res.blob();
-    if (!blob.size) throw new Error("Kokoro returned empty audio");
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    return audio;
+    for (const a of tries) {
+      try {
+        const res = await fetch(a.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(a.body),
+        });
+        if (!res.ok) { lastErr = `HTTP ${res.status} @ ${a.url}`; continue; }
+        const ct = res.headers.get("content-type") || "";
+        if (!/audio|octet-stream/i.test(ct)) { lastErr = `non-audio (${ct}) @ ${a.url}`; continue; }
+        const blob = await res.blob();
+        if (!blob.size) { lastErr = `empty audio @ ${a.url}`; continue; }
+        return new Audio(URL.createObjectURL(blob));
+      } catch (e: any) {
+        lastErr = `${e?.message || e} @ ${a.url}`;
+      }
+    }
+    throw new Error(lastErr || "All Kokoro attempts failed");
   } catch (e) {
     console.warn("[voice] Kokoro failed, falling back to browser TTS:", e);
-    // Broadcast so the UI can surface why Kokoro isn't being used. Most common
-    // cause is CORS — the server must send Access-Control-Allow-Origin for this site.
     try { window.dispatchEvent(new CustomEvent("kokoro-fail", { detail: String((e as any)?.message || e) })); } catch {}
     return null;
   }
