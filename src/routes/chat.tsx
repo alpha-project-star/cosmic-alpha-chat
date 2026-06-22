@@ -139,7 +139,7 @@ function ChatRoute() {
       </div>
 
       {showJump && (
-        <div className="absolute right-3 z-20 flex flex-col gap-2" style={{ bottom: 96 + (images.length > 0 ? 80 : 0) }}>
+        <div className="fixed right-3 z-40 flex flex-col gap-2" style={{ bottom: 96 + (images.length > 0 ? 80 : 0) }}>
           <button onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
             aria-label="Top" className="glass rounded-full p-2 neon-border active:scale-95 opacity-90">
             <ArrowUp className="w-4 h-4 text-primary" />
