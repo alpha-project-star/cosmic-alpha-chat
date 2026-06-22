@@ -167,11 +167,20 @@ export async function sendChat(history: ChatMessage[]): Promise<string> {
   }
   const model = alphaStore.get().settings.chatModel || "gemini-2.5-pro";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+  const recall = lastUserMsg?.text ? rerankContext(lastUserMsg.text) : "";
+  const rolling = conversationSummary.get();
+  // Keep only the recent slice in `contents` — older turns are represented by the rolling summary.
+  const trimmedHistory = history.slice(-20);
   const body = {
-    systemInstruction: { role: "system", parts: [{ text: DEFAULT_SYSTEM(alphaStore.get().settings.personaExtra || "") }] },
-    contents: toGeminiContents(history),
+    systemInstruction: { role: "system", parts: [{ text: DEFAULT_SYSTEM(alphaStore.get().settings.personaExtra || "", recall, rolling) }] },
+    contents: toGeminiContents(trimmedHistory),
     tools: [{ google_search: {} }],
-    generationConfig: { temperature: 0.85, topP: 0.95 },
+    generationConfig: {
+      temperature: 0.85,
+      topP: 0.95,
+      // Enable native reasoning on 2.5-class models. Ignored by older models.
+      thinkingConfig: { thinkingBudget: -1, includeThoughts: false },
+    },
   };
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 400)}`);
@@ -180,7 +189,11 @@ export async function sendChat(history: ChatMessage[]): Promise<string> {
   if (cand?.finishReason === "SAFETY") {
     return "Mm — that one tripped a safety filter. Let's reframe: tell me the underlying goal in plain terms and I'll route around it.";
   }
-  let text = cand?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "";
+  // Skip parts flagged as thoughts (when includeThoughts is on) — only render polished final.
+  let text = (cand?.content?.parts ?? [])
+    .filter((p: any) => !p?.thought)
+    .map((p: any) => p?.text ?? "")
+    .join("") ?? "";
 
   // ----- Structured evidence extraction from grounding metadata -----
   const chunks: any[] = cand?.groundingMetadata?.groundingChunks ?? [];
@@ -203,7 +216,55 @@ export async function sendChat(history: ChatMessage[]): Promise<string> {
   }
 
   if (!text) throw new Error("Empty response from Gemini.");
-  return executeActionTags(text);
+  const finalText = executeActionTags(text);
+  // Fire-and-forget rolling-summary compaction every ~10 turns.
+  void maybeCompactSummary(history, finalText);
+  return finalText;
+}
+
+// ---------- Background semantic compactor ----------
+let lastCompactAt = 0;
+async function maybeCompactSummary(history: ChatMessage[], lastAssistant: string) {
+  try {
+    const turns = history.filter(m => m.role !== "system").length;
+    if (turns < 12) return;
+    if (turns - lastCompactAt < 10) return;
+    lastCompactAt = turns;
+    const key = getKey(); if (!key) return;
+    const older = history.slice(0, -10);
+    if (!older.length) return;
+    const transcript = older.slice(-40).map(m => `${m.role.toUpperCase()}: ${(m.text || "").slice(0, 400)}`).join("\n");
+    const previous = conversationSummary.get();
+    const prompt = `You are compressing a long chat into a compact STATE MATRIX for an assistant named Alpha. Output <=600 words, bullet-point sections only:
+• User profile & preferences
+• Active projects / topics
+• Open decisions / unanswered questions
+• Facts the user told Alpha (and dates)
+• Recent thread context (last few exchanges, 1 line each)
+No prose, no preamble. Merge with the previous state matrix, overwriting stale items.
+
+PREVIOUS STATE MATRIX:
+${previous || "(none)"}
+
+TRANSCRIPT TO COMPRESS:
+${transcript}
+
+LATEST ASSISTANT REPLY (for continuity):
+${lastAssistant.slice(0, 600)}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.2, thinkingConfig: { thinkingBudget: 0 } },
+      }),
+    });
+    if (!res.ok) return;
+    const j: any = await res.json();
+    const out = j?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "";
+    if (out.trim()) conversationSummary.set(out.trim());
+  } catch { /* swallow — background */ }
 }
 
 function executeActionTags(text: string): string {
