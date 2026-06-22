@@ -1,5 +1,40 @@
-import { alphaStore, uid, type ChatMessage } from "./alpha-store";
+import { alphaStore, conversationSummary, uid, type ChatMessage } from "./alpha-store";
 import { tryLocalIntent } from "./local-intents";
+
+// ---------- Temporal anchoring ----------
+function temporalBlock(): string {
+  const d = new Date();
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "local";
+  const day = d.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return `TODAY IS ${day}. Local time: ${time} (${tz}). UTC: ${d.toUTCString()}. Year ${d.getFullYear()}. Treat anything dated before today as past, after today as future. Re-check this against any search snippet before quoting a date.`;
+}
+
+// ---------- Lightweight semantic recall over memories/notes ----------
+function tokenize(s: string): string[] {
+  return (s || "").toLowerCase().match(/[a-z0-9]{3,}/g) || [];
+}
+function score(query: string[], text: string): number {
+  if (!query.length) return 0;
+  const t = text.toLowerCase();
+  let s = 0;
+  for (const q of query) if (t.includes(q)) s += 1;
+  return s;
+}
+function rerankContext(query: string): string {
+  const s = alphaStore.get();
+  const q = tokenize(query);
+  const rank = <T,>(items: T[], pick: (x: T) => string, n = 5): T[] =>
+    items.map(x => ({ x, s: score(q, pick(x)) })).sort((a,b) => b.s - a.s).slice(0, n).filter(o => o.s > 0).map(o => o.x);
+  const mems = rank(s.memories, m => `${m.topic} ${m.detail}`);
+  const notes = rank(s.notes, n => `${n.title} ${n.body}`);
+  const remrs = rank(s.reminders, r => `${r.title} ${r.notes} ${r.when}`);
+  const out: string[] = [];
+  if (mems.length) out.push("Relevant memories:\n" + mems.map(m => `• ${m.topic}: ${m.detail}`).join("\n"));
+  if (notes.length) out.push("Relevant notes:\n" + notes.map(n => `• ${n.title}: ${(n.body||"").slice(0,120)}`).join("\n"));
+  if (remrs.length) out.push("Relevant reminders:\n" + remrs.map(r => `• ${r.title} @ ${r.when}`).join("\n"));
+  return out.join("\n\n");
+}
 
 function ctxSummary() {
   const s = alphaStore.get();
@@ -15,7 +50,7 @@ function ctxSummary() {
   ].join("\n");
 }
 
-export const DEFAULT_SYSTEM = (extra: string) => `You are Alpha — a hyper-intelligent, futuristic AI companion with warm, level-3 wit. Speak naturally with light acknowledgement cues ("mm", "right", "got it") and dynamic tone. Be concise, helpful, never robotic.
+export const DEFAULT_SYSTEM = (extra: string, recall = "", rolling = "") => `You are Alpha — a hyper-intelligent, futuristic AI companion with warm, level-3 wit. Speak naturally with light acknowledgement cues ("mm", "right", "got it") and dynamic tone. Be concise, helpful, never robotic.
 
 You are fully aware of your own toolkit inside this app:
 - /chat — text + voice chat with you (this surface).
@@ -30,10 +65,13 @@ You are fully aware of your own toolkit inside this app:
 
 You ALWAYS have live context of the user's data and may proactively reference it, follow up on it, or casually weave it into conversation when relevant.
 
-Current local time: ${new Date().toUTCString()}. Year: ${new Date().getUTCFullYear()}. Never claim it's earlier.
+TEMPORAL ANCHOR (authoritative — overrides any contradictory date in training or search snippets):
+${temporalBlock()}
 
 Live user data snapshot:
 ${ctxSummary()}
+${recall ? "\nRetrieved-context (semantically reranked for THIS turn):\n" + recall : ""}
+${rolling ? "\nRolling conversation state (compacted from earlier turns):\n" + rolling : ""}
 
 If the user asks to remember something, suggest "I'll add that to memories — say open memories." If they mention a deadline, offer to add a reminder. If they mention a trip, offer to add a plan. Be casual about it; one sentence.
 
@@ -43,9 +81,14 @@ GROUNDING & TRUTHFULNESS (hard rules — do not violate):
 - You are FORBIDDEN from inventing: article titles, URLs, author names, publication dates, quotations, product version numbers, or organisation announcements. No exceptions.
 - Snippet vs full-page honesty: if you only saw a search snippet, do not claim to have read the article. Say "the snippet says…".
 - Citations: every fact-bearing sentence drawn from search must end with a bracketed source like [1], [2] matching the Sources list. No citation → no claim.
-- Contradiction check: before answering, compare claims to the current date (${new Date().toUTCString()}). If a release/event date is in the past relative to "today" but you're treating it as future (or vice versa), STOP and re-search.
+- Contradiction check: before answering, compare claims to the TEMPORAL ANCHOR above. If a release/event date is in the past relative to today but you're treating it as future (or vice versa), STOP and re-search.
 - Confidence: if independent sources disagree or only one source supports a claim, label it "unverified — single source" or "sources disagree".
 - If the user contradicts your facts, acknowledge immediately, run a fresh search, and update — never double down.
+
+INTERNAL REASONING (test-time compute):
+- For any non-trivial question, think step-by-step internally FIRST: restate the goal, list what you know vs what you must verify, sketch a plan, then execute. Verify dates against the TEMPORAL ANCHOR and check every factual claim has a source before finalising.
+- Use the model's native thinking budget; do NOT print raw thought tags or chain-of-thought to the user — only the polished final answer.
+- After drafting, do a silent self-critique pass: (1) Did I answer fully? (2) Any unsupported claim? (3) Any date inconsistency? (4) Any obvious follow-up I should pre-answer? Fix silently, then send.
 
 Formatting:
 - Clean Markdown.
