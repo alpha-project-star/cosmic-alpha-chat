@@ -49,6 +49,7 @@ const K = {
   memories: "alpha.memories.v1",
   profile: "alpha.profile.v1",
   settings: "alpha.settings.v1",
+  summary: "alpha.summary.v1",
 };
 
 const DEFAULT_SETTINGS: Settings = {
@@ -107,7 +108,11 @@ export const alphaStore = {
     state = { ...state, chat: [...state.chat, msg].slice(-200) };
     writeLS(K.chat, state.chat); emit();
   },
-  clearChat() { state = { ...state, chat: [] }; writeLS(K.chat, state.chat); emit(); },
+  clearChat() {
+    state = { ...state, chat: [] }; writeLS(K.chat, state.chat);
+    try { localStorage.removeItem(K.summary); } catch {}
+    emit();
+  },
   upsertNote(n: Note) { state = { ...state, notes: upsert(state.notes, n) }; writeLS(K.notes, state.notes); emit(); },
   deleteNote(id: string) { state = { ...state, notes: state.notes.filter(x => x.id !== id) }; writeLS(K.notes, state.notes); emit(); },
   upsertBill(b: Bill) { state = { ...state, bills: upsert(state.bills, b) }; writeLS(K.bills, state.bills); emit(); },
@@ -119,6 +124,22 @@ export const alphaStore = {
   upsertMemory(m: Memory) { state = { ...state, memories: upsert(state.memories, m) }; writeLS(K.memories, state.memories); emit(); },
   deleteMemory(id: string) { state = { ...state, memories: state.memories.filter(x => x.id !== id) }; writeLS(K.memories, state.memories); emit(); },
   setProfile(p: Profile) { state = { ...state, profile: p }; writeLS(K.profile, p); emit(); },
+};
+
+// ----- Rolling conversation summary (semantic compactor) -----
+export const conversationSummary = {
+  get(): string {
+    if (typeof window === "undefined") return "";
+    try { return localStorage.getItem(K.summary) || ""; } catch { return ""; }
+  },
+  set(s: string) {
+    if (typeof window === "undefined") return;
+    try { localStorage.setItem(K.summary, s.slice(0, 4000)); } catch {}
+  },
+  clear() {
+    if (typeof window === "undefined") return;
+    try { localStorage.removeItem(K.summary); } catch {}
+  },
 };
 
 export function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
