@@ -91,8 +91,8 @@ function ChatRoute() {
   }
 
   return (
-    <div className="starfield min-h-screen flex flex-col overflow-x-hidden w-full max-w-full">
-      <header className="glass border-b border-primary/20 sticky top-0 z-30">
+    <div className="starfield h-[100dvh] flex flex-col overflow-hidden w-full max-w-full">
+      <header className="glass border-b border-primary/20 shrink-0 z-30">
         <div className="flex items-center justify-between gap-2 px-3 py-3 relative">
           <Link to="/" aria-label="Back" className="p-1.5 rounded-full glass neon-border shrink-0">
             <ArrowLeft className="w-4 h-4 text-primary" />
@@ -102,7 +102,7 @@ function ChatRoute() {
         </div>
       </header>
 
-      <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-4 relative w-full max-w-full">
+      <div ref={scrollRef} onScroll={onScroll} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-4 relative w-full max-w-full">
         {chat.length === 0 && (
           <div className="text-center text-muted-foreground text-sm mt-20">
             <Sparkles className="w-6 h-6 mx-auto mb-2 text-primary" /> Say something or type to begin.
@@ -138,18 +138,18 @@ function ChatRoute() {
         {busy && <div className="text-xs text-muted-foreground text-center">Alpha is thinking…</div>}
       </div>
 
-      <div className="fixed bottom-28 right-4 z-20 flex flex-col gap-2">
-        <button onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
-          className="glass rounded-full p-2 neon-border active:scale-95 opacity-80">
-          <ArrowUp className="w-4 h-4 text-primary" />
-        </button>
-        {showJump && (
+      {showJump && (
+        <div className="absolute right-3 z-20 flex flex-col gap-2" style={{ bottom: 96 + (images.length > 0 ? 80 : 0) }}>
+          <button onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
+            aria-label="Top" className="glass rounded-full p-2 neon-border active:scale-95 opacity-90">
+            <ArrowUp className="w-4 h-4 text-primary" />
+          </button>
           <button onClick={() => scrollToBottom(true)}
-            className="glass rounded-full p-2 neon-border active:scale-95">
+            aria-label="Bottom" className="glass rounded-full p-2 neon-border active:scale-95">
             <ArrowDown className="w-4 h-4 text-primary" />
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {images.length > 0 && (
         <div className="px-3 pb-2 flex gap-2 overflow-x-auto">
@@ -163,7 +163,7 @@ function ChatRoute() {
         </div>
       )}
 
-      <div className="p-3 glass border-t border-primary/20 relative sticky bottom-0 z-20">
+      <div className="p-3 glass border-t border-primary/20 relative shrink-0 z-20">
         {toolsOpen && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setToolsOpen(false)} />
