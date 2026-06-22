@@ -108,7 +108,11 @@ export const alphaStore = {
     state = { ...state, chat: [...state.chat, msg].slice(-200) };
     writeLS(K.chat, state.chat); emit();
   },
-  clearChat() { state = { ...state, chat: [] }; writeLS(K.chat, state.chat); emit(); },
+  clearChat() {
+    state = { ...state, chat: [] }; writeLS(K.chat, state.chat);
+    try { localStorage.removeItem(K.summary); } catch {}
+    emit();
+  },
   upsertNote(n: Note) { state = { ...state, notes: upsert(state.notes, n) }; writeLS(K.notes, state.notes); emit(); },
   deleteNote(id: string) { state = { ...state, notes: state.notes.filter(x => x.id !== id) }; writeLS(K.notes, state.notes); emit(); },
   upsertBill(b: Bill) { state = { ...state, bills: upsert(state.bills, b) }; writeLS(K.bills, state.bills); emit(); },
