@@ -122,4 +122,20 @@ export const alphaStore = {
   setProfile(p: Profile) { state = { ...state, profile: p }; writeLS(K.profile, p); emit(); },
 };
 
+// ----- Rolling conversation summary (semantic compactor) -----
+export const conversationSummary = {
+  get(): string {
+    if (typeof window === "undefined") return "";
+    try { return localStorage.getItem(K.summary) || ""; } catch { return ""; }
+  },
+  set(s: string) {
+    if (typeof window === "undefined") return;
+    try { localStorage.setItem(K.summary, s.slice(0, 4000)); } catch {}
+  },
+  clear() {
+    if (typeof window === "undefined") return;
+    try { localStorage.removeItem(K.summary); } catch {}
+  },
+};
+
 export function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
