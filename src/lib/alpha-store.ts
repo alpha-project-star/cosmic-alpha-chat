@@ -49,6 +49,7 @@ const K = {
   memories: "alpha.memories.v1",
   profile: "alpha.profile.v1",
   settings: "alpha.settings.v1",
+  summary: "alpha.summary.v1",
 };
 
 const DEFAULT_SETTINGS: Settings = {
