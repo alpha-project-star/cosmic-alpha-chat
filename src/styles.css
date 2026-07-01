@@ -86,6 +86,12 @@
   --neon-glow: oklch(0.85 0.18 240);
   --shadow-glow: 0 0 24px oklch(0.72 0.22 250 / 0.55), 0 0 64px oklch(0.6 0.25 250 / 0.35);
   --gradient-aurora: conic-gradient(from var(--angle, 0deg), oklch(0.72 0.22 250), oklch(0.55 0.28 270), oklch(0.85 0.18 220), oklch(0.72 0.22 250));
+  --hud-cyan: oklch(0.88 0.16 225);
+  --hud-cyan-soft: oklch(0.72 0.18 230 / 0.4);
+  --space-deep: oklch(0.06 0.04 260);
+  --shadow-hud: 0 0 24px oklch(0.7 0.22 235 / 0.35), inset 0 0 20px oklch(0.7 0.22 235 / 0.15);
+  --gradient-hud-panel: linear-gradient(180deg, oklch(0.1 0.08 260 / 0.55), oklch(0.05 0.05 260 / 0.75));
+  --gradient-nebula: radial-gradient(circle at 50% 50%, oklch(0.35 0.22 245 / 0.55), oklch(0.1 0.1 260 / 0.15) 60%, transparent 75%);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -197,4 +203,50 @@
   }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { scrollbar-width: none; }
+}
+
+@utility wordmark {
+  font-family: Orbitron, "Space Grotesk", ui-sans-serif, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.35em;
+  color: var(--hud-cyan);
+  text-shadow: 0 0 6px oklch(0.72 0.22 240 / 0.7), 0 0 20px oklch(0.6 0.25 250 / 0.5);
+}
+
+@utility hud-frame {
+  position: relative;
+  background: var(--gradient-hud-panel);
+  border: 1px solid var(--hud-cyan-soft);
+  border-radius: 20px;
+  box-shadow: var(--shadow-hud);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+
+@utility hud-frame-corners {
+  &::before, &::after {
+    content: "";
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: var(--hud-cyan);
+    border-style: solid;
+    pointer-events: none;
+  }
+  &::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; border-top-left-radius: 20px; }
+  &::after { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; border-bottom-right-radius: 20px; }
+}
+
+@utility hud-bubble {
+  background: linear-gradient(180deg, oklch(0.15 0.1 250 / 0.5), oklch(0.08 0.06 260 / 0.6));
+  border: 1px solid var(--hud-cyan-soft);
+  border-radius: 14px;
+  box-shadow: 0 0 12px oklch(0.7 0.22 235 / 0.25), inset 0 0 8px oklch(0.7 0.22 235 / 0.12);
+  color: oklch(0.96 0.02 240);
+}
+
+@keyframes hud-scan {
+  0% { transform: translateY(-100%); opacity: 0; }
+  40% { opacity: 0.5; }
+  100% { transform: translateY(100%); opacity: 0; }
 }
