@@ -8,6 +8,8 @@ import { sendChat } from "../lib/alpha.functions";
 import { tryLocalIntent } from "../lib/local-intents";
 import { alphaStore, uid, useAlpha } from "../lib/alpha-store";
 import { Settings as SettingsIcon, MessageSquare, Grid3x3, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain } from "lucide-react";
+import { DesktopShell } from "../components/desktop/DesktopShell";
+import { DesktopHomePanel } from "../components/desktop/DesktopHomePanel";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -95,7 +97,15 @@ function OrbHome() {
   }
 
   return (
-    <div className="starfield min-h-screen flex flex-col items-center px-4 pt-10 pb-12 relative overflow-hidden">
+    <>
+    {/* Desktop layout — blueprint HUD */}
+    <DesktopShell
+      active={active}
+      onMicToggle={toggleMic}
+      right={<DesktopHomePanel status={speaking ? "Speaking…" : status} interim={interim} />}
+    />
+    {/* Mobile layout */}
+    <div className="lg:hidden starfield min-h-screen flex flex-col items-center px-4 pt-10 pb-12 relative overflow-hidden">
       <div className="absolute top-4 right-4 z-10">
         <Link to="/settings" aria-label="Settings" className="glass rounded-full p-2 inline-flex"><SettingsIcon className="w-5 h-5 text-primary" /></Link>
       </div>
@@ -148,5 +158,6 @@ function OrbHome() {
         <div>Say: <span className="text-primary/70">"open image"</span> · <span className="text-primary/70">"open settings"</span> · <span className="text-primary/70">"stop listening"</span></div>
       </div>
     </div>
+    </>
   );
 }
