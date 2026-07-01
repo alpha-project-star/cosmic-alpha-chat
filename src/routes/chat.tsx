@@ -7,6 +7,8 @@ import { MessageContent } from "../components/MessageContent";
 import { recognizer, prepareUtterance, speakWith, stopSpeaking } from "../lib/voice";
 import { MiniOrb } from "../components/MiniOrb";
 import { tryLocalIntent } from "../lib/local-intents";
+import { DesktopShell } from "../components/desktop/DesktopShell";
+import { DesktopChatPanel } from "../components/desktop/DesktopChatPanel";
 
 export const Route = createFileRoute("/chat")({
   head: () => ({ meta: [{ title: "Alpha — Chat" }, { name: "description", content: "Talk with Alpha." }] }),
@@ -91,7 +93,15 @@ function ChatRoute() {
   }
 
   return (
-    <div className="starfield h-[100dvh] flex flex-col overflow-hidden w-full max-w-full">
+    <>
+    {/* Desktop layout — blueprint HUD */}
+    <DesktopShell
+      active={listening}
+      onMicToggle={toggleMic}
+      right={<DesktopChatPanel />}
+    />
+    {/* Mobile layout */}
+    <div className="lg:hidden starfield h-[100dvh] flex flex-col overflow-hidden w-full max-w-full">
       <header className="glass border-b border-primary/20 shrink-0 z-30">
         <div className="flex items-center justify-between gap-2 px-3 py-3 relative">
           <Link to="/" aria-label="Back" className="p-1.5 rounded-full glass neon-border shrink-0">
@@ -202,6 +212,7 @@ function ChatRoute() {
         </div>
       </div>
     </div>
+    </>
   );
 }
 
