@@ -3,7 +3,7 @@ import alphaAvatar from "../assets/alpha-avatar.png.asset.json";
 import { AudioSpectrum } from "./AudioSpectrum";
 import { speakingState } from "../lib/voice";
 
-export function AlphaOrb({ analyser, active, size = 280 }: { analyser: AnalyserNode | null; active: boolean; size?: number }) {
+export function AlphaOrb({ analyser, active, size = 280, sizeCss }: { analyser: AnalyserNode | null; active: boolean; size?: number; sizeCss?: string }) {
   const [level, setLevel] = useState(0);
   const [speaking, setSpeaking] = useState(false);
   const [beat, setBeat] = useState(0);
@@ -37,7 +37,7 @@ export function AlphaOrb({ analyser, active, size = 280 }: { analyser: AnalyserN
   const pulse = 1 + (active ? level * 0.18 : 0) + (speaking ? beat * 0.08 : 0);
 
   return (
-    <div className="relative" style={{ width: size, height: size }}>
+    <div className="relative" style={{ width: sizeCss ?? size, height: sizeCss ?? size }}>
       <div
         className="absolute inset-[-30%] rounded-full pointer-events-none"
         style={{
