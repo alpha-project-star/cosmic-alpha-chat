@@ -1,80 +1,25 @@
-# Alpha — Desktop UI Blueprint
+## Why you only see the mobile view
 
-Bring the attached reference to life as Alpha's desktop experience: a giant living orb on the left, a floating holographic chat panel on the right, deep-space background, cyan HUD accents, thin sci-fi typography. Mobile stays exactly as it is today.
+The desktop HUD layout is gated behind Tailwind's `lg` breakpoint (≥1024px wide). Your preview is currently 384px wide, so only the `lg:hidden` mobile layout renders. Nothing is broken — desktop Alpha just isn't being asked to show up.
 
-## Layout system (desktop ≥ 1024px)
+## How to see Desktop Alpha
 
-```text
-┌───────────────────────────────────────────────────────────────┐
-│  ALPHA  (wordmark, top-center, thin glow)      · · · settings │
-├───────────────────────────────────────────────────────────────┤
-│                                                               │
-│                                     ┌───────────────────────┐ │
-│                                     │  ALPHA                │ │
-│                                     │  Hello Alpha, what…   │ │
-│    ┌─────────────────┐              │                       │ │
-│    │                 │              │  A  Greetings! …      │ │
-│    │   COSMIC ORB    │  ~~~~~~~~~~  │                       │ │
-│    │  (huge, 60vmin) │  spectrum    │  Just say a command…  │ │
-│    │                 │  ~~~~~~~~~~  │                       │ │
-│    └─────────────────┘              │  A  Currently opti…   │ │
-│                                     │                       │ │
-│                                     │  A  Awaiting input.   │ │
-│                                     └───────────────────────┘ │
-│                                                               │
-│            ~~~~ 🎙  ~~~~   (mic + waveform, bottom-center)    │
-└───────────────────────────────────────────────────────────────┘
-```
+Two options, both non-destructive:
 
-- **Grid:** `grid-cols-[1fr_minmax(380px,440px)]` on `lg+`, orb column centers vertically, chat column is a floating HUD panel pinned to the right with 24px gap from viewport edges.
-- **Wordmark:** "ALPHA" thin uppercase, letter-spaced 0.35em, top-center, subtle cyan glow (`text-shadow` from `--primary`).
-- **Mic dock:** fixed bottom-center bar with mic button flanked by two live waveform strips (reuses existing `AudioSpectrum` rendered horizontally, mirrored L/R).
-- **Tool dock:** vertical rail of glass icon buttons (Notes / Bills / Image / Reminders / Plans / Memories / Settings) pinned to the left edge, only visible on `lg+`. Mobile keeps the current `Grid3x3` popover.
-- **Mobile (<1024px):** unchanged — current stacked layout stays. Everything below is `lg:` scoped.
+1. **Switch the in-app preview to Desktop** (fastest)
+   - Use the device switcher above the preview and pick Desktop. I can flip it for you on approval.
+   - You'll immediately see: wordmark up top, giant orb on the left, HUD chat panel on the right, tool rail on the left edge, mic dock centered at the bottom.
 
-## Visual system additions to `src/styles.css`
+2. **Open the live URL on a real desktop browser**
+   - Preview: `https://id-preview--4320e15a-16b3-433e-8ebe-dfe7c2c03827.lovable.app`
+   - Published: `https://cosmic-alpha-chat.lovable.app`
+   - Any window ≥1024px wide will render the HUD layout automatically.
 
-Semantic tokens only, no hardcoded colors in components.
+## What I'll do on approval
 
-- `--hud-cyan: oklch(0.85 0.18 230)` — HUD outlines and glyphs
-- `--hud-cyan-soft: oklch(0.7 0.18 235 / 0.35)` — bubble borders
-- `--space-deep: oklch(0.08 0.04 260)` — background base
-- `--gradient-nebula`: radial layered nebula for the orb halo
-- `--gradient-hud-panel`: vertical glass gradient for the chat panel
-- `--shadow-hud`: cyan double-glow for panels and bubbles
-- `--edge-hud`: 1px inset cyan hairline used on every HUD frame
-- `@utility hud-frame`: rounded 20px, 1px cyan border, inner + outer glow, corner tick marks via `::before/::after` (the little L-brackets visible on the reference panel)
-- `@utility hud-bubble`: rounded 14px, `--hud-cyan-soft` border, tail via clip-path
-- `@utility wordmark`: uppercase, `letter-spacing: 0.35em`, cyan glow
-- Type: add **Orbitron** (wordmark + section labels) and keep **Space Grotesk** for body. Loaded via `<link>` in `__root.tsx` head, not `@import` — Tailwind v4 rule.
+- Call `preview_ui--set_preview_device_viewport` with `desktop` so your preview flips to the HUD immediately.
+- No code changes. The mobile experience stays exactly as it is.
 
-## Components (new / edited)
+## If you also want desktop-on-phone
 
-New:
-- `src/components/desktop/DesktopShell.tsx` — the two-column grid, wordmark, mic dock, tool rail. Only mounts on `lg+` (CSS gated); mobile renders current layout.
-- `src/components/desktop/HudPanel.tsx` — reusable HUD frame with corner brackets and "ALPHA" tag in the top-right chip.
-- `src/components/desktop/HudBubble.tsx` — chat bubble with tail, small "ALPHA" caption over assistant bubbles matching the reference.
-- `src/components/desktop/OrbStage.tsx` — enlarges `AlphaOrb` to ~60vmin, wraps in horizontal spectrum wings (left + right mirrored `AudioSpectrum`).
-- `src/components/desktop/MicDock.tsx` — bottom-center mic + waveform.
-- `src/components/desktop/ToolRail.tsx` — left vertical icon rail (same routes as current `NAV`).
-
-Edited:
-- `src/routes/index.tsx` — render `<DesktopShell>` at `lg+`, current orb layout stays as the `<lg` fallback.
-- `src/routes/chat.tsx` — at `lg+`, chat list + composer render inside `HudPanel` on the right of the same `DesktopShell`; header wordmark replaces the current top bar. Existing mobile chat layout untouched.
-- `src/components/AlphaOrb.tsx` — accept a `sizeVMin` prop so the desktop stage can push it much larger without breaking mobile defaults.
-
-## Behavioral notes
-
-- The orb and chat share one page at `lg+`: `/` and `/chat` both mount `DesktopShell`, and the right panel shows either an "Awaiting your input." idle state (on `/`) or the live transcript (on `/chat`). Voice input from the mic dock works from either route.
-- Tool rail links use existing routes; no route additions.
-- Everything is presentation-only. No changes to `alpha.functions.ts`, `voice.ts`, `alpha-store.ts`, or any AI/network logic.
-
-## Out of scope this turn
-
-- Mobile redesign (kept as-is).
-- New animations beyond CSS glow pulses on the orb halo, bubbles, and wordmark. Motion library not added.
-- Any backend, model, or voice pipeline changes.
-
-## Verification
-
-After build: preview at desktop viewport, confirm wordmark, orb scale, HUD panel with corner brackets, bubbles with "ALPHA" caption, mic dock centered, tool rail on the left, and that mobile viewport still shows the current layout unchanged.
+Currently the phone (384px) intentionally shows the mobile layout because the HUD assumes a wide canvas. If you want the HUD to also render on phones (scaled down, likely cramped), say the word and I'll draft a separate plan to lower the breakpoint or add a "force desktop" toggle — but I'd recommend against it unless you specifically want it.
