@@ -1,5 +1,6 @@
 import { alphaStore, conversationSummary, uid, type ChatMessage } from "./alpha-store";
 import { tryLocalIntent } from "./local-intents";
+import { sendChatOllama } from "./ollama";
 
 // ---------- Temporal anchoring ----------
 function temporalBlock(): string {
@@ -50,7 +51,7 @@ function ctxSummary() {
   ].join("\n");
 }
 
-export const DEFAULT_SYSTEM = (extra: string, recall = "", rolling = "") => `You are Alpha — a hyper-intelligent, futuristic AI companion with warm, level-3 wit. Speak naturally with light acknowledgement cues ("mm", "right", "got it") and dynamic tone. Be concise, helpful, never robotic.
+export const DEFAULT_SYSTEM = (extra: string, recall = "", rolling = "", opts: { offline?: boolean } = {}) => `You are Alpha — a hyper-intelligent, futuristic AI companion with warm, level-3 wit. Speak naturally with light acknowledgement cues ("mm", "right", "got it") and dynamic tone. Be concise, helpful, never robotic.
 
 You are fully aware of your own toolkit inside this app:
 - /chat — text + voice chat with you (this surface).
@@ -157,10 +158,26 @@ function getKey(): string {
 }
 
 export async function sendChat(history: ChatMessage[]): Promise<string> {
-  const key = getKey();
-  if (!key) throw new Error("No Gemini API key set. Open Settings to paste your key.");
-  // Local intent shortcut so simple CRUD commands don't burn API credit
+  // ---- Backend routing (Gemini cloud vs Ollama local) --------------------
+  const s = alphaStore.get().settings;
+  const online = typeof navigator !== "undefined" ? navigator.onLine : true;
+  const useOllama =
+    s.aiBackend === "ollama" ||
+    (s.aiBackend === "auto" && (!online || !s.geminiApiKey));
+
   const lastUserMsg = [...history].reverse().find(m => m.role === "user");
+  if (useOllama) {
+    // Same offline-safe local-intent fast path is done inside sendChatOllama.
+    const recall = lastUserMsg?.text ? rerankContext(lastUserMsg.text) : "";
+    const rolling = conversationSummary.get();
+    const sys = DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling, { offline: true });
+    const text = await sendChatOllama(history, sys);
+    return executeActionTags(text);
+  }
+
+  const key = getKey();
+  if (!key) throw new Error("No Gemini API key set. Either paste one in Settings, or switch AI Backend to Ollama (local).");
+  // Local intent shortcut so simple CRUD commands don't burn API credit
   if (lastUserMsg?.text && !lastUserMsg.images?.length) {
     const local = tryLocalIntent(lastUserMsg.text);
     if (local) return local;
