@@ -1,5 +1,6 @@
 import { normalizeForSpeech } from "./speech-text";
 import { alphaStore } from "./alpha-store";
+import { WhisperRecognizer } from "./whisper";
 
 // ============================================================
 // Speaking pub-sub (so UI can pulse orbs while Alpha talks)
@@ -244,14 +245,6 @@ if (typeof window !== "undefined" && "speechSynthesis" in window) {
 // ============================================================
 // STT — half-duplex aware
 // ============================================================
-type RecHandlers = {
-  onInterim?: (text: string) => void;
-  onFinal?: (text: string) => void;
-  onStart?: () => void;
-  onStop?: () => void;
-  onError?: (err: string) => void;
-};
-
 export class ContinuousRecognizer {
   private rec: any = null;
   private active = false;
@@ -397,4 +390,76 @@ export class ContinuousRecognizer {
   dispose() { this.stop(); this.rec = null; }
 }
 
-export const recognizer = new ContinuousRecognizer();
+// The single browser-based recognizer instance (Web Speech API).
+const browserRec = new ContinuousRecognizer();
+
+// ============================================================
+// Backend-aware recognizer facade
+// ============================================================
+// All UI code imports `recognizer` from here. Under the hood we route to
+// either the browser recognizer (Web Speech API — online-only on
+// Chrome/Android) or the local WhisperRecognizer based on user settings.
+// ============================================================
+export type RecHandlers = {
+  onInterim?: (text: string) => void;
+  onFinal?: (text: string) => void;
+  onStart?: () => void;
+  onStop?: () => void;
+  onError?: (err: string) => void;
+};
+
+type AnyRec = {
+  setHandlers: (h: RecHandlers) => void;
+  start: () => void | Promise<void>;
+  stop: () => void;
+  suspend: () => void;
+  resume: () => void;
+  readonly isWanted: boolean;
+  readonly isActive: boolean;
+  readonly analyserNode: AnalyserNode | null;
+};
+
+let _whisper: WhisperRecognizer | null = null;
+let _handlers: RecHandlers = {};
+let _current: AnyRec | null = null;
+
+function browserSttSupported(): boolean {
+  if (typeof window === "undefined") return false;
+  return !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+}
+
+function pickBackend(): "browser" | "whisper" {
+  const pref = alphaStore.get().settings.sttBackend;
+  const online = typeof navigator !== "undefined" ? navigator.onLine : true;
+  if (pref === "whisper") return "whisper";
+  if (pref === "browser") return browserSttSupported() ? "browser" : "whisper";
+  return online && browserSttSupported() ? "browser" : "whisper";
+}
+
+function pickInstance(kind: "browser" | "whisper"): AnyRec {
+  if (kind === "whisper") {
+    if (!_whisper) _whisper = new WhisperRecognizer();
+    _whisper.setHandlers(_handlers);
+    return _whisper as unknown as AnyRec;
+  }
+  browserRec.setHandlers(_handlers);
+  return browserRec as unknown as AnyRec;
+}
+
+export const recognizer = {
+  setHandlers(h: RecHandlers) { _handlers = h; if (_current) _current.setHandlers(h); },
+  start() {
+    const kind = pickBackend();
+    const needSwap = _current && ((kind === "whisper" && _current !== (_whisper as any)) || (kind === "browser" && _current !== (browserRec as any)));
+    if (needSwap) { try { _current!.stop(); } catch {} _current = null; }
+    if (!_current) _current = pickInstance(kind);
+    void _current.start();
+  },
+  stop() { try { _current?.stop(); } catch {} },
+  dispose() { try { _current?.stop(); } catch {} _current = null; },
+  suspend() { try { _current?.suspend(); } catch {} },
+  resume() { try { _current?.resume(); } catch {} },
+  get isWanted() { return !!_current?.isWanted; },
+  get isActive() { return !!_current?.isActive; },
+  get analyserNode() { return _current?.analyserNode ?? null; },
+};

@@ -15,6 +15,7 @@ import "katex/dist/katex.min.css";
 import { AlphaLock } from "../components/AlphaLock";
 import alphaAvatar from "../assets/alpha-avatar.png.asset.json";
 import { GlobalDock } from "../components/GlobalDock";
+import { registerAlphaPWA } from "../lib/pwa";
 
 function NotFoundComponent() {
   return (
@@ -128,6 +129,7 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  useEffect(() => { registerAlphaPWA(); }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

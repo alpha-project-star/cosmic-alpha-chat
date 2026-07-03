@@ -27,6 +27,14 @@ export interface Settings {
   kokoroEndpoint: string;
   kokoroVoice: string;
   ttsRate: number;
+  // ---- Local / offline backends ----
+  aiBackend: "gemini" | "ollama" | "auto";      // "auto" → ollama when offline, gemini when online
+  ollamaEndpoint: string;                        // e.g. http://localhost:11434
+  ollamaModel: string;                           // active local model tag
+  ollamaModels: string[];                        // custom list the user typed in Settings
+  sttBackend: "browser" | "whisper" | "auto";    // "auto" → whisper when offline
+  whisperEndpoint: string;                       // e.g. http://localhost:8001  (OpenAI-compat)
+  whisperModel: string;                          // model name for the whisper server
 }
 
 export interface AlphaState {
@@ -62,6 +70,13 @@ const DEFAULT_SETTINGS: Settings = {
   kokoroEndpoint: "",
   kokoroVoice: "am_michael",
   ttsRate: 1.0,
+  aiBackend: "auto",
+  ollamaEndpoint: "http://localhost:11434",
+  ollamaModel: "llama3.2:3b",
+  ollamaModels: [],
+  sttBackend: "auto",
+  whisperEndpoint: "http://localhost:8001",
+  whisperModel: "Systran/faster-whisper-small",
 };
 
 function readLS<T>(key: string, fallback: T): T {
