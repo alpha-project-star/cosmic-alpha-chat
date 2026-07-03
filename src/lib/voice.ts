@@ -408,8 +408,16 @@ const browserRec = new ContinuousRecognizer();
 // either the browser recognizer (Web Speech API — online-only on
 // Chrome/Android) or the local WhisperRecognizer based on user settings.
 // ============================================================
+export type RecHandlers = {
+  onInterim?: (text: string) => void;
+  onFinal?: (text: string) => void;
+  onStart?: () => void;
+  onStop?: () => void;
+  onError?: (err: string) => void;
+};
+
 type AnyRec = {
-  setHandlers: (h: any) => void;
+  setHandlers: (h: RecHandlers) => void;
   start: () => void | Promise<void>;
   stop: () => void;
   suspend: () => void;
@@ -420,7 +428,7 @@ type AnyRec = {
 };
 
 let _whisper: WhisperRecognizer | null = null;
-let _handlers: any = {};
+let _handlers: RecHandlers = {};
 let _current: AnyRec | null = null;
 
 function browserSttSupported(): boolean {
@@ -447,7 +455,7 @@ function pickInstance(kind: "browser" | "whisper"): AnyRec {
 }
 
 export const recognizer = {
-  setHandlers(h: any) { _handlers = h; if (_current) _current.setHandlers(h); },
+  setHandlers(h: RecHandlers) { _handlers = h; if (_current) _current.setHandlers(h); },
   start() {
     const kind = pickBackend();
     const needSwap = _current && ((kind === "whisper" && _current !== (_whisper as any)) || (kind === "browser" && _current !== (browserRec as any)));
@@ -456,6 +464,7 @@ export const recognizer = {
     void _current.start();
   },
   stop() { try { _current?.stop(); } catch {} },
+  dispose() { try { _current?.stop(); } catch {} _current = null; },
   suspend() { try { _current?.suspend(); } catch {} },
   resume() { try { _current?.resume(); } catch {} },
   get isWanted() { return !!_current?.isWanted; },
