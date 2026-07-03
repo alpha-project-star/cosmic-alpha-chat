@@ -1,5 +1,6 @@
 import { normalizeForSpeech } from "./speech-text";
 import { alphaStore } from "./alpha-store";
+import { WhisperRecognizer } from "./whisper";
 
 // ============================================================
 // Speaking pub-sub (so UI can pulse orbs while Alpha talks)
@@ -398,3 +399,74 @@ export class ContinuousRecognizer {
 }
 
 export const recognizer = new ContinuousRecognizer();
+
+// ============================================================
+// Backend-aware recognizer facade
+// ============================================================
+// The rest of the app imports `recognizer` and expects a single object with
+// setHandlers/start/stop/suspend/resume/isWanted/isActive/analyserNode.
+// We add a thin wrapper that routes calls to either the browser recognizer
+// above (Web Speech API — needs internet on Chrome/Android) or the local
+// Whisper recognizer when the user picked "whisper" (or "auto" while offline).
+// ============================================================
+
+type AnyRec = {
+  setHandlers: (h: any) => void;
+  start: () => void | Promise<void>;
+  stop: () => void;
+  suspend: () => void;
+  resume: () => void;
+  isWanted: boolean;
+  isActive: boolean;
+  analyserNode: AnalyserNode | null;
+};
+
+let _whisper: WhisperRecognizer | null = null;
+let _handlers: any = {};
+let _current: AnyRec | null = null;
+
+function browserSttSupported(): boolean {
+  if (typeof window === "undefined") return false;
+  return !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+}
+
+function pickBackend(): "browser" | "whisper" {
+  const pref = alphaStore.get().settings.sttBackend;
+  const online = typeof navigator !== "undefined" ? navigator.onLine : true;
+  if (pref === "whisper") return "whisper";
+  if (pref === "browser") return browserSttSupported() ? "browser" : "whisper";
+  // auto: prefer browser when online (near-zero latency); Whisper when offline
+  return online && browserSttSupported() ? "browser" : "whisper";
+}
+
+function build(kind: "browser" | "whisper"): AnyRec {
+  if (kind === "whisper") {
+    if (!_whisper) _whisper = new WhisperRecognizer();
+    _whisper.setHandlers(_handlers);
+    return _whisper as unknown as AnyRec;
+  }
+  recognizer.setHandlers(_handlers);
+  return recognizer as unknown as AnyRec;
+}
+
+export const alphaRecognizer = {
+  setHandlers(h: any) {
+    _handlers = h;
+    if (_current) _current.setHandlers(h);
+  },
+  start() {
+    const kind = pickBackend();
+    if (_current && ((kind === "whisper" && _current !== (_whisper as any)) || (kind === "browser" && _current !== (recognizer as any)))) {
+      try { _current.stop(); } catch {}
+      _current = null;
+    }
+    if (!_current) _current = build(kind);
+    void _current.start();
+  },
+  stop() { try { _current?.stop(); } catch {} },
+  suspend() { try { _current?.suspend(); } catch {} },
+  resume() { try { _current?.resume(); } catch {} },
+  get isWanted() { return !!_current?.isWanted; },
+  get isActive() { return !!_current?.isActive; },
+  get analyserNode() { return _current?.analyserNode ?? null; },
+};
