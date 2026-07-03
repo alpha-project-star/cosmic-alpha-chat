@@ -245,14 +245,6 @@ if (typeof window !== "undefined" && "speechSynthesis" in window) {
 // ============================================================
 // STT — half-duplex aware
 // ============================================================
-type RecHandlers = {
-  onInterim?: (text: string) => void;
-  onFinal?: (text: string) => void;
-  onStart?: () => void;
-  onStop?: () => void;
-  onError?: (err: string) => void;
-};
-
 export class ContinuousRecognizer {
   private rec: any = null;
   private active = false;
