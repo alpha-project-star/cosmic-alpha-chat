@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Mic, MicOff, Send, Sparkles, X, ArrowDown, ArrowUp, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain, Settings as SettingsIcon, Grid3x3, Volume2, Copy, Check, ArrowLeft } from "lucide-react";
+import { ImagePlus, Mic, MicOff, Send, Sparkles, X, ArrowDown, ArrowUp, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain, Settings as SettingsIcon, Grid3x3, Volume2, Copy, Check, ArrowLeft, Zap } from "lucide-react";
 import { alphaStore, uid, useAlpha } from "../lib/alpha-store";
-import { sendChat } from "../lib/alpha.functions";
+import { sendChat, type TaskType } from "../lib/alpha.functions";
 import { MessageContent } from "../components/MessageContent";
 import { recognizer, prepareUtterance, speakWith, stopSpeaking } from "../lib/voice";
 import { MiniOrb } from "../components/MiniOrb";
@@ -36,6 +36,7 @@ function ChatRoute() {
   const [showJump, setShowJump] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [task, setTask] = useState<TaskType>("auto");
 
   function scrollToBottom(smooth = true) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: smooth ? "smooth" : "auto" });
@@ -61,7 +62,7 @@ function ChatRoute() {
     try {
       // Local intents first (add reminder / note / memory / delete X / ...) — no API call
       const local = t ? tryLocalIntent(t) : null;
-      const reply = local ?? await sendChat(alphaStore.get().chat);
+      const reply = local ?? await sendChat(alphaStore.get().chat, { task });
       alphaStore.appendChat({ id: uid(), role: "model", text: reply, ts: Date.now() });
       speakWith(reply);
     } catch (e: any) {
@@ -189,6 +190,15 @@ function ChatRoute() {
           </>
         )}
         {micError && <div className="mb-2 text-xs text-destructive">{micError}</div>}
+        <div className="mb-2 flex items-center gap-1.5 overflow-x-auto">
+          <Zap className="w-3.5 h-3.5 text-primary shrink-0" />
+          {(["auto","fast","thinking","coding"] as const).map(t => (
+            <button key={t} onClick={() => setTask(t)}
+              className={`text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap ${task === t ? "bg-primary text-primary-foreground border-primary" : "glass neon-border text-muted-foreground"}`}>
+              {t === "auto" ? "Auto" : t === "fast" ? "⚡ Fast" : t === "thinking" ? "🧠 Deep" : "🛠 Code"}
+            </button>
+          ))}
+        </div>
         <div className="flex items-end gap-2">
           <button onClick={() => setToolsOpen(v => !v)} className="p-2 rounded-lg glass" aria-label="Tools">
             <Grid3x3 className="w-5 h-5 text-primary" />

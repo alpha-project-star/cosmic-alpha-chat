@@ -111,22 +111,41 @@ async function tryKokoro(text: string): Promise<HTMLAudioElement | null> {
   }
 }
 
-/** Split text into short chunks (≤220 chars) at sentence boundaries for low-latency streaming TTS. */
-function chunkForTTS(text: string, maxLen = 220): string[] {
+/**
+ * Chunk for low-latency streaming TTS. The FIRST chunk is deliberately tiny
+ * (~60 chars, cut at the earliest sentence/clause boundary) so the user
+ * hears audio within a few hundred ms. Subsequent chunks are larger to
+ * minimise gaps.
+ */
+function chunkForTTS(text: string, firstMax = 80, restMax = 220): string[] {
   const out: string[] = [];
   const sentences = text.match(/[^.!?\n]+[.!?]+|[^.!?\n]+$/g) ?? [text];
+  // First: earliest natural stop under firstMax.
+  const head = sentences[0]?.trim() ?? "";
+  let rest = "";
+  if (head.length <= firstMax) {
+    out.push(head);
+    rest = sentences.slice(1).join(" ").trim();
+  } else {
+    const cut = head.slice(0, firstMax).match(/^.*[,;:—-]\s/)?.[0]?.trim()
+      || head.slice(0, firstMax).match(/^.*\s/)?.[0]?.trim()
+      || head.slice(0, firstMax);
+    out.push(cut);
+    rest = (head.slice(cut.length) + " " + sentences.slice(1).join(" ")).trim();
+  }
+  // Remaining: pack into restMax chunks.
+  const restSentences = rest.match(/[^.!?\n]+[.!?]+|[^.!?\n]+$/g) ?? (rest ? [rest] : []);
   let buf = "";
-  for (const s of sentences) {
+  for (const s of restSentences) {
     const t = s.trim();
     if (!t) continue;
-    if (t.length > maxLen) {
+    if (t.length > restMax) {
       if (buf) { out.push(buf); buf = ""; }
-      // hard-split very long sentences on commas/spaces
-      const parts = t.match(new RegExp(`.{1,${maxLen}}(\\s|,|;|:|$)`, "g")) ?? [t];
+      const parts = t.match(new RegExp(`.{1,${restMax}}(\\s|,|;|:|$)`, "g")) ?? [t];
       for (const p of parts) out.push(p.trim());
       continue;
     }
-    if ((buf + " " + t).trim().length > maxLen) { out.push(buf); buf = t; }
+    if ((buf + " " + t).trim().length > restMax) { out.push(buf); buf = t; }
     else { buf = buf ? buf + " " + t : t; }
   }
   if (buf) out.push(buf);
@@ -145,8 +164,12 @@ function browserSpeak(text: string): Promise<void> {
     currentUtter = u;
     u.onend = () => { currentUtter = null; resolve(); };
     u.onerror = () => { currentUtter = null; resolve(); };
-    try { window.speechSynthesis.cancel(); } catch {}
-    try { window.speechSynthesis.speak(u); } catch { resolve(); }
+    // NOTE: don't cancel here — stopSpeaking() upstream already did it.
+    // Cancelling again forces Chrome/Android to re-warm the synth (adds ~500ms).
+    try {
+      window.speechSynthesis.resume(); // Chrome bug workaround
+      window.speechSynthesis.speak(u);
+    } catch { resolve(); }
   });
 }
 
@@ -180,8 +203,15 @@ export async function speakWith(text: string): Promise<void> {
 
   try {
     const { kokoroEndpoint } = alphaStore.get().settings;
+    // Fast path: no Kokoro configured → speak the head chunk immediately,
+    // then feed the tail. This starts audio in <300ms instead of waiting
+    // for the whole reply to be synthesised at once.
     if (!kokoroEndpoint || !kokoroEndpoint.trim()) {
-      await browserSpeak(clean);
+      const chunks = chunkForTTS(clean);
+      for (const c of chunks) {
+        if (myToken !== speakToken) return;
+        await browserSpeak(c);
+      }
       return;
     }
 
