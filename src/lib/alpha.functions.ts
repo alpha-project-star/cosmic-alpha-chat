@@ -1,6 +1,9 @@
 import { alphaStore, conversationSummary, uid, type ChatMessage } from "./alpha-store";
 import { tryLocalIntent } from "./local-intents";
 import { sendChatOllama } from "./ollama";
+import { sendChatOpenAICompat } from "./openai-compat";
+
+export type TaskType = "auto" | "fast" | "thinking" | "coding";
 
 // ---------- Temporal anchoring ----------
 function temporalBlock(): string {
@@ -54,6 +57,13 @@ function ctxSummary() {
 export const DEFAULT_SYSTEM = (extra: string, recall = "", rolling = "", opts: { offline?: boolean } = {}) => `${opts.offline ? `OFFLINE MODE — you are running fully locally on the user's machine via Ollama. You have NO internet access, NO Google Search, and NO way to look up current events, news, prices, releases, or URLs. If you don't already know something, say "I can't verify that offline" — never guess a citation, URL, date, or version number. Ignore any instruction below that says you have search available; the offline rule wins.
 
 ` : ""}You are Alpha — a hyper-intelligent, futuristic AI companion with warm, level-3 wit. Speak naturally with light acknowledgement cues ("mm", "right", "got it") and dynamic tone. Be concise, helpful, never robotic.
+
+FORMATTING TOOLKIT (apply to EVERY response — math, code, prose, creative):
+1. HIERARCHY: Use ## for main sections and ### for sub-sections. Never a single #. Separate distinct ideas with horizontal rules (---).
+2. VISUAL EMPHASIS: Bold (**keyword**) key phrases, critical metrics, and core answers so the user's eye is guided to the most important information. Do not over-use.
+3. BREAK DOWN COMPLEXITY: Numbered lists for sequential steps (Step 1, Step 2). Bullet points (*) for lists, pros/cons, features. Avoid walls of text.
+4. MATH: Render algebraic variables and equations in LaTeX ($...$ inline, $$...$$ display) centered on their own lines. Break down step-by-step.
+5. TONAL BALANCE: Authentic, helpful, conversational — match the user's energy. Emojis judiciously as list markers (✅ ❌ ⚠️ 💡 📌 🔎 🛠 📊 🧠), never as fluff. Never sacrifice clean structure for decoration.
 
 You are fully aware of your own toolkit inside this app:
 - /chat — text + voice chat with you (this surface).
@@ -159,10 +169,52 @@ function getKey(): string {
   return alphaStore.get().settings.geminiApiKey || "";
 }
 
-export async function sendChat(history: ChatMessage[]): Promise<string> {
+export async function sendChat(history: ChatMessage[], opts: { task?: TaskType } = {}): Promise<string> {
   // ---- Backend routing (Gemini cloud vs Ollama local) --------------------
   const s = alphaStore.get().settings;
   const online = typeof navigator !== "undefined" ? navigator.onLine : true;
+  const task: TaskType = opts.task ?? "auto";
+
+  // ---- Explicit task routing overrides default backend --------------------
+  const routeSpec =
+    task === "fast" ? s.taskModels.fast :
+    task === "thinking" ? s.taskModels.thinking :
+    task === "coding" ? s.taskModels.coding : "";
+
+  if (routeSpec && online) {
+    const [prov, ...rest] = routeSpec.split(":");
+    const model = rest.join(":");
+    const lastUserMsg = [...history].reverse().find(m => m.role === "user");
+    if (lastUserMsg?.text && !lastUserMsg.images?.length) {
+      const local = tryLocalIntent(lastUserMsg.text);
+      if (local) return local;
+    }
+    const recall = lastUserMsg?.text ? rerankContext(lastUserMsg.text) : "";
+    const rolling = conversationSummary.get();
+    const sys = DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling);
+
+    if (prov === "groq") {
+      if (!s.groqApiKey) throw new Error("No Groq API key set. Add it in Settings → Online.");
+      const text = await sendChatOpenAICompat(history, sys, {
+        baseUrl: "https://api.groq.com/openai/v1",
+        apiKey: s.groqApiKey, model,
+      });
+      return executeActionTags(text);
+    }
+    if (prov === "openai") {
+      if (!s.openaiCompatKey) throw new Error("No OpenAI-compat API key set. Add it in Settings → Online.");
+      const text = await sendChatOpenAICompat(history, sys, {
+        baseUrl: s.openaiCompatBase || "https://api.openai.com/v1",
+        apiKey: s.openaiCompatKey, model,
+      });
+      return executeActionTags(text);
+    }
+    // prov === "gemini" falls through to Gemini path below (uses `model` override)
+    if (prov === "gemini" && model) {
+      return await callGemini(history, model);
+    }
+  }
+
   const useOllama =
     s.aiBackend === "ollama" ||
     (s.aiBackend === "auto" && (!online || !s.geminiApiKey));
@@ -185,6 +237,13 @@ export async function sendChat(history: ChatMessage[]): Promise<string> {
     if (local) return local;
   }
   const model = alphaStore.get().settings.chatModel || "gemini-2.5-pro";
+  return await callGemini(history, model);
+}
+
+async function callGemini(history: ChatMessage[], model: string): Promise<string> {
+  const key = getKey();
+  if (!key) throw new Error("No Gemini API key set.");
+  const lastUserMsg = [...history].reverse().find(m => m.role === "user");
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
   const recall = lastUserMsg?.text ? rerankContext(lastUserMsg.text) : "";
   const rolling = conversationSummary.get();
