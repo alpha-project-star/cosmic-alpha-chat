@@ -35,6 +35,12 @@ export interface Settings {
   sttBackend: "browser" | "whisper" | "auto";    // "auto" → whisper when offline
   whisperEndpoint: string;                       // e.g. http://localhost:8001  (OpenAI-compat)
   whisperModel: string;                          // model name for the whisper server
+  // ---- Multi-provider model routing ----
+  groqApiKey: string;
+  openaiCompatKey: string;
+  openaiCompatBase: string;                      // e.g. https://api.openai.com/v1
+  // Task -> "provider:model" e.g. "groq:llama-3.1-8b-instant" | "gemini:gemini-2.5-pro" | "openai:gpt-4o-mini"
+  taskModels: { fast: string; thinking: string; coding: string };
 }
 
 export interface AlphaState {
@@ -77,6 +83,14 @@ const DEFAULT_SETTINGS: Settings = {
   sttBackend: "auto",
   whisperEndpoint: "http://localhost:8001",
   whisperModel: "Systran/faster-whisper-small",
+  groqApiKey: "",
+  openaiCompatKey: "",
+  openaiCompatBase: "https://api.openai.com/v1",
+  taskModels: {
+    fast: "groq:llama-3.1-8b-instant",
+    thinking: "gemini:gemini-2.5-pro",
+    coding: "gemini:gemini-2.5-pro",
+  },
 };
 
 function readLS<T>(key: string, fallback: T): T {
