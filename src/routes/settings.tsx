@@ -4,6 +4,7 @@ import { ArrowLeft, Check, ChevronDown, ChevronRight, Wifi, WifiOff } from "luci
 import { alphaStore, useAlpha } from "../lib/alpha-store";
 import { listVoices, speakWith } from "../lib/voice";
 import { listOllamaModels } from "../lib/ollama";
+import { testAlarmNow, requestAlarmPermission } from "../lib/alarm-engine";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Alpha — Settings" }, { name: "description", content: "Configure Alpha." }] }),
@@ -267,6 +268,15 @@ function SettingsRoute() {
           <Section title="Persona Extras" hint="Personal context Alpha keeps each call.">
             <textarea value={s.personaExtra} onChange={e => alphaStore.setSettings({ personaExtra: e.target.value })}
               className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[100px]" />
+          </Section>
+
+          <Section title="Alarms" hint="Reminders fire in the background while Alpha is open. Enable browser notifications for pop-ups when the tab is hidden.">
+            <div className="flex flex-wrap gap-2">
+              <button onClick={async () => { await requestAlarmPermission(); }}
+                className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Enable notifications</button>
+              <button onClick={testAlarmNow}
+                className="px-3 py-1.5 text-sm rounded-md glass neon-border">Test alarm now</button>
+            </div>
           </Section>
         </Group>
 
