@@ -1,0 +1,42 @@
+import { useEffect, useState } from "react";
+
+/**
+ * Real-time clock. Ticks every second.
+ * Compact by default; pass `full` for weekday + date under time.
+ */
+export function LiveClock({
+  full = false,
+  className = "",
+}: {
+  full?: boolean;
+  className?: string;
+}) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const time = now.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const date = now.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+
+  return (
+    <div className={`live-clock select-none tabular-nums leading-tight ${className}`}>
+      <div className="font-mono tracking-widest" style={{ color: "var(--hud-cyan, #6cf)" }}>
+        {time}
+      </div>
+      {full && (
+        <div className="text-[10px] opacity-70 tracking-[0.2em] uppercase">{date}</div>
+      )}
+    </div>
+  );
+}

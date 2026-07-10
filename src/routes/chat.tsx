@@ -9,6 +9,8 @@ import { MiniOrb } from "../components/MiniOrb";
 import { tryLocalIntent } from "../lib/local-intents";
 import { DesktopShell } from "../components/desktop/DesktopShell";
 import { DesktopChatPanel } from "../components/desktop/DesktopChatPanel";
+import { KittScanner } from "../components/KittScanner";
+import { LiveClock } from "../components/LiveClock";
 
 export const Route = createFileRoute("/chat")({
   head: () => ({ meta: [{ title: "Alpha — Chat" }, { name: "description", content: "Talk with Alpha." }] }),
@@ -109,7 +111,13 @@ function ChatRoute() {
             <ArrowLeft className="w-4 h-4 text-primary" />
           </Link>
           <div className="flex-1 flex items-center justify-center"><MiniOrb size={56} /></div>
-          <button onClick={() => alphaStore.clearChat()} className="text-xs text-muted-foreground shrink-0 px-2">Clear</button>
+          <div className="flex items-center gap-2 shrink-0">
+            <LiveClock className="text-right" />
+            <button onClick={() => alphaStore.clearChat()} className="text-xs text-muted-foreground px-2">Clear</button>
+          </div>
+        </div>
+        <div className="px-3 pb-2">
+          <KittScanner state={listening ? "scanning" : "idle"} bars={22} height={10} />
         </div>
       </header>
 

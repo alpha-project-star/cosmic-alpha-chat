@@ -12,7 +12,7 @@ export interface ChatMessage {
 
 export interface Note { id: string; title: string; body: string; updatedAt: number }
 export interface Bill { id: string; name: string; amount: number; dueDate: string; balance: number; status: "due" | "paid" | "overdue" }
-export interface Reminder { id: string; title: string; when: string; notes: string; done: "no" | "yes" }
+export interface Reminder { id: string; title: string; when: string; notes: string; done: "no" | "yes"; firedAt?: number }
 export interface Plan { id: string; title: string; from: string; to: string; date: string; details: string }
 export interface Memory { id: string; topic: string; detail: string; updatedAt: number }
 export interface Profile { name: string; bio: string }

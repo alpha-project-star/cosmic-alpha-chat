@@ -10,6 +10,8 @@ import { alphaStore, uid, useAlpha } from "../lib/alpha-store";
 import { Settings as SettingsIcon, MessageSquare, Grid3x3, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain } from "lucide-react";
 import { DesktopShell } from "../components/desktop/DesktopShell";
 import { DesktopHomePanel } from "../components/desktop/DesktopHomePanel";
+import { KittScanner } from "../components/KittScanner";
+import { LiveClock } from "../components/LiveClock";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -107,7 +109,10 @@ function OrbHome() {
     {/* Mobile layout */}
     <div className="lg:hidden starfield min-h-screen flex flex-col items-center px-4 pt-10 pb-12 relative overflow-hidden">
       <div className="absolute top-4 right-4 z-10">
-        <Link to="/settings" aria-label="Settings" className="glass rounded-full p-2 inline-flex"><SettingsIcon className="w-5 h-5 text-primary" /></Link>
+        <div className="flex items-center gap-2">
+          <LiveClock className="text-right" />
+          <Link to="/settings" aria-label="Settings" className="glass rounded-full p-2 inline-flex"><SettingsIcon className="w-5 h-5 text-primary" /></Link>
+        </div>
       </div>
       <div className="absolute top-4 left-4 z-10">
         <button onClick={() => setToolsOpen(v => !v)} aria-label="Tools" className="glass rounded-full p-2 inline-flex neon-border">
@@ -141,6 +146,10 @@ function OrbHome() {
 
       <div onClick={toggleMic} className="cursor-pointer select-none">
         <AlphaOrb analyser={recognizer.analyserNode} active={active || speaking} size={300} />
+      </div>
+
+      <div className="mt-6 w-72">
+        <KittScanner state={active ? "scanning" : "idle"} bars={26} height={14} />
       </div>
 
       <LiveTranscript interim={interim} status={speaking ? "Speaking…" : status} />
