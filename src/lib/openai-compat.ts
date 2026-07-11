@@ -7,7 +7,7 @@ import type { ChatMessage } from "./alpha-store";
 export async function sendChatOpenAICompat(
   history: ChatMessage[],
   systemPrompt: string,
-  opts: { baseUrl: string; apiKey: string; model: string },
+  opts: { baseUrl: string; apiKey: string; model: string; extraHeaders?: Record<string, string> },
 ): Promise<string> {
   const url = opts.baseUrl.replace(/\/+$/, "") + "/chat/completions";
   const messages = [
@@ -22,6 +22,7 @@ export async function sendChatOpenAICompat(
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${opts.apiKey}`,
+      ...(opts.extraHeaders || {}),
     },
     body: JSON.stringify({
       model: opts.model,
@@ -32,7 +33,9 @@ export async function sendChatOpenAICompat(
   });
   if (!res.ok) {
     const t = await res.text().catch(() => "");
-    throw new Error(`${opts.model} ${res.status}: ${t.slice(0, 300)}`);
+    const err: any = new Error(`${opts.model} ${res.status}: ${t.slice(0, 300)}`);
+    err.status = res.status;
+    throw err;
   }
   const j: any = await res.json();
   const text = j?.choices?.[0]?.message?.content?.trim() || "";
