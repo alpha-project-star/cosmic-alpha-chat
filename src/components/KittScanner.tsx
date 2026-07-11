@@ -73,11 +73,10 @@ export function KittScanner({
       : ((half - i) / half) * dur; // 0 = outer edge → toward center
 
   const halfStyle = {
-    // @ts-expect-error CSS variables
     "--kitt-dur": `${dur}ms`,
     "--kitt-min": opacityMin,
     "--kitt-max": opacityMax,
-  } as React.CSSProperties;
+  } as unknown as React.CSSProperties;
 
   return (
     <div
