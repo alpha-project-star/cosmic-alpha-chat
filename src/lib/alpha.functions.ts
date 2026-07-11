@@ -198,25 +198,54 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
     const rolling = conversationSummary.get();
     const sys = DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling);
 
-    if (prov === "groq") {
-      if (!s.groqApiKey) throw new Error("No Groq API key set. Add it in Settings → Online.");
-      const text = await sendChatOpenAICompat(history, sys, {
-        baseUrl: "https://api.groq.com/openai/v1",
-        apiKey: s.groqApiKey, model,
-      });
-      return executeActionTags(text);
-    }
-    if (prov === "openai") {
-      if (!s.openaiCompatKey) throw new Error("No OpenAI-compat API key set. Add it in Settings → Online.");
-      const text = await sendChatOpenAICompat(history, sys, {
-        baseUrl: s.openaiCompatBase || "https://api.openai.com/v1",
-        apiKey: s.openaiCompatKey, model,
-      });
-      return executeActionTags(text);
-    }
-    // prov === "gemini" falls through to Gemini path below (uses `model` override)
-    if (prov === "gemini" && model) {
-      return await callGemini(history, model);
+    try {
+      if (prov === "groq") {
+        if (!s.groqApiKey) throw new Error("No Groq API key set. Add it in Settings → Online.");
+        const text = await sendChatOpenAICompat(history, sys, {
+          baseUrl: "https://api.groq.com/openai/v1",
+          apiKey: s.groqApiKey, model,
+        });
+        return executeActionTags(text);
+      }
+      if (prov === "openai") {
+        if (!s.openaiCompatKey) throw new Error("No OpenAI-compat API key set. Add it in Settings → Online.");
+        const text = await sendChatOpenAICompat(history, sys, {
+          baseUrl: s.openaiCompatBase || "https://api.openai.com/v1",
+          apiKey: s.openaiCompatKey, model,
+        });
+        return executeActionTags(text);
+      }
+      if (prov === "openrouter") {
+        if (!s.openRouterKey) throw new Error("No OpenRouter API key set. Add it in Settings → Online.");
+        const text = await sendChatOpenAICompat(history, sys, {
+          baseUrl: "https://openrouter.ai/api/v1",
+          apiKey: s.openRouterKey, model,
+          extraHeaders: {
+            "HTTP-Referer": typeof window !== "undefined" ? window.location.origin : "https://alpha.local",
+            "X-Title": "Alpha",
+          },
+        });
+        return executeActionTags(text);
+      }
+      if (prov === "gemini" && model) {
+        return await callGemini(history, model);
+      }
+    } catch (e: any) {
+      // Defensive fallback: on 429 / quota / connection errors, reroute to
+      // the fast lane (Groq if configured) so the app never surfaces a hard
+      // error block to the user for a transient quota hit.
+      const msg = String(e?.message || "");
+      const is429 = e?.status === 429 || /\b429\b|quota|rate.?limit|limit:\s*0/i.test(msg);
+      if (is429 && s.groqApiKey && prov !== "groq") {
+        try {
+          const text = await sendChatOpenAICompat(history, sys, {
+            baseUrl: "https://api.groq.com/openai/v1",
+            apiKey: s.groqApiKey, model: "llama-3.1-8b-instant",
+          });
+          return executeActionTags(text) + "\n\n_⚠️ Primary model was rate-limited — answered via Groq fallback._";
+        } catch { /* fall through */ }
+      }
+      throw e;
     }
   }
 
