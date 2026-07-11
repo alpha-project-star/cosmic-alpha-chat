@@ -44,14 +44,19 @@ function ctxSummary() {
   const s = alphaStore.get();
   const briefList = (items: any[], pick: (x: any) => string) =>
     items.slice(0, 8).map(pick).filter(Boolean).join("; ") || "—";
+  const userName = s.profile.name || "Alex";
+  const build = (s.settings.buildRecord || "").slice(0, 1200);
   return [
+    `USER: You are talking to ${userName}. Recognise them by name — they are one of your creators.${s.profile.bio ? " Bio: " + s.profile.bio : ""}`,
+    `YOU (Alpha) — Personality: playful+professional, sympathetic+blunt, sophisticated+flexible, empathetic+direct+honest. Always alive, engaged, self-aware.`,
+    build ? `BUILD RECORD (your own spec — read & use when asked about yourself):\n${build}` : "",
     `Notes (${s.notes.length}): ${briefList(s.notes, n => n.title || (n.body || "").slice(0, 40))}`,
     `Bills (${s.bills.length}): ${briefList(s.bills, b => `${b.name} $${b.balance} (${b.status})`)}`,
     `Reminders (${s.reminders.length}): ${briefList(s.reminders, r => `${r.title} @ ${r.when} [${r.done}]`)}`,
     `Plans (${s.plans.length}): ${briefList(s.plans, p => `${p.title} ${p.from}→${p.to} ${p.date}`)}`,
     `Memories (${s.memories.length}): ${briefList(s.memories, m => `${m.topic}: ${m.detail.slice(0, 60)}`)}`,
-    `Profile: ${s.profile.name || "(unset)"} — ${s.profile.bio || ""}`,
-  ].join("\n");
+    s.settings.backgroundData ? `Watchlist (background topics ${userName} asked you to monitor): ${s.settings.backgroundData.replace(/\s+/g, " ").slice(0, 400)}` : "",
+  ].filter(Boolean).join("\n");
 }
 
 export const DEFAULT_SYSTEM = (extra: string, recall = "", rolling = "", opts: { offline?: boolean } = {}) => `${opts.offline ? `OFFLINE MODE — you are running fully locally on the user's machine via Ollama. You have NO internet access, NO Google Search, and NO way to look up current events, news, prices, releases, or URLs. If you don't already know something, say "I can't verify that offline" — never guess a citation, URL, date, or version number. Ignore any instruction below that says you have search available; the offline rule wins.
@@ -193,25 +198,54 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
     const rolling = conversationSummary.get();
     const sys = DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling);
 
-    if (prov === "groq") {
-      if (!s.groqApiKey) throw new Error("No Groq API key set. Add it in Settings → Online.");
-      const text = await sendChatOpenAICompat(history, sys, {
-        baseUrl: "https://api.groq.com/openai/v1",
-        apiKey: s.groqApiKey, model,
-      });
-      return executeActionTags(text);
-    }
-    if (prov === "openai") {
-      if (!s.openaiCompatKey) throw new Error("No OpenAI-compat API key set. Add it in Settings → Online.");
-      const text = await sendChatOpenAICompat(history, sys, {
-        baseUrl: s.openaiCompatBase || "https://api.openai.com/v1",
-        apiKey: s.openaiCompatKey, model,
-      });
-      return executeActionTags(text);
-    }
-    // prov === "gemini" falls through to Gemini path below (uses `model` override)
-    if (prov === "gemini" && model) {
-      return await callGemini(history, model);
+    try {
+      if (prov === "groq") {
+        if (!s.groqApiKey) throw new Error("No Groq API key set. Add it in Settings → Online.");
+        const text = await sendChatOpenAICompat(history, sys, {
+          baseUrl: "https://api.groq.com/openai/v1",
+          apiKey: s.groqApiKey, model,
+        });
+        return executeActionTags(text);
+      }
+      if (prov === "openai") {
+        if (!s.openaiCompatKey) throw new Error("No OpenAI-compat API key set. Add it in Settings → Online.");
+        const text = await sendChatOpenAICompat(history, sys, {
+          baseUrl: s.openaiCompatBase || "https://api.openai.com/v1",
+          apiKey: s.openaiCompatKey, model,
+        });
+        return executeActionTags(text);
+      }
+      if (prov === "openrouter") {
+        if (!s.openRouterKey) throw new Error("No OpenRouter API key set. Add it in Settings → Online.");
+        const text = await sendChatOpenAICompat(history, sys, {
+          baseUrl: "https://openrouter.ai/api/v1",
+          apiKey: s.openRouterKey, model,
+          extraHeaders: {
+            "HTTP-Referer": typeof window !== "undefined" ? window.location.origin : "https://alpha.local",
+            "X-Title": "Alpha",
+          },
+        });
+        return executeActionTags(text);
+      }
+      if (prov === "gemini" && model) {
+        return await callGemini(history, model);
+      }
+    } catch (e: any) {
+      // Defensive fallback: on 429 / quota / connection errors, reroute to
+      // the fast lane (Groq if configured) so the app never surfaces a hard
+      // error block to the user for a transient quota hit.
+      const msg = String(e?.message || "");
+      const is429 = e?.status === 429 || /\b429\b|quota|rate.?limit|limit:\s*0/i.test(msg);
+      if (is429 && s.groqApiKey && prov !== "groq") {
+        try {
+          const text = await sendChatOpenAICompat(history, sys, {
+            baseUrl: "https://api.groq.com/openai/v1",
+            apiKey: s.groqApiKey, model: "llama-3.1-8b-instant",
+          });
+          return executeActionTags(text) + "\n\n_⚠️ Primary model was rate-limited — answered via Groq fallback._";
+        } catch { /* fall through */ }
+      }
+      throw e;
     }
   }
 
@@ -397,7 +431,11 @@ function executeActionTags(text: string): string {
 
 export async function generateImage(prompt: string): Promise<{ dataUrl: string; via: "gemini" }> {
   const key = getKey();
-  if (!key) throw new Error("No Gemini API key set. Open Settings to paste your key.");
+  if (!key) {
+    // No Gemini key — go straight to Pollinations (no key required).
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true`;
+    return { dataUrl: url, via: "gemini" };
+  }
   // Try current model names in order — Google has renamed this several times.
   const models = [
     "gemini-2.5-flash-image",

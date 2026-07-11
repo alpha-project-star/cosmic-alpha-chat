@@ -39,6 +39,14 @@ export interface Settings {
   groqApiKey: string;
   openaiCompatKey: string;
   openaiCompatBase: string;                      // e.g. https://api.openai.com/v1
+  openRouterKey: string;                         // OpenRouter API key
+  // Free-form "watchlist" — comma or newline separated topics Alpha
+  // proactively surfaces via the alert bus when a hit lands.
+  backgroundData: string;
+  // Toggle for background scanners (lights out on scanner when false).
+  backgroundEnabled: boolean;
+  // Persistent build/spec record — Alpha reads this so he knows himself.
+  buildRecord: string;
   // Task -> "provider:model" e.g. "groq:llama-3.1-8b-instant" | "gemini:gemini-2.5-pro" | "openai:gpt-4o-mini"
   taskModels: { fast: string; thinking: string; coding: string };
 }
@@ -86,10 +94,24 @@ const DEFAULT_SETTINGS: Settings = {
   groqApiKey: "",
   openaiCompatKey: "",
   openaiCompatBase: "https://api.openai.com/v1",
+  openRouterKey: "",
+  backgroundData: "",
+  backgroundEnabled: true,
+  buildRecord: `# Alpha — Build Record
+
+Alpha is a voice-first, futuristic AI companion built with Alex as one of its
+creators. Core layout: cosmic Orb home, split-column desktop HUD, chat with
+MiniOrb sticky header, and dedicated Notes / Bills / Reminders / Plans /
+Memories / Image tools. State lives in localStorage. Chat routes across
+Gemini (deep + web grounding), Groq (fast), OpenRouter Qwen (coding), with a
+429 fallback that reroutes automatically. Images use Gemini first, then
+Pollinations. STT: browser Web Speech or local Whisper. TTS: Kokoro or
+browser. Alarms fire from an on-device engine with WebAudio chime, system
+notification, and voice announcement. Alpha recognises the user as Alex.`,
   taskModels: {
     fast: "groq:llama-3.1-8b-instant",
     thinking: "gemini:gemini-2.5-pro",
-    coding: "gemini:gemini-2.5-pro",
+    coding: "openrouter:qwen/qwen3-coder:free",
   },
 };
 

@@ -11,14 +11,14 @@ export function GlobalDock() {
   const path = useRouterState({ select: s => s.location.pathname });
   if (path === "/" || path === "/chat") return null;
   return (
-    <div className="fixed bottom-4 right-4 z-40 flex items-center gap-2 glass neon-border rounded-full px-2 py-2 shadow-xl">
+    <div className="fixed top-3 right-3 z-40 flex items-center gap-2 glass neon-border rounded-full px-2 py-1.5 shadow-xl">
       <Link to="/" aria-label="Home" className="p-2 rounded-full hover:bg-primary/10">
         <Sparkles className="w-4 h-4 text-primary" />
       </Link>
       <Link to="/chat" aria-label="Open chat" className="p-2 rounded-full hover:bg-primary/10">
         <MessageSquare className="w-4 h-4 text-primary" />
       </Link>
-      <MiniOrb size={44} />
+      <MiniOrb size={36} />
     </div>
   );
 }
