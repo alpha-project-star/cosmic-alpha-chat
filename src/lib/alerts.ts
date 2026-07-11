@@ -11,7 +11,7 @@ const listeners = new Set<Fn>();
 export const alertBus = {
   sub(fn: Fn) {
     listeners.add(fn);
-    return () => listeners.delete(fn);
+    return () => { listeners.delete(fn); };
   },
   pulse() {
     listeners.forEach(fn => fn(true));
