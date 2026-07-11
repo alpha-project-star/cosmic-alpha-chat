@@ -431,7 +431,11 @@ function executeActionTags(text: string): string {
 
 export async function generateImage(prompt: string): Promise<{ dataUrl: string; via: "gemini" }> {
   const key = getKey();
-  if (!key) throw new Error("No Gemini API key set. Open Settings to paste your key.");
+  if (!key) {
+    // No Gemini key — go straight to Pollinations (no key required).
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true`;
+    return { dataUrl: url, via: "gemini" };
+  }
   // Try current model names in order — Google has renamed this several times.
   const models = [
     "gemini-2.5-flash-image",
