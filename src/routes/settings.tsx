@@ -28,6 +28,7 @@ const KOKORO_VOICES = [
 
 function SettingsRoute() {
   const s = useAlpha(x => x.settings);
+  const profile = useAlpha(x => x.profile);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [saved, setSaved] = useState(false);
   const [kokoroStatus, setKokoroStatus] = useState<string>("");
@@ -280,12 +281,12 @@ function SettingsRoute() {
           </Section>
 
           <Section title="About You" hint="Alpha uses this to recognise and address you personally.">
-            <input type="text" value={s.profile?.name ?? ""}
-              onChange={e => alphaStore.setProfile({ ...alphaStore.get().profile, name: e.target.value })}
+            <input type="text" value={profile.name}
+              onChange={e => alphaStore.setProfile({ ...profile, name: e.target.value })}
               placeholder="Your name (e.g. Alex)"
               className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2" />
-            <textarea value={s.profile?.bio ?? ""}
-              onChange={e => alphaStore.setProfile({ ...alphaStore.get().profile, bio: e.target.value })}
+            <textarea value={profile.bio}
+              onChange={e => alphaStore.setProfile({ ...profile, bio: e.target.value })}
               placeholder="Tell Alpha about yourself — role, interests, tone you prefer, anything you want him to remember about you."
               className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[100px]" />
           </Section>
