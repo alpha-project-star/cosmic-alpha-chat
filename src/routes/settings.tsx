@@ -162,7 +162,12 @@ function SettingsRoute() {
               placeholder="sk-..." className="w-full bg-input rounded-md px-3 py-2 border border-border" />
           </Section>
 
-          <Section title="Task Routing" hint="Which model runs each job. Format: provider:model (providers: gemini, groq, openai). The chat composer will let you switch task per message.">
+          <Section title="OpenRouter API Key" hint="Used by Code mode and OpenRouter-hosted models such as Qwen Coder.">
+            <input type="password" value={s.openRouterKey} onChange={e => alphaStore.setSettings({ openRouterKey: e.target.value })}
+              placeholder="sk-or-..." className="w-full bg-input rounded-md px-3 py-2 border border-border" />
+          </Section>
+
+          <Section title="Task Routing" hint="Which model runs each job. Format: provider:model (providers: gemini, groq, openai, openrouter). Auto uses Fast first when its key is available; the chat composer can switch task per message.">
             <TaskRow label="⚡ Fast (chat, quick)" value={s.taskModels.fast}
               onChange={v => alphaStore.setSettings({ taskModels: { ...s.taskModels, fast: v } })}
               examples={["groq:llama-3.1-8b-instant","groq:llama-3.3-70b-versatile","gemini:gemini-2.5-flash"]} />
@@ -171,7 +176,7 @@ function SettingsRoute() {
               examples={["gemini:gemini-2.5-pro","openai:gpt-4o","openai:o1-mini"]} />
             <TaskRow label="🛠 Coding & debug" value={s.taskModels.coding}
               onChange={v => alphaStore.setSettings({ taskModels: { ...s.taskModels, coding: v } })}
-              examples={["gemini:gemini-2.5-pro","openai:gpt-4o","groq:llama-3.3-70b-versatile"]} />
+              examples={["openrouter:qwen/qwen3-coder:free","gemini:gemini-2.5-pro","groq:llama-3.3-70b-versatile"]} />
           </Section>
 
           <Section title="Kokoro TTS (preferred male voice)" hint="OpenAI-compatible Kokoro endpoint. Empty = browser voice fallback.">

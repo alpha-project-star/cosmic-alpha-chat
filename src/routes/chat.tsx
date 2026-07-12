@@ -106,16 +106,16 @@ function ChatRoute() {
     {/* Mobile layout */}
     <div className="lg:hidden starfield h-[100dvh] flex flex-col overflow-hidden w-full max-w-full">
       <header className="glass border-b border-primary/20 shrink-0 z-30">
-        <div className="flex items-center justify-between gap-2 px-3 py-3 relative">
-          <div className="flex items-center gap-2 shrink-0">
+        <div className="grid grid-cols-[88px_1fr_88px] items-center gap-2 px-3 py-3 relative">
+          <div className="flex items-center gap-1.5 min-w-0 justify-start">
             <Link to="/" aria-label="Back" className="p-1.5 rounded-full glass neon-border">
               <ArrowLeft className="w-4 h-4 text-primary" />
             </Link>
-            <LiveClock className="text-left" />
+            <LiveClock className="text-left text-[10px] [&_.font-mono]:tracking-wide" />
           </div>
-          <div className="flex-1 flex items-center justify-center"><MiniOrb size={56} /></div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button onClick={() => alphaStore.clearChat()} className="text-xs text-muted-foreground px-2">Clear</button>
+          <div className="flex items-center justify-center"><MiniOrb size={56} /></div>
+          <div className="flex items-center gap-2 min-w-0 justify-end">
+            <button onClick={() => alphaStore.clearChat()} className="text-[10px] text-muted-foreground px-1.5">Clear</button>
           </div>
         </div>
         <div className="px-3 pb-2">

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Send, Sparkles, X, ArrowDown, ArrowUp } from "lucide-react";
+import { ImagePlus, Send, Sparkles, X, ArrowDown, ArrowUp, Zap } from "lucide-react";
 import { alphaStore, uid, useAlpha } from "../../lib/alpha-store";
-import { sendChat } from "../../lib/alpha.functions";
+import { sendChat, type TaskType } from "../../lib/alpha.functions";
 import { MessageContent } from "../MessageContent";
 import { prepareUtterance, speakWith } from "../../lib/voice";
 import { tryLocalIntent } from "../../lib/local-intents";
@@ -16,6 +16,7 @@ export function DesktopChatPanel() {
   const [images, setImages] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [showJump, setShowJump] = useState(false);
+  const [task, setTask] = useState<TaskType>("auto");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   function scrollToBottom(smooth = true) {
@@ -38,7 +39,7 @@ export function DesktopChatPanel() {
     setText(""); setImages([]); setBusy(true);
     try {
       const local = t ? tryLocalIntent(t) : null;
-      const reply = local ?? await sendChat(alphaStore.get().chat);
+      const reply = local ?? await sendChat(alphaStore.get().chat, { task });
       alphaStore.appendChat({ id: uid(), role: "model", text: reply, ts: Date.now() });
       speakWith(reply);
     } catch (e: any) {
@@ -116,7 +117,16 @@ export function DesktopChatPanel() {
         </div>
       )}
 
-      <div className="pt-3 flex items-end gap-2">
+      <div className="pt-2 flex items-center gap-1.5 overflow-x-auto">
+        <Zap className="w-3.5 h-3.5 text-primary shrink-0" />
+        {(["auto","fast","thinking","coding"] as const).map(t => (
+          <button key={t} onClick={() => setTask(t)}
+            className={`text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap ${task === t ? "bg-primary text-primary-foreground border-primary" : "hud-bubble text-muted-foreground"}`}>
+            {t === "auto" ? "Auto" : t === "fast" ? "⚡ Fast" : t === "thinking" ? "🧠 Deep" : "🛠 Code"}
+          </button>
+        ))}
+      </div>
+      <div className="pt-2 flex items-end gap-2">
         <label className="cursor-pointer p-2 rounded-lg hud-bubble">
           <ImagePlus className="w-5 h-5 text-primary" />
           <input type="file" accept="image/*" multiple hidden onChange={e => pickImages(e.target.files)} />

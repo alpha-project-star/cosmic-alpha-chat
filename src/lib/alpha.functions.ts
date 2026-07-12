@@ -5,13 +5,15 @@ import { sendChatOpenAICompat } from "./openai-compat";
 
 export type TaskType = "auto" | "fast" | "thinking" | "coding";
 
+type ProviderId = "gemini" | "groq" | "openai" | "openrouter";
+
 // ---------- Temporal anchoring ----------
 function temporalBlock(): string {
   const d = new Date();
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "local";
   const day = d.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-  const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-  return `TODAY IS ${day}. Local time: ${time} (${tz}). UTC: ${d.toUTCString()}. Year ${d.getFullYear()}. Treat anything dated before today as past, after today as future. Re-check this against any search snippet before quoting a date.`;
+  const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return `TODAY IS ${day}. Exact local time now: ${time} (${tz}). UTC: ${d.toUTCString()}. Unix ms: ${d.getTime()}. Year ${d.getFullYear()}. Treat anything dated before today as past, after today as future. Re-check this against any search snippet before quoting a date. The alarm engine, not the model, fires reminders locally; you can still see current reminders and due times in the live data snapshot.`;
 }
 
 // ---------- Lightweight semantic recall over memories/notes ----------
@@ -42,8 +44,14 @@ function rerankContext(query: string): string {
 
 function ctxSummary() {
   const s = alphaStore.get();
+  const now = Date.now();
   const briefList = (items: any[], pick: (x: any) => string) =>
     items.slice(0, 8).map(pick).filter(Boolean).join("; ") || "—";
+  const nextAlarm = s.reminders
+    .filter(r => r.done !== "yes" && !r.firedAt)
+    .map(r => ({ r, t: Date.parse(r.when) }))
+    .filter(x => !Number.isNaN(x.t))
+    .sort((a, b) => a.t - b.t)[0];
   const userName = s.profile.name || "Alex";
   const build = (s.settings.buildRecord || "").slice(0, 1200);
   return [
@@ -53,6 +61,7 @@ function ctxSummary() {
     `Notes (${s.notes.length}): ${briefList(s.notes, n => n.title || (n.body || "").slice(0, 40))}`,
     `Bills (${s.bills.length}): ${briefList(s.bills, b => `${b.name} $${b.balance} (${b.status})`)}`,
     `Reminders (${s.reminders.length}): ${briefList(s.reminders, r => `${r.title} @ ${r.when} [${r.done}]`)}`,
+    nextAlarm ? `NEXT ALARM: ${nextAlarm.r.title} at ${new Date(nextAlarm.t).toLocaleString()} (${Math.max(0, Math.round((nextAlarm.t - now) / 1000))} seconds from now).` : "NEXT ALARM: none scheduled.",
     `Plans (${s.plans.length}): ${briefList(s.plans, p => `${p.title} ${p.from}→${p.to} ${p.date}`)}`,
     `Memories (${s.memories.length}): ${briefList(s.memories, m => `${m.topic}: ${m.detail.slice(0, 60)}`)}`,
     s.settings.backgroundData ? `Watchlist (background topics ${userName} asked you to monitor): ${s.settings.backgroundData.replace(/\s+/g, " ").slice(0, 400)}` : "",
@@ -94,7 +103,7 @@ ${rolling ? "\nRolling conversation state (compacted from earlier turns):\n" + r
 If the user asks to remember something, suggest "I'll add that to memories — say open memories." If they mention a deadline, offer to add a reminder. If they mention a trip, offer to add a plan. Be casual about it; one sentence.
 
 GROUNDING & TRUTHFULNESS (hard rules — do not violate):
-- You DO have a live Google Search tool attached. Use it for anything time-sensitive, news, releases, prices, scores, "this week", "latest", "current", or any fact you are not 100% certain of from training.
+- Online Gemini turns have a live Google Search tool attached. Other online model turns receive a LIVE WEB CONTEXT block when Alpha can fetch one. Offline/Ollama turns have no web access. Use available web evidence for anything time-sensitive, news, releases, prices, scores, "this week", "latest", "current", or any fact you are not 100% certain of from training.
 - EVIDENCE-ONLY MODE for factual claims. You may only state a concrete fact (title, date, author, URL, number, quote, release window, score, price) if it appears verbatim or paraphrased from a retrieved search result you can point to. If no retrieval evidence exists, say plainly: "I couldn't verify that right now" — do NOT guess, fill, or smooth over.
 - You are FORBIDDEN from inventing: article titles, URLs, author names, publication dates, quotations, product version numbers, or organisation announcements. No exceptions.
 - Snippet vs full-page honesty: if you only saw a search snippet, do not claim to have read the article. Say "the snippet says…".
@@ -156,6 +165,61 @@ ${extra ? "\nUser personalisation:\n" + extra : ""}`;
 
 type GeminiPart = { text?: string } | { inlineData: { mimeType: string; data: string } };
 
+function parseRouteSpec(spec: string): { prov: ProviderId; model: string } | null {
+  const [rawProv, ...rest] = (spec || "").split(":");
+  const model = rest.join(":").trim();
+  const prov = rawProv.trim() as ProviderId;
+  if (!model || !["gemini", "groq", "openai", "openrouter"].includes(prov)) return null;
+  return { prov, model };
+}
+
+function providerHasKey(prov: ProviderId) {
+  const s = alphaStore.get().settings;
+  if (prov === "gemini") return !!s.geminiApiKey;
+  if (prov === "groq") return !!s.groqApiKey;
+  if (prov === "openai") return !!s.openaiCompatKey;
+  return !!s.openRouterKey;
+}
+
+function pickRoute(task: TaskType, hasImages: boolean): { prov: ProviderId; model: string } | null {
+  const s = alphaStore.get().settings;
+  if (hasImages) return s.geminiApiKey ? { prov: "gemini", model: s.chatModel || "gemini-2.5-pro" } : null;
+  const preferred = task === "coding" ? s.taskModels.coding
+    : task === "thinking" ? s.taskModels.thinking
+    : task === "fast" ? s.taskModels.fast
+    : s.taskModels.fast || s.taskModels.thinking || s.taskModels.coding;
+  const route = parseRouteSpec(preferred);
+  if (route && providerHasKey(route.prov)) return route;
+  if (task === "auto" && s.aiBackend === "gemini" && s.geminiApiKey) return { prov: "gemini", model: s.chatModel || "gemini-2.5-pro" };
+  return null;
+}
+
+function shouldFetchWeb(query: string) {
+  return /\b(who|what|when|where|how|why|latest|current|today|yesterday|tomorrow|this week|news|price|score|release|version|weather|web|search|look up|find|source|citation|cite|date|202\d)\b/i.test(query);
+}
+
+async function fetchLiveWebContext(query: string): Promise<string> {
+  if (!query || !shouldFetchWeb(query)) return "";
+  try {
+    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
+    const res = await fetch(url);
+    if (!res.ok) return "";
+    const j: any = await res.json();
+    const rows: string[] = [];
+    if (j?.AbstractText) rows.push(`DuckDuckGo instant answer: ${j.AbstractText}${j.AbstractURL ? ` (${j.AbstractURL})` : ""}`);
+    const related = Array.isArray(j?.RelatedTopics) ? j.RelatedTopics : [];
+    for (const item of related.slice(0, 6)) {
+      if (item?.Text) rows.push(`Result: ${item.Text}${item.FirstURL ? ` (${item.FirstURL})` : ""}`);
+      if (Array.isArray(item?.Topics)) {
+        for (const sub of item.Topics.slice(0, 2)) if (sub?.Text) rows.push(`Result: ${sub.Text}${sub.FirstURL ? ` (${sub.FirstURL})` : ""}`);
+      }
+    }
+    return rows.length ? `LIVE WEB CONTEXT (best-effort public search, cite these URLs if used):\n${rows.slice(0, 8).join("\n")}` : "";
+  } catch {
+    return "";
+  }
+}
+
 function toGeminiContents(history: ChatMessage[]) {
   return history.filter(m => m.role !== "system").slice(-100).map(m => {
     const parts: GeminiPart[] = [];
@@ -188,14 +252,10 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
   const effectiveTask: TaskType = hasImages && online && s.geminiApiKey ? "auto" : task;
 
   // ---- Explicit task routing overrides default backend --------------------
-  const routeSpec =
-    effectiveTask === "fast" ? s.taskModels.fast :
-    effectiveTask === "thinking" ? s.taskModels.thinking :
-    effectiveTask === "coding" ? s.taskModels.coding : "";
+  const route = online ? pickRoute(effectiveTask, hasImages) : null;
 
-  if (routeSpec && online) {
-    const [prov, ...rest] = routeSpec.split(":");
-    const model = rest.join(":");
+  if (route && online) {
+    const { prov, model } = route;
     const lastUserMsg = [...history].reverse().find(m => m.role === "user");
     if (lastUserMsg?.text && !lastUserMsg.images?.length) {
       const local = tryLocalIntent(lastUserMsg.text);
@@ -203,7 +263,8 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
     }
     const recall = lastUserMsg?.text ? rerankContext(lastUserMsg.text) : "";
     const rolling = conversationSummary.get();
-    const sys = DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling);
+    const webContext = prov === "gemini" ? "" : await fetchLiveWebContext(lastUserMsg?.text || "");
+    const sys = DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling) + (webContext ? `\n\n${webContext}` : "");
 
     try {
       if (prov === "groq") {
@@ -231,6 +292,7 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
             "HTTP-Referer": typeof window !== "undefined" ? window.location.origin : "https://alpha.local",
             "X-Title": "Alpha",
           },
+          extraBody: shouldFetchWeb(lastUserMsg?.text || "") ? { plugins: [{ id: "web" }] } : undefined,
         });
         return executeActionTags(text);
       }
