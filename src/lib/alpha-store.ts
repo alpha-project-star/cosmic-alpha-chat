@@ -123,6 +123,10 @@ function writeLS<T>(key: string, v: T) {
   if (typeof window === "undefined") return;
   try { localStorage.setItem(key, JSON.stringify(v)); } catch {}
 }
+function notifyReminderChange() {
+  if (typeof window === "undefined") return;
+  try { window.dispatchEvent(new CustomEvent("alpha:reminders-changed")); } catch {}
+}
 
 let state: AlphaState = {
   chat: readLS<ChatMessage[]>(K.chat, []),
@@ -168,8 +172,8 @@ export const alphaStore = {
   deleteNote(id: string) { state = { ...state, notes: state.notes.filter(x => x.id !== id) }; writeLS(K.notes, state.notes); emit(); },
   upsertBill(b: Bill) { state = { ...state, bills: upsert(state.bills, b) }; writeLS(K.bills, state.bills); emit(); },
   deleteBill(id: string) { state = { ...state, bills: state.bills.filter(x => x.id !== id) }; writeLS(K.bills, state.bills); emit(); },
-  upsertReminder(r: Reminder) { state = { ...state, reminders: upsert(state.reminders, r) }; writeLS(K.reminders, state.reminders); emit(); },
-  deleteReminder(id: string) { state = { ...state, reminders: state.reminders.filter(x => x.id !== id) }; writeLS(K.reminders, state.reminders); emit(); },
+  upsertReminder(r: Reminder) { state = { ...state, reminders: upsert(state.reminders, r) }; writeLS(K.reminders, state.reminders); emit(); notifyReminderChange(); },
+  deleteReminder(id: string) { state = { ...state, reminders: state.reminders.filter(x => x.id !== id) }; writeLS(K.reminders, state.reminders); emit(); notifyReminderChange(); },
   upsertPlan(p: Plan) { state = { ...state, plans: upsert(state.plans, p) }; writeLS(K.plans, state.plans); emit(); },
   deletePlan(id: string) { state = { ...state, plans: state.plans.filter(x => x.id !== id) }; writeLS(K.plans, state.plans); emit(); },
   upsertMemory(m: Memory) { state = { ...state, memories: upsert(state.memories, m) }; writeLS(K.memories, state.memories); emit(); },

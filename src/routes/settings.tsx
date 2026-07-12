@@ -33,6 +33,7 @@ function SettingsRoute() {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [saved, setSaved] = useState(false);
   const [kokoroStatus, setKokoroStatus] = useState<string>("");
+  const [alarmStatus, setAlarmStatus] = useState<string>("");
   const [ollamaStatus, setOllamaStatus] = useState<string>("");
   const [whisperStatus, setWhisperStatus] = useState<string>("");
   const [newModel, setNewModel] = useState("");
@@ -162,7 +163,12 @@ function SettingsRoute() {
               placeholder="sk-..." className="w-full bg-input rounded-md px-3 py-2 border border-border" />
           </Section>
 
-          <Section title="Task Routing" hint="Which model runs each job. Format: provider:model (providers: gemini, groq, openai). The chat composer will let you switch task per message.">
+          <Section title="OpenRouter API Key" hint="Used by Code mode and OpenRouter-hosted models such as Qwen Coder.">
+            <input type="password" value={s.openRouterKey} onChange={e => alphaStore.setSettings({ openRouterKey: e.target.value })}
+              placeholder="sk-or-..." className="w-full bg-input rounded-md px-3 py-2 border border-border" />
+          </Section>
+
+          <Section title="Task Routing" hint="Which model runs each job. Format: provider:model (providers: gemini, groq, openai, openrouter). Auto uses Fast first when its key is available; the chat composer can switch task per message.">
             <TaskRow label="⚡ Fast (chat, quick)" value={s.taskModels.fast}
               onChange={v => alphaStore.setSettings({ taskModels: { ...s.taskModels, fast: v } })}
               examples={["groq:llama-3.1-8b-instant","groq:llama-3.3-70b-versatile","gemini:gemini-2.5-flash"]} />
@@ -171,7 +177,7 @@ function SettingsRoute() {
               examples={["gemini:gemini-2.5-pro","openai:gpt-4o","openai:o1-mini"]} />
             <TaskRow label="🛠 Coding & debug" value={s.taskModels.coding}
               onChange={v => alphaStore.setSettings({ taskModels: { ...s.taskModels, coding: v } })}
-              examples={["gemini:gemini-2.5-pro","openai:gpt-4o","groq:llama-3.3-70b-versatile"]} />
+              examples={["openrouter:qwen/qwen3-coder:free","gemini:gemini-2.5-pro","groq:llama-3.3-70b-versatile"]} />
           </Section>
 
           <Section title="Kokoro TTS (preferred male voice)" hint="OpenAI-compatible Kokoro endpoint. Empty = browser voice fallback.">
@@ -275,11 +281,12 @@ function SettingsRoute() {
 
           <Section title="Alarms" hint="Reminders fire in the background while Alpha is open. Enable browser notifications for pop-ups when the tab is hidden.">
             <div className="flex flex-wrap gap-2">
-              <button onClick={async () => { await requestAlarmPermission(); }}
+              <button onClick={async () => { const ok = await requestAlarmPermission(); setAlarmStatus(ok ? "✅ Notifications enabled. Alarms will chime, speak, and show pop-ups while Alpha is open." : "⚠️ Notifications blocked. Alarms will still chime and speak while Alpha is open."); }}
                 className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Enable notifications</button>
-              <button onClick={testAlarmNow}
+              <button onClick={() => { testAlarmNow(); setAlarmStatus("✅ Test alarm fired — scanner alert, chime, and voice were triggered."); }}
                 className="px-3 py-1.5 text-sm rounded-md glass neon-border">Test alarm now</button>
             </div>
+            {alarmStatus && <div className="mt-2 text-xs text-muted-foreground">{alarmStatus}</div>}
           </Section>
 
           <Section title="About You" hint="Alpha uses this to recognise and address you personally.">

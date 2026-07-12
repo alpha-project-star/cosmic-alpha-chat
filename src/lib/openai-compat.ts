@@ -7,7 +7,7 @@ import type { ChatMessage } from "./alpha-store";
 export async function sendChatOpenAICompat(
   history: ChatMessage[],
   systemPrompt: string,
-  opts: { baseUrl: string; apiKey: string; model: string; extraHeaders?: Record<string, string> },
+  opts: { baseUrl: string; apiKey: string; model: string; extraHeaders?: Record<string, string>; extraBody?: Record<string, unknown> },
 ): Promise<string> {
   const url = opts.baseUrl.replace(/\/+$/, "") + "/chat/completions";
   const messages = [
@@ -29,6 +29,7 @@ export async function sendChatOpenAICompat(
       messages,
       temperature: 0.8,
       stream: false,
+      ...(opts.extraBody || {}),
     }),
   });
   if (!res.ok) {
