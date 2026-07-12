@@ -11,7 +11,7 @@ import { Settings as SettingsIcon, MessageSquare, ChevronDown, NotebookPen, Wall
 import { DesktopShell } from "../components/desktop/DesktopShell";
 import { DesktopHomePanel } from "../components/desktop/DesktopHomePanel";
 import { KittScanner } from "../components/KittScanner";
-import { useAlpha } from "../lib/alpha-store";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
