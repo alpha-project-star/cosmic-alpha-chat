@@ -44,6 +44,7 @@ export async function listOllamaModels(endpoint?: string): Promise<string[]> {
 export async function sendChatOllama(
   history: ChatMessage[],
   systemPrompt: string,
+  webContext = "",
 ): Promise<string> {
   // Fast local-intent shortcut (same as the Gemini path) so simple CRUD
   // never touches the LLM.
@@ -57,7 +58,7 @@ export async function sendChatOllama(
   const url = `${base()}/api/chat`;
 
   const messages = [
-    { role: "system", content: systemPrompt },
+    { role: "system", content: webContext ? `${systemPrompt}\n\n${webContext}` : systemPrompt },
     ...toOllamaMessages(history),
   ];
 

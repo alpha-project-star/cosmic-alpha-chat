@@ -14,23 +14,88 @@ import { alertBus } from "./alerts";
 
 let started = false;
 let intervalId: number | null = null;
-const scheduled = new Set<string>();
+let audioCtx: AudioContext | null = null;
+const scheduled = new Map<string, { due: number; timer: number }>();
+
+function parseNaturalWhen(raw: string): number | null {
+  const s = raw.trim().toLowerCase();
+  const now = new Date();
+
+  let m = s.match(/^in\s+(\d+)\s*(second|sec|minute|min|hour|hr|day)s?$/);
+  if (m) {
+    const n = Number(m[1]);
+    const unit = m[2];
+    const ms = /second|sec/.test(unit) ? n * 1000
+      : /min/.test(unit) ? n * 60000
+      : /hour|hr/.test(unit) ? n * 3600000
+      : n * 86400000;
+    return now.getTime() + ms;
+  }
+
+  m = s.match(/^(?:today\s+)?(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+  if (m) {
+    let h = Number(m[1]);
+    const mm = Number(m[2] || 0);
+    const ampm = m[3];
+    if (ampm === "pm" && h < 12) h += 12;
+    if (ampm === "am" && h === 12) h = 0;
+    const d = new Date(now);
+    d.setHours(h, mm, 0, 0);
+    if (d.getTime() <= now.getTime()) d.setDate(d.getDate() + 1);
+    return d.getTime();
+  }
+
+  m = s.match(/^tomorrow(?:\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?)?$/);
+  if (m) {
+    const d = new Date(now); d.setDate(d.getDate() + 1);
+    let h = m[1] ? Number(m[1]) : 9;
+    const mm = Number(m[2] || 0);
+    const ampm = m[3];
+    if (ampm === "pm" && h < 12) h += 12;
+    if (ampm === "am" && h === 12) h = 0;
+    d.setHours(h, mm, 0, 0);
+    return d.getTime();
+  }
+
+  return null;
+}
 
 function parseWhen(raw: string): number | null {
   if (!raw) return null;
   // ISO / RFC first
   const iso = Date.parse(raw);
   if (!isNaN(iso)) return iso;
-  // Fallback: try `datetime-local` shape "2026-07-15T09:00"
-  return null;
+  return parseNaturalWhen(raw);
+}
+
+function ensureAudioContext() {
+  if (typeof window === "undefined") return null;
+  const Ctx =
+    (window as any).AudioContext || (window as any).webkitAudioContext;
+  if (!Ctx) return null;
+  if (!audioCtx) audioCtx = new Ctx();
+  return audioCtx;
+}
+
+function unlockAlarmAudio() {
+  try {
+    const ctx = ensureAudioContext();
+    if (!ctx) return;
+    void ctx.resume?.();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    g.gain.value = 0.0001;
+    o.connect(g).connect(ctx.destination);
+    o.start();
+    o.stop(ctx.currentTime + 0.02);
+  } catch {}
 }
 
 function playChime() {
   try {
-    const Ctx =
-      (window as any).AudioContext || (window as any).webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
+    const ctx = ensureAudioContext();
+    if (!ctx) return;
+    void ctx.resume?.();
     const g = ctx.createGain();
     g.gain.value = 0.0001;
     g.connect(ctx.destination);
@@ -48,7 +113,6 @@ function playChime() {
       o.stop(ctx.currentTime + i * 0.18 + 0.3);
     });
     g.gain.setValueAtTime(1, ctx.currentTime);
-    setTimeout(() => { try { ctx.close(); } catch {} }, 1500);
   } catch {}
 }
 
@@ -72,14 +136,19 @@ export async function requestAlarmPermission(): Promise<boolean> {
 }
 
 export function fireAlarm(title: string, notes = "") {
+  prepareUtterance();
   playChime();
   notify(title, notes || "Reminder from Alpha");
   try { alertBus.pulse(); } catch {}
   const line = notes
     ? `Excuse me — reminder: ${title}. ${notes}`
     : `Excuse me — reminder: ${title}.`;
-  prepareUtterance();
   void speakWith(line);
+}
+
+function clearScheduled() {
+  for (const entry of scheduled.values()) window.clearTimeout(entry.timer);
+  scheduled.clear();
 }
 
 function tick() {
@@ -93,16 +162,18 @@ function tick() {
     if (now >= t) {
       alphaStore.upsertReminder({ ...r, firedAt: now });
       fireAlarm(r.title || "Untitled reminder", r.notes || "");
-    } else if (t - now < 60_000 && !scheduled.has(r.id)) {
+    } else if (t - now < 60_000 && (!scheduled.has(r.id) || scheduled.get(r.id)?.due !== t)) {
       // Precise near-term scheduling so sub-minute alarms don't drift with the 15s tick.
-      scheduled.add(r.id);
-      window.setTimeout(() => {
+      const existing = scheduled.get(r.id);
+      if (existing) window.clearTimeout(existing.timer);
+      const timer = window.setTimeout(() => {
         scheduled.delete(r.id);
         const cur = alphaStore.get().reminders.find(x => x.id === r.id);
         if (!cur || cur.done === "yes" || cur.firedAt) return;
         alphaStore.upsertReminder({ ...cur, firedAt: Date.now() });
         fireAlarm(cur.title || "Untitled reminder", cur.notes || "");
       }, Math.max(0, t - now));
+      scheduled.set(r.id, { due: t, timer });
     }
   }
 }
@@ -111,12 +182,13 @@ export function startAlarmEngine() {
   if (started) return;
   if (typeof window === "undefined") return;
   started = true;
-  // Best-effort permission request (must be inside gesture on most browsers,
-  // but this is idempotent so we retry on first user click too).
-  void requestAlarmPermission();
+  window.addEventListener("pointerdown", unlockAlarmAudio, { passive: true });
+  window.addEventListener("keydown", unlockAlarmAudio);
   // First tick shortly after boot, then every 15s.
+  window.setTimeout(tick, 250);
   window.setTimeout(tick, 2000);
   intervalId = window.setInterval(tick, 15000) as unknown as number;
+  window.addEventListener("alpha:reminders-changed", () => { clearScheduled(); tick(); });
   // Also re-check aggressively when tab becomes visible.
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) tick();
@@ -126,6 +198,7 @@ export function startAlarmEngine() {
 export function stopAlarmEngine() {
   started = false;
   if (intervalId != null) { clearInterval(intervalId); intervalId = null; }
+  clearScheduled();
 }
 
 /** Fire a demo alarm right now — used by the Settings test button. */
