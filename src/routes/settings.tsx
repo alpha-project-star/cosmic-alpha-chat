@@ -5,6 +5,7 @@ import { alphaStore, useAlpha } from "../lib/alpha-store";
 import { listVoices, speakWith } from "../lib/voice";
 import { listOllamaModels } from "../lib/ollama";
 import { testAlarmNow, requestAlarmPermission } from "../lib/alarm-engine";
+import { KittScanner } from "../components/KittScanner";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Alpha — Settings" }, { name: "description", content: "Configure Alpha." }] }),
@@ -111,6 +112,7 @@ function SettingsRoute() {
           {online ? "ONLINE" : "OFFLINE"}
         </span>
       </header>
+      <div className="px-3 pt-2"><KittScanner bars={22} height={8} /></div>
 
       <div className="p-4 max-w-xl mx-auto space-y-4">
         {/* ONLINE ================================================== */}
