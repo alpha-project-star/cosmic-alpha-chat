@@ -7,6 +7,7 @@ import { prepareUtterance, speakWith } from "../../lib/voice";
 import { tryLocalIntent } from "../../lib/local-intents";
 import { HudPanel } from "./HudPanel";
 import { HudBubble } from "./HudBubble";
+import { LiveClock } from "../LiveClock";
 
 /** Full HUD chat panel rendered inside the desktop shell right column. */
 export function DesktopChatPanel() {
@@ -57,7 +58,10 @@ export function DesktopChatPanel() {
   return (
     <HudPanel className="flex-1 min-h-0 flex flex-col p-4">
       <div className="flex items-center justify-between mb-3 pr-16">
-        <div className="text-[10px] wordmark opacity-70">Conversation</div>
+        <div className="flex items-center gap-3">
+          <LiveClock />
+          <div className="text-[10px] wordmark opacity-70">Conversation</div>
+        </div>
         <button onClick={() => alphaStore.clearChat()} className="text-[10px] wordmark opacity-70 hover:opacity-100">
           Clear
         </button>
