@@ -4,6 +4,7 @@ import { SimpleCrud } from "../components/SimpleCrud";
 import { alphaStore, uid, useAlpha, type Reminder } from "../lib/alpha-store";
 import { requestAlarmPermission } from "../lib/alarm-engine";
 import { useState } from "react";
+import { KittScanner } from "../components/KittScanner";
 
 export const Route = createFileRoute("/reminders")({
   head: () => ({ meta: [{ title: "Alpha — Reminders" }, { name: "description", content: "Alarms and reminders." }] }),
@@ -28,6 +29,7 @@ function RemindersRoute() {
           <Bell className="w-3 h-3" /> Enable alarms
         </button>
       </header>
+      <div className="px-3 pt-2"><KittScanner bars={22} height={8} /></div>
       {permMsg && <div className="px-4 pt-3 text-xs text-muted-foreground">{permMsg}</div>}
       <div className="px-4 pt-3 text-[11px] text-muted-foreground">
         Tip: for "When" use an ISO date/time (e.g. <code>2026-07-15T09:00</code>) or say "in 5 minutes" / "tomorrow 8am" to Alpha.

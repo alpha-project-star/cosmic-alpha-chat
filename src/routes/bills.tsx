@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { SimpleCrud } from "../components/SimpleCrud";
 import { alphaStore, uid, useAlpha, type Bill } from "../lib/alpha-store";
 import { ArrowLeft } from "lucide-react";
+import { KittScanner } from "../components/KittScanner";
 
 export const Route = createFileRoute("/bills")({
   head: () => ({ meta: [{ title: "Alpha — Bills" }, { name: "description", content: "Track bills & balances." }] }),
@@ -20,6 +21,7 @@ function BillsRoute() {
         </div>
         <span className="text-sm text-muted-foreground">Outstanding: <span className="text-primary font-semibold">${total.toFixed(2)}</span></span>
       </header>
+      <div className="px-3 pt-2"><KittScanner bars={22} height={8} /></div>
       <SimpleCrud<Bill>
         title="Bills & Ledger"
         items={bills}
