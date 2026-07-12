@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
+import { KittScanner } from "../components/KittScanner";
 import { SimpleCrud } from "../components/SimpleCrud";
 import { alphaStore, uid, useAlpha, type Plan } from "../lib/alpha-store";
 
@@ -16,6 +17,7 @@ function PlansRoute() {
         <Link to="/" className="p-1.5 rounded-full glass"><ArrowLeft className="w-4 h-4 text-primary" /></Link>
         <span className="text-xs tracking-[0.4em] text-muted-foreground">PLANS</span>
       </header>
+      <div className="px-3 pt-2"><KittScanner bars={22} height={8} /></div>
       <SimpleCrud<Plan>
         title="Plans & Routes"
         items={plans}

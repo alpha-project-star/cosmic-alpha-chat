@@ -1,5 +1,6 @@
 import { alphaStore } from "./alpha-store";
 import { speakWith, prepareUtterance } from "./voice";
+import { alertBus } from "./alerts";
 
 /**
  * Real background alarm engine.
@@ -13,6 +14,7 @@ import { speakWith, prepareUtterance } from "./voice";
 
 let started = false;
 let intervalId: number | null = null;
+const scheduled = new Set<string>();
 
 function parseWhen(raw: string): number | null {
   if (!raw) return null;
@@ -72,6 +74,7 @@ export async function requestAlarmPermission(): Promise<boolean> {
 export function fireAlarm(title: string, notes = "") {
   playChime();
   notify(title, notes || "Reminder from Alpha");
+  try { alertBus.pulse(); } catch {}
   const line = notes
     ? `Excuse me — reminder: ${title}. ${notes}`
     : `Excuse me — reminder: ${title}.`;
@@ -90,6 +93,16 @@ function tick() {
     if (now >= t) {
       alphaStore.upsertReminder({ ...r, firedAt: now });
       fireAlarm(r.title || "Untitled reminder", r.notes || "");
+    } else if (t - now < 60_000 && !scheduled.has(r.id)) {
+      // Precise near-term scheduling so sub-minute alarms don't drift with the 15s tick.
+      scheduled.add(r.id);
+      window.setTimeout(() => {
+        scheduled.delete(r.id);
+        const cur = alphaStore.get().reminders.find(x => x.id === r.id);
+        if (!cur || cur.done === "yes" || cur.firedAt) return;
+        alphaStore.upsertReminder({ ...cur, firedAt: Date.now() });
+        fireAlarm(cur.title || "Untitled reminder", cur.notes || "");
+      }, Math.max(0, t - now));
     }
   }
 }

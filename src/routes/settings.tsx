@@ -5,6 +5,7 @@ import { alphaStore, useAlpha } from "../lib/alpha-store";
 import { listVoices, speakWith } from "../lib/voice";
 import { listOllamaModels } from "../lib/ollama";
 import { testAlarmNow, requestAlarmPermission } from "../lib/alarm-engine";
+import { KittScanner } from "../components/KittScanner";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Alpha — Settings" }, { name: "description", content: "Configure Alpha." }] }),
@@ -28,6 +29,7 @@ const KOKORO_VOICES = [
 
 function SettingsRoute() {
   const s = useAlpha(x => x.settings);
+  const profile = useAlpha(x => x.profile);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [saved, setSaved] = useState(false);
   const [kokoroStatus, setKokoroStatus] = useState<string>("");
@@ -110,6 +112,7 @@ function SettingsRoute() {
           {online ? "ONLINE" : "OFFLINE"}
         </span>
       </header>
+      <div className="px-3 pt-2"><KittScanner bars={22} height={8} /></div>
 
       <div className="p-4 max-w-xl mx-auto space-y-4">
         {/* ONLINE ================================================== */}
@@ -277,6 +280,35 @@ function SettingsRoute() {
               <button onClick={testAlarmNow}
                 className="px-3 py-1.5 text-sm rounded-md glass neon-border">Test alarm now</button>
             </div>
+          </Section>
+
+          <Section title="About You" hint="Alpha uses this to recognise and address you personally.">
+            <input type="text" value={profile.name}
+              onChange={e => alphaStore.setProfile({ ...profile, name: e.target.value })}
+              placeholder="Your name (e.g. Alex)"
+              className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2" />
+            <textarea value={profile.bio}
+              onChange={e => alphaStore.setProfile({ ...profile, bio: e.target.value })}
+              placeholder="Tell Alpha about yourself — role, interests, tone you prefer, anything you want him to remember about you."
+              className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[100px]" />
+          </Section>
+
+          <Section title="Background Data (Watchlist)" hint="Topics or reminders Alpha keeps an eye on and surfaces proactively. One per line — e.g. 'Latest AI news', 'Alarm 5:00', 'Kimetsu no Yaiba release'.">
+            <textarea value={s.backgroundData}
+              onChange={e => alphaStore.setSettings({ backgroundData: e.target.value })}
+              placeholder="Latest AI news\nDelta intake update\n8:30 am Saturday reminder"
+              className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[100px] font-mono text-xs" />
+            <label className="flex items-center gap-2 text-sm mt-2">
+              <input type="checkbox" checked={s.backgroundEnabled}
+                onChange={e => alphaStore.setSettings({ backgroundEnabled: e.target.checked })} />
+              Background processing enabled (scanner lights on)
+            </label>
+          </Section>
+
+          <Section title="Alpha Build Record" hint="Alpha's own spec sheet — he reads this so he knows himself. Edit to update his self-knowledge.">
+            <textarea value={s.buildRecord}
+              onChange={e => alphaStore.setSettings({ buildRecord: e.target.value })}
+              className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[160px] font-mono text-xs" />
           </Section>
         </Group>
 

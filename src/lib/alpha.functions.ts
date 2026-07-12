@@ -180,11 +180,18 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
   const online = typeof navigator !== "undefined" ? navigator.onLine : true;
   const task: TaskType = opts.task ?? "auto";
 
+  // If the user attached images, force Gemini multimodal (Groq/OpenRouter chat
+  // endpoints don't accept our inlineData shape). Keeps a single unified
+  // history array regardless of which model handled the previous turn.
+  const lastMsg = [...history].reverse().find(m => m.role === "user");
+  const hasImages = !!lastMsg?.images?.length;
+  const effectiveTask: TaskType = hasImages && online && s.geminiApiKey ? "auto" : task;
+
   // ---- Explicit task routing overrides default backend --------------------
   const routeSpec =
-    task === "fast" ? s.taskModels.fast :
-    task === "thinking" ? s.taskModels.thinking :
-    task === "coding" ? s.taskModels.coding : "";
+    effectiveTask === "fast" ? s.taskModels.fast :
+    effectiveTask === "thinking" ? s.taskModels.thinking :
+    effectiveTask === "coding" ? s.taskModels.coding : "";
 
   if (routeSpec && online) {
     const [prov, ...rest] = routeSpec.split(":");

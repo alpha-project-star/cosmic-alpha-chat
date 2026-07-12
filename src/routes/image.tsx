@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft, Wand2 } from "lucide-react";
 import { generateImage } from "../lib/alpha.functions";
+import { KittScanner } from "../components/KittScanner";
 
 export const Route = createFileRoute("/image")({
   head: () => ({ meta: [{ title: "Alpha — Image" }, { name: "description", content: "Generate images with Alpha." }] }),
@@ -31,6 +32,7 @@ function ImageRoute() {
         <Link to="/" className="p-1.5 rounded-full glass"><ArrowLeft className="w-4 h-4 text-primary" /></Link>
         <span className="font-semibold neon-text">Image Studio</span>
       </header>
+      <div className="px-3 pt-2"><KittScanner state={busy ? "processing" : "idle"} bars={22} height={8} /></div>
       <div className="p-4 max-w-xl mx-auto space-y-4">
         <textarea value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Describe what to create…"
           className="w-full bg-input rounded-xl px-3 py-2 border border-border outline-none focus:border-primary min-h-[100px]" />

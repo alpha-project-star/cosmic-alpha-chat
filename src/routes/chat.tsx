@@ -107,12 +107,14 @@ function ChatRoute() {
     <div className="lg:hidden starfield h-[100dvh] flex flex-col overflow-hidden w-full max-w-full">
       <header className="glass border-b border-primary/20 shrink-0 z-30">
         <div className="flex items-center justify-between gap-2 px-3 py-3 relative">
-          <Link to="/" aria-label="Back" className="p-1.5 rounded-full glass neon-border shrink-0">
-            <ArrowLeft className="w-4 h-4 text-primary" />
-          </Link>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link to="/" aria-label="Back" className="p-1.5 rounded-full glass neon-border">
+              <ArrowLeft className="w-4 h-4 text-primary" />
+            </Link>
+            <LiveClock className="text-left" />
+          </div>
           <div className="flex-1 flex items-center justify-center"><MiniOrb size={56} /></div>
           <div className="flex items-center gap-2 shrink-0">
-            <LiveClock className="text-right" />
             <button onClick={() => alphaStore.clearChat()} className="text-xs text-muted-foreground px-2">Clear</button>
           </div>
         </div>
