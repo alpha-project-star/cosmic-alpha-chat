@@ -198,6 +198,48 @@ function shouldFetchWeb(query: string) {
   return /\b(who|what|when|where|how|why|latest|current|today|yesterday|tomorrow|this week|news|price|score|release|version|weather|web|search|look up|find|source|citation|cite|date|202\d)\b/i.test(query);
 }
 
+function normalizeReminderWhen(raw: string): string {
+  const s = raw.trim();
+  if (!s) return "";
+  const parsed = Date.parse(s);
+  if (!Number.isNaN(parsed)) return new Date(parsed).toISOString();
+  const now = new Date();
+  let m = s.toLowerCase().match(/^in\s+(\d+)\s*(second|sec|minute|min|hour|hr|day)s?$/);
+  if (m) {
+    const n = Number(m[1]);
+    const unit = m[2];
+    const ms = /second|sec/.test(unit) ? n * 1000
+      : /min/.test(unit) ? n * 60000
+      : /hour|hr/.test(unit) ? n * 3600000
+      : n * 86400000;
+    return new Date(now.getTime() + ms).toISOString();
+  }
+  m = s.toLowerCase().match(/^(?:today\s+)?(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+  if (m) {
+    let h = Number(m[1]);
+    const minutes = Number(m[2] || 0);
+    const ampm = m[3];
+    if (ampm === "pm" && h < 12) h += 12;
+    if (ampm === "am" && h === 12) h = 0;
+    const due = new Date(now);
+    due.setHours(h, minutes, 0, 0);
+    if (due.getTime() <= now.getTime()) due.setDate(due.getDate() + 1);
+    return due.toISOString();
+  }
+  m = s.toLowerCase().match(/^tomorrow(?:\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?)?$/);
+  if (m) {
+    const due = new Date(now); due.setDate(due.getDate() + 1);
+    let h = m[1] ? Number(m[1]) : 9;
+    const minutes = Number(m[2] || 0);
+    const ampm = m[3];
+    if (ampm === "pm" && h < 12) h += 12;
+    if (ampm === "am" && h === 12) h = 0;
+    due.setHours(h, minutes, 0, 0);
+    return due.toISOString();
+  }
+  return s;
+}
+
 async function fetchLiveWebContext(query: string): Promise<string> {
   if (!query || !shouldFetchWeb(query)) return "";
   try {
@@ -463,8 +505,9 @@ function executeActionTags(text: string): string {
     return `📝 Note added: "${m[1].trim()}"`;
   });
   apply(/\[\[ADD_REMINDER:\s*([^|\]]+?)\s*\|\s*([^\]]+?)\s*\]\]/gi, (m) => {
-    alphaStore.upsertReminder({ id: uid(), title: m[1].trim(), when: m[2].trim(), notes: "", done: "no" });
-    return `⏰ Reminder added: "${m[1].trim()}" — ${m[2].trim()}`;
+    const when = normalizeReminderWhen(m[2].trim());
+    alphaStore.upsertReminder({ id: uid(), title: m[1].trim(), when, notes: "", done: "no" });
+    return `⏰ Reminder added: "${m[1].trim()}" — ${when}`;
   });
   apply(/\[\[ADD_MEMORY:\s*([^|\]]+?)\s*\|\s*([^\]]+?)\s*\]\]/gi, (m) => {
     alphaStore.upsertMemory({ id: uid(), topic: m[1].trim().slice(0, 60), detail: m[2].trim(), updatedAt: Date.now() });

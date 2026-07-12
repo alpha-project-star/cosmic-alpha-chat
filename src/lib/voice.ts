@@ -156,8 +156,7 @@ function browserSpeak(text: string): Promise<void> {
   return new Promise(resolve => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) { resolve(); return; }
     if (!cachedVoice) cachedVoice = pickVoice();
-    const u = unlockUtter && !unlockUtter.text ? unlockUtter : new SpeechSynthesisUtterance("");
-    u.text = text;
+    const u = new SpeechSynthesisUtterance(text);
     if (cachedVoice) { u.voice = cachedVoice; u.lang = cachedVoice.lang; }
     u.rate = alphaStore.get().settings.ttsRate || 1;
     u.pitch = 0.95; u.volume = 1;

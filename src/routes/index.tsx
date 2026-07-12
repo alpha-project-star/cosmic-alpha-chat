@@ -31,7 +31,13 @@ function OrbHome() {
   const [status, setStatus] = useState("Tap the orb to begin");
   const [active, setActive] = useState(false);
   const [micError, setMicError] = useState("");
-  const hasKey = useAlpha(s => !!s.settings.geminiApiKey);
+  const hasUsableBrain = useAlpha(s => !!(
+    s.settings.geminiApiKey ||
+    s.settings.groqApiKey ||
+    s.settings.openaiCompatKey ||
+    s.settings.openRouterKey ||
+    s.settings.aiBackend === "ollama"
+  ));
   const bgEnabled = useAlpha(s => s.settings.backgroundEnabled);
   const thinkingRef = useRef(false);
   const [speaking, setSpeaking] = useState(false);
@@ -61,7 +67,7 @@ function OrbHome() {
       return;
     }
 
-    if (!hasKey) { setStatus("No API key — opening settings"); router.navigate({ to: "/settings" }); return; }
+    if (!hasUsableBrain) { setStatus("No model key — opening settings"); router.navigate({ to: "/settings" }); return; }
 
     thinkingRef.current = true;
     setStatus("Thinking…");
@@ -70,7 +76,7 @@ function OrbHome() {
     if (wasListening) recognizer.suspend();
     alphaStore.appendChat({ id: uid(), role: "user", text, ts: Date.now() });
     try {
-      const reply = await sendChat(alphaStore.get().chat);
+      const reply = await sendChat(alphaStore.get().chat, { task: "fast" });
       alphaStore.appendChat({ id: uid(), role: "model", text: reply, ts: Date.now() });
       setStatus("Speaking…");
       await speakWith(reply);

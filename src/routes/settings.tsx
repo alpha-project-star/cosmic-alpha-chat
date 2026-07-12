@@ -33,6 +33,7 @@ function SettingsRoute() {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [saved, setSaved] = useState(false);
   const [kokoroStatus, setKokoroStatus] = useState<string>("");
+  const [alarmStatus, setAlarmStatus] = useState<string>("");
   const [ollamaStatus, setOllamaStatus] = useState<string>("");
   const [whisperStatus, setWhisperStatus] = useState<string>("");
   const [newModel, setNewModel] = useState("");
@@ -280,11 +281,12 @@ function SettingsRoute() {
 
           <Section title="Alarms" hint="Reminders fire in the background while Alpha is open. Enable browser notifications for pop-ups when the tab is hidden.">
             <div className="flex flex-wrap gap-2">
-              <button onClick={async () => { await requestAlarmPermission(); }}
+              <button onClick={async () => { const ok = await requestAlarmPermission(); setAlarmStatus(ok ? "✅ Notifications enabled. Alarms will chime, speak, and show pop-ups while Alpha is open." : "⚠️ Notifications blocked. Alarms will still chime and speak while Alpha is open."); }}
                 className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Enable notifications</button>
-              <button onClick={testAlarmNow}
+              <button onClick={() => { testAlarmNow(); setAlarmStatus("✅ Test alarm fired — scanner alert, chime, and voice were triggered."); }}
                 className="px-3 py-1.5 text-sm rounded-md glass neon-border">Test alarm now</button>
             </div>
+            {alarmStatus && <div className="mt-2 text-xs text-muted-foreground">{alarmStatus}</div>}
           </Section>
 
           <Section title="About You" hint="Alpha uses this to recognise and address you personally.">
