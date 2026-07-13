@@ -12,7 +12,15 @@ export function normalizeForSpeech(input: string): string {
   // markdown emphasis / headings / links
   s = s.replace(/!\[[^\]]*\]\([^)]*\)/g, "");
   s = s.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1");
+  // Strip action tags, markdown source lists, raw URLs, and emoji so TTS sounds
+  // human instead of saying "alarm clock", "brain", or reading links aloud.
+  s = s.replace(/\[\[[\s\S]*?\]\]/g, " ");
+  s = s.replace(/\*\*Sources:\*\*[\s\S]*$/i, " ");
+  s = s.replace(/_No web sources[^.]*\./gi, " ");
+  s = s.replace(/https?:\/\/\S+/gi, " ");
+  s = s.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F]/gu, " ");
   s = s.replace(/[*_`#>]+/g, "");
+  s = s.replace(/[•|]/g, ", ");
   s = s.replace(/\s+/g, " ").trim();
   return s;
 }

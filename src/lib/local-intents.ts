@@ -1,5 +1,6 @@
 import { alphaStore, uid } from "./alpha-store";
 import { trySettingsIntent } from "./settings-intents";
+import { playMusicByName, stopMusic } from "./music";
 
 /**
  * Lightweight on-device intent parser for CRUD commands so Alpha can actually
@@ -13,6 +14,19 @@ export function tryLocalIntent(raw: string): string | null {
   // Settings / backend / voice flip commands first.
   const settingsHit = trySettingsIntent(t);
   if (settingsHit) return settingsHit;
+
+  // ---- MUSIC -------------------------------------------------------------
+  if (/^(?:stop|pause)\s+(?:the\s+)?music\b/.test(lower)) {
+    stopMusic();
+    return "Music stopped.";
+  }
+  let music = lower.match(/^(?:play|start)\s+(?:my\s+|the\s+)?(?:music|song|track)(?:\s+(.+))?$/);
+  if (!music) music = lower.match(/^(?:play|start)\s+(.+)$/);
+  if (music && !/^(?:open|delete|remove|clear|add|set|switch|change|use|remind|remember|note|plan|mark)\b/.test(lower)) {
+    const q = trim(music[1] || "");
+    void playMusicByName(q).catch(() => {});
+    return q ? `Playing ${q}.` : "Playing your latest saved track.";
+  }
 
   // ---- READ / LIST ------------------------------------------------------
   let mm = lower.match(/^(?:what|which|list|show|read)\s+(?:are\s+)?(?:my\s+|the\s+)?(reminders|notes|memories|memorys|memory|plans|bills)/);
