@@ -46,6 +46,48 @@ export function KittScanner({
     : talking ? "speaking"
     : state;
 
+  if (curved) {
+    const segmentCount = Math.max(10, bars);
+    const dur =
+      effective === "alert" ? 500 :
+      effective === "speaking" ? 900 :
+      effective === "processing" ? 700 :
+      effective === "scanning" ? 1400 : 2600;
+    const arcBars = Array.from({ length: segmentCount }).map((_, i) => {
+      const leftSide = i < segmentCount / 2;
+      const local = leftSide ? i / (segmentCount / 2 - 1) : (segmentCount - 1 - i) / (segmentCount / 2 - 1);
+      const x = 22 + (256 * i) / (segmentCount - 1);
+      const y = 24 + 34 * Math.pow((x - 150) / 128, 2);
+      const angle = (x - 150) / 7.5;
+      const delay = effective === "processing" ? local * dur : (1 - local) * dur;
+      return { x, y, angle, delay };
+    });
+    return (
+      <svg
+        role="presentation"
+        viewBox="0 0 300 82"
+        className={`kitt-arc ${effective === "alert" ? "kitt-alert" : ""} ${effective === "off" ? "kitt-off" : ""} ${className}`}
+        style={{ height, "--kitt-dur": `${dur}ms` } as unknown as React.CSSProperties}
+        preserveAspectRatio="none"
+      >
+        <path className="kitt-arc-rail" d="M18 58 Q150 5 282 58" />
+        {arcBars.map((b, i) => (
+          <rect
+            key={i}
+            className="kitt-arc-segment"
+            x={b.x - 5}
+            y={b.y - 2}
+            width="10"
+            height="4"
+            rx="2"
+            style={{ animationDelay: `${b.delay}ms`, transformOrigin: `${b.x}px ${b.y}px`, transform: `rotate(${b.angle}deg)` }}
+          />
+        ))}
+        <rect className="kitt-arc-gap" x="145" y="48" width="10" height="14" rx="2" />
+      </svg>
+    );
+  }
+
   if (effective === "off") {
     return <div className={`kitt-split kitt-off ${curved ? "kitt-curved" : ""} ${className}`} style={{ height }} />;
   }

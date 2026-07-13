@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Check, ChevronDown, ChevronRight, Wifi, WifiOff } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, ChevronRight, Music, Trash2, Wifi, WifiOff } from "lucide-react";
 import { alphaStore, useAlpha } from "../lib/alpha-store";
 import { listVoices, speakWith } from "../lib/voice";
 import { listOllamaModels } from "../lib/ollama";
 import { testAlarmNow, requestAlarmPermission } from "../lib/alarm-engine";
 import { KittScanner } from "../components/KittScanner";
+import { addMusicFiles, deleteMusicTrack, listMusicTracks, playMusicByName, stopMusic, type MusicTrackMeta } from "../lib/music";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Alpha — Settings" }, { name: "description", content: "Configure Alpha." }] }),
@@ -36,6 +37,8 @@ function SettingsRoute() {
   const [alarmStatus, setAlarmStatus] = useState<string>("");
   const [ollamaStatus, setOllamaStatus] = useState<string>("");
   const [whisperStatus, setWhisperStatus] = useState<string>("");
+  const [musicStatus, setMusicStatus] = useState<string>("");
+  const [tracks, setTracks] = useState<MusicTrackMeta[]>([]);
   const [newModel, setNewModel] = useState("");
   const [online, setOnline] = useState<boolean>(typeof navigator !== "undefined" ? navigator.onLine : true);
   const [openGroup, setOpenGroup] = useState<"online" | "offline" | "data" | null>("online");
@@ -47,6 +50,24 @@ function SettingsRoute() {
     window.addEventListener("offline", off);
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, []);
+
+  useEffect(() => { void refreshTracks(); }, []);
+
+  async function refreshTracks() {
+    try { setTracks(await listMusicTracks()); } catch { setTracks([]); }
+  }
+
+  async function uploadMusic(files: FileList | null) {
+    if (!files?.length) return;
+    setMusicStatus("Saving…");
+    try {
+      const saved = await addMusicFiles(files);
+      await refreshTracks();
+      setMusicStatus(saved.length ? `Saved ${saved.length} track${saved.length === 1 ? "" : "s"}.` : "No audio files selected.");
+    } catch (e: any) {
+      setMusicStatus(e?.message || "Could not save music.");
+    }
+  }
 
   useEffect(() => {
     const update = () => setVoices(listVoices());
@@ -287,6 +308,30 @@ function SettingsRoute() {
                 className="px-3 py-1.5 text-sm rounded-md glass neon-border">Test alarm now</button>
             </div>
             {alarmStatus && <div className="mt-2 text-xs text-muted-foreground">{alarmStatus}</div>}
+          </Section>
+
+          <Section title="Music Library" hint="Store MP3/audio locally in this browser. Then ask Alpha: 'play my music', 'play [track name]', or 'stop music'.">
+            <label className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm cursor-pointer">
+              <Music className="w-4 h-4" /> Upload MP3/audio
+              <input type="file" accept="audio/*,.mp3" multiple hidden onChange={e => uploadMusic(e.target.files)} />
+            </label>
+            <div className="mt-3 space-y-2">
+              {tracks.length === 0 && <div className="text-xs text-muted-foreground">No tracks saved yet.</div>}
+              {tracks.map(track => (
+                <div key={track.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-primary/20 bg-background/30 px-3 py-2">
+                  <button type="button" onClick={async () => { try { setMusicStatus(await playMusicByName(track.name)); } catch (e: any) { setMusicStatus(e?.message || "Playback failed."); } }}
+                    className="min-w-0 text-left text-sm truncate text-primary hover:text-primary/80">
+                    {track.name}
+                  </button>
+                  <button type="button" aria-label={`Delete ${track.name}`} onClick={async () => { await deleteMusicTrack(track.id); stopMusic(); await refreshTracks(); setMusicStatus(`Deleted ${track.name}.`); }}
+                    className="shrink-0 rounded-md p-1.5 glass neon-border">
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            {tracks.length > 0 && <button type="button" onClick={() => { stopMusic(); setMusicStatus("Music stopped."); }} className="mt-2 px-3 py-1.5 text-sm rounded-md glass neon-border">Stop music</button>}
+            {musicStatus && <div className="mt-2 text-xs text-muted-foreground">{musicStatus}</div>}
           </Section>
 
           <Section title="About You" hint="Alpha uses this to recognise and address you personally.">
