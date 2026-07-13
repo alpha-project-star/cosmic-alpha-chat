@@ -9,6 +9,12 @@ export async function sendChatOpenAICompat(
   systemPrompt: string,
   opts: { baseUrl: string; apiKey: string; model: string; extraHeaders?: Record<string, string>; extraBody?: Record<string, unknown> },
 ): Promise<string> {
+  const apiKey = (opts.apiKey || "").replace(/[\s\r\n\t]+/g, "").replace(/^Bearer/i, "");
+  if (!apiKey) {
+    throw new Error(
+      `Missing API key for ${opts.baseUrl}. Open Settings → Online and paste a valid key for this provider.`,
+    );
+  }
   const url = opts.baseUrl.replace(/\/+$/, "") + "/chat/completions";
   const messages = [
     { role: "system", content: systemPrompt },
@@ -21,7 +27,7 @@ export async function sendChatOpenAICompat(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${opts.apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       ...(opts.extraHeaders || {}),
     },
     body: JSON.stringify({
@@ -34,7 +40,13 @@ export async function sendChatOpenAICompat(
   });
   if (!res.ok) {
     const t = await res.text().catch(() => "");
-    const err: any = new Error(`${opts.model} ${res.status}: ${t.slice(0, 300)}`);
+    let hint = "";
+    if (res.status === 401) {
+      hint = ` — the provider rejected the Authorization header. Re-paste the API key in Settings → Online (no "Bearer" prefix, no quotes, no line breaks).`;
+    } else if (res.status === 404) {
+      hint = ` — model "${opts.model}" was not found on this provider. Pick a different model in Settings → Online → Task-based models.`;
+    }
+    const err: any = new Error(`${opts.model} ${res.status}${hint}: ${t.slice(0, 300)}`);
     err.status = res.status;
     throw err;
   }
