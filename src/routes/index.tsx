@@ -165,9 +165,9 @@ function OrbHome() {
         <AlphaOrb analyser={recognizer.analyserNode} active={active || speaking} size={300} />
       </div>
 
-      {/* Curved scanner arced beneath the orb */}
-      <div className="mt-4 w-72 -translate-y-2">
-        <KittScanner curved state={!bgEnabled ? "off" : active ? "scanning" : "idle"} bars={26} height={12} />
+      {/* Curved K.I.T.T. equalizer arc beneath the orb */}
+      <div className="mt-1 w-[22rem] max-w-[92vw] -translate-y-7 pointer-events-none">
+        <KittScanner curved state={!bgEnabled ? "off" : active ? "scanning" : "idle"} bars={34} height={58} />
       </div>
 
       <LiveTranscript interim={interim} status={speaking ? "Speaking…" : status} />
@@ -177,12 +177,6 @@ function OrbHome() {
         <Link to="/chat" aria-label="Open chat" className="glass rounded-full p-4 neon-border inline-flex">
           <MessageSquare className="w-6 h-6 text-primary" />
         </Link>
-      </div>
-
-      <div className="mt-8 max-w-sm text-center text-[11px] leading-relaxed text-muted-foreground/70 italic space-y-1">
-        <div>Say: <span className="text-primary/70">"open chat"</span> · <span className="text-primary/70">"open notes"</span> · <span className="text-primary/70">"open bills"</span></div>
-        <div>Say: <span className="text-primary/70">"open reminders"</span> · <span className="text-primary/70">"open plans"</span> · <span className="text-primary/70">"open memories"</span></div>
-        <div>Say: <span className="text-primary/70">"open image"</span> · <span className="text-primary/70">"open settings"</span> · <span className="text-primary/70">"stop listening"</span></div>
       </div>
     </div>
     </>
