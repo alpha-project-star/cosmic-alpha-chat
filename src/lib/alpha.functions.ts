@@ -396,15 +396,13 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
       // error block to the user for a transient quota hit.
       const msg = String(e?.message || "");
       const is429 = e?.status === 429 || /\b429\b|quota|rate.?limit|limit:\s*0/i.test(msg);
-      const isAuthOrNotFound = e?.status === 401 || e?.status === 404 || /\b401\b|\b404\b|authentication|unauthor/i.test(msg);
-      if ((is429 || isAuthOrNotFound) && s.groqApiKey && prov !== "groq") {
+      if (is429 && s.groqApiKey && prov !== "groq") {
         try {
           const text = await sendChatOpenAICompat(history, sys, {
             baseUrl: "https://api.groq.com/openai/v1",
             apiKey: cleanApiKey(s.groqApiKey), model: "llama-3.1-8b-instant",
           });
-          const why = is429 ? "rate-limited" : "unavailable (auth/model error)";
-          return executeActionTags(text) + `\n\n_⚠️ Primary model was ${why} — answered via Groq fallback._`;
+          return executeActionTags(text) + "\n\n_⚠️ Primary model was rate-limited — answered via Groq fallback._";
         } catch { /* fall through */ }
       }
       throw e;
