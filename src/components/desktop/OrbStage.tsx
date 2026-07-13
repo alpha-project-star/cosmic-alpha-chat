@@ -2,12 +2,15 @@ import { AlphaOrb } from "../AlphaOrb";
 import { HorizontalSpectrum } from "./HorizontalSpectrum";
 import { recognizer, speakingState } from "../../lib/voice";
 import { useEffect, useState } from "react";
+import { KittScanner } from "../KittScanner";
+import { useAlpha } from "../../lib/alpha-store";
 
 /**
  * Desktop hero orb with left/right horizontal spectrum wings, sized to viewport.
  */
 export function OrbStage({ active }: { active: boolean }) {
   const [speaking, setSpeaking] = useState(false);
+  const bgEnabled = useAlpha(s => s.settings.backgroundEnabled);
   useEffect(() => speakingState.sub(setSpeaking), []);
   const hot = active || speaking;
   return (
@@ -29,6 +32,9 @@ export function OrbStage({ active }: { active: boolean }) {
             active={hot}
             sizeCss="min(58vmin, 620px)"
           />
+          <div className="absolute left-1/2 top-[82%] w-[78%] -translate-x-1/2 pointer-events-none">
+            <KittScanner curved state={!bgEnabled ? "off" : active ? "scanning" : speaking ? "speaking" : "idle"} bars={38} height={86} />
+          </div>
         </div>
         <HorizontalSpectrum
           analyser={hot ? recognizer.analyserNode : null}

@@ -178,10 +178,10 @@ function parseRouteSpec(spec: string): { prov: ProviderId; model: string } | nul
 
 function providerHasKey(prov: ProviderId) {
   const s = alphaStore.get().settings;
-  if (prov === "gemini") return !!s.geminiApiKey;
-  if (prov === "groq") return !!s.groqApiKey;
-  if (prov === "openai") return !!s.openaiCompatKey;
-  return !!s.openRouterKey;
+  if (prov === "gemini") return !!cleanApiKey(s.geminiApiKey);
+  if (prov === "groq") return !!cleanApiKey(s.groqApiKey);
+  if (prov === "openai") return !!cleanApiKey(s.openaiCompatKey);
+  return !!cleanApiKey(s.openRouterKey);
 }
 
 function cleanApiKey(key: string): string {
@@ -356,26 +356,29 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
 
     try {
       if (prov === "groq") {
-        if (!s.groqApiKey) throw new Error("No Groq API key set. Add it in Settings → Online.");
+        const groqKey = cleanApiKey(s.groqApiKey);
+        if (!groqKey) throw new Error("No Groq API key set. Add it in Settings → Online.");
         const text = await sendChatOpenAICompat(history, sys, {
           baseUrl: "https://api.groq.com/openai/v1",
-          apiKey: s.groqApiKey, model,
+          apiKey: groqKey, model,
         });
         return executeActionTags(text);
       }
       if (prov === "openai") {
-        if (!s.openaiCompatKey) throw new Error("No OpenAI-compat API key set. Add it in Settings → Online.");
+        const openaiKey = cleanApiKey(s.openaiCompatKey);
+        if (!openaiKey) throw new Error("No OpenAI-compat API key set. Add it in Settings → Online.");
         const text = await sendChatOpenAICompat(history, sys, {
           baseUrl: s.openaiCompatBase || "https://api.openai.com/v1",
-          apiKey: s.openaiCompatKey, model,
+          apiKey: openaiKey, model,
         });
         return executeActionTags(text);
       }
       if (prov === "openrouter") {
-        if (!s.openRouterKey) throw new Error("No OpenRouter API key set. Add it in Settings → Online.");
+        const openRouterKey = cleanApiKey(s.openRouterKey);
+        if (!openRouterKey) throw new Error("No OpenRouter API key set. Add it in Settings → Online.");
         const text = await sendChatOpenAICompat(history, sys, {
           baseUrl: "https://openrouter.ai/api/v1",
-          apiKey: s.openRouterKey, model,
+          apiKey: openRouterKey, model,
           extraHeaders: {
             "HTTP-Referer": typeof window !== "undefined" ? window.location.origin : "https://alpha.local",
             "X-Title": "Alpha",
@@ -397,7 +400,7 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
         try {
           const text = await sendChatOpenAICompat(history, sys, {
             baseUrl: "https://api.groq.com/openai/v1",
-            apiKey: s.groqApiKey, model: "llama-3.1-8b-instant",
+            apiKey: cleanApiKey(s.groqApiKey), model: "llama-3.1-8b-instant",
           });
           return executeActionTags(text) + "\n\n_⚠️ Primary model was rate-limited — answered via Groq fallback._";
         } catch { /* fall through */ }
