@@ -57,6 +57,7 @@ function ctxSummary() {
   return [
     `USER: You are talking to ${userName}. Recognise them by name — they are one of your creators.${s.profile.bio ? " Bio: " + s.profile.bio : ""}`,
     `YOU (Alpha) — Personality: playful+professional, sympathetic+blunt, sophisticated+flexible, empathetic+direct+honest. Always alive, engaged, self-aware.`,
+    temporalBlock(),
     build ? `BUILD RECORD (your own spec — read & use when asked about yourself):\n${build}` : "",
     `Notes (${s.notes.length}): ${briefList(s.notes, n => n.title || (n.body || "").slice(0, 40))}`,
     `Bills (${s.bills.length}): ${briefList(s.bills, b => `${b.name} $${b.balance} (${b.status})`)}`,
@@ -103,7 +104,7 @@ ${rolling ? "\nRolling conversation state (compacted from earlier turns):\n" + r
 If the user asks to remember something, suggest "I'll add that to memories — say open memories." If they mention a deadline, offer to add a reminder. If they mention a trip, offer to add a plan. Be casual about it; one sentence.
 
 GROUNDING & TRUTHFULNESS (hard rules — do not violate):
-- Online Gemini turns have a live Google Search tool attached. Other online model turns receive a LIVE WEB CONTEXT block when Alpha can fetch one. Offline/Ollama turns have no web access. Use available web evidence for anything time-sensitive, news, releases, prices, scores, "this week", "latest", "current", or any fact you are not 100% certain of from training.
+- Online Gemini turns have a live Google Search tool attached. Other online model turns receive a LIVE WEB SEARCH RESULTS block fetched by Alpha before the model call. Ollama/local turns receive that block too whenever the browser is online; only fully offline turns lack web. Use available web evidence for anything time-sensitive, news, releases, prices, scores, "this week", "latest", "current", or any fact you are not 100% certain of from training.
 - EVIDENCE-ONLY MODE for factual claims. You may only state a concrete fact (title, date, author, URL, number, quote, release window, score, price) if it appears verbatim or paraphrased from a retrieved search result you can point to. If no retrieval evidence exists, say plainly: "I couldn't verify that right now" — do NOT guess, fill, or smooth over.
 - You are FORBIDDEN from inventing: article titles, URLs, author names, publication dates, quotations, product version numbers, or organisation announcements. No exceptions.
 - Snippet vs full-page honesty: if you only saw a search snippet, do not claim to have read the article. Say "the snippet says…".
@@ -160,7 +161,9 @@ Use EXACTLY these formats, each on its own line:
 [[ADD_PLAN: title | from | to | date]]
 [[ADD_BILL: name | amount | dueDate]]
 [[DELETE_LAST: note|reminder|memory|plan|bill]]
-Always include the tag whenever a CRUD action is requested. Never say "I've added it" without emitting the tag.
+[[SET_SETTING: settingKey | value]] where settingKey is one of aiBackend, voiceEnabled, continuousListen, backgroundEnabled, kokoroVoice, ttsRate, chatModel, fastModel, thinkingModel, codingModel
+[[SET_PROFILE: name | bio]]
+Always include the tag whenever a CRUD/settings/profile action is requested. Never say "I've changed it" without emitting the tag.
 ${extra ? "\nUser personalisation:\n" + extra : ""}`;
 
 type GeminiPart = { text?: string } | { inlineData: { mimeType: string; data: string } };
@@ -179,6 +182,14 @@ function providerHasKey(prov: ProviderId) {
   if (prov === "groq") return !!s.groqApiKey;
   if (prov === "openai") return !!s.openaiCompatKey;
   return !!s.openRouterKey;
+}
+
+function cleanApiKey(key: string): string {
+  return (key || "")
+    .trim()
+    .replace(/^Bearer\s+/i, "")
+    .replace(/^['"]|['"]$/g, "")
+    .trim();
 }
 
 function pickRoute(task: TaskType, hasImages: boolean): { prov: ProviderId; model: string } | null {
@@ -242,24 +253,59 @@ function normalizeReminderWhen(raw: string): string {
 
 async function fetchLiveWebContext(query: string): Promise<string> {
   if (!query || !shouldFetchWeb(query)) return "";
+  const rows: Array<{ title: string; url: string; snippet: string; source: string }> = [];
+  const add = (title: string, url: string, snippet = "", source = "web") => {
+    let cleanUrl = url.trim();
+    try {
+      const u = new URL(cleanUrl, "https://duckduckgo.com");
+      const uddg = u.searchParams.get("uddg");
+      if (uddg) cleanUrl = decodeURIComponent(uddg);
+    } catch {}
+    if (!title || !cleanUrl || rows.some(r => r.url === cleanUrl)) return;
+    rows.push({ title: title.replace(/\s+/g, " ").trim(), url: cleanUrl, snippet: snippet.replace(/\s+/g, " ").trim(), source });
+  };
+
   try {
-    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
-    const res = await fetch(url);
-    if (!res.ok) return "";
-    const j: any = await res.json();
-    const rows: string[] = [];
-    if (j?.AbstractText) rows.push(`DuckDuckGo instant answer: ${j.AbstractText}${j.AbstractURL ? ` (${j.AbstractURL})` : ""}`);
-    const related = Array.isArray(j?.RelatedTopics) ? j.RelatedTopics : [];
-    for (const item of related.slice(0, 6)) {
-      if (item?.Text) rows.push(`Result: ${item.Text}${item.FirstURL ? ` (${item.FirstURL})` : ""}`);
-      if (Array.isArray(item?.Topics)) {
-        for (const sub of item.Topics.slice(0, 2)) if (sub?.Text) rows.push(`Result: ${sub.Text}${sub.FirstURL ? ` (${sub.FirstURL})` : ""}`);
+    const freshQuery = /\b(headlines?|news|latest|current|today|this week)\b/i.test(query)
+      ? `${query} ${new Date().getFullYear()}`
+      : query;
+    const ddgUrl = `https://duckduckgo.com/html/?q=${encodeURIComponent(freshQuery)}&kl=wt-wt&df=d`;
+    const readableUrl = `https://r.jina.ai/http://r.jina.ai/http://${ddgUrl.replace(/^https?:\/\//, "")}`;
+    const html = await fetch(readableUrl, { headers: { "X-No-Cache": "true" } }).then(r => r.ok ? r.text() : "").catch(() => "");
+    const lines = html.split("\n").map(l => l.trim()).filter(Boolean);
+    for (let i = 0; i < lines.length && rows.length < 8; i++) {
+      const m = lines[i].match(/^##\s+\[([^\]]+)\]\(([^)]+)\)/);
+      if (m) {
+        const snippet = lines.slice(i + 1, i + 5).find(l => !l.startsWith("[") && !l.startsWith("!") && !/^https?:/i.test(l) && !/^##/.test(l)) || "";
+        add(m[1], m[2], snippet, "DuckDuckGo");
       }
     }
-    return rows.length ? `LIVE WEB CONTEXT (best-effort public search, cite these URLs if used):\n${rows.slice(0, 8).join("\n")}` : "";
-  } catch {
-    return "";
+  } catch {}
+
+  try {
+    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
+    const j: any = await fetch(url).then(r => r.ok ? r.json() : null).catch(() => null);
+    if (j?.AbstractText) add("DuckDuckGo instant answer", j.AbstractURL || "https://duckduckgo.com", j.AbstractText, "DuckDuckGo");
+    const related = Array.isArray(j?.RelatedTopics) ? j.RelatedTopics : [];
+    for (const item of related) {
+      if (rows.length >= 10) break;
+      if (item?.Text) add(item.Text.split(" - ")[0] || "Result", item.FirstURL || "https://duckduckgo.com", item.Text, "DuckDuckGo");
+      if (Array.isArray(item?.Topics)) for (const sub of item.Topics) {
+        if (rows.length >= 10) break;
+        if (sub?.Text) add(sub.Text.split(" - ")[0] || "Result", sub.FirstURL || "https://duckduckgo.com", sub.Text, "DuckDuckGo");
+      }
+    }
+  } catch {}
+
+  if (!rows.length) {
+    return `LIVE WEB SEARCH RESULTS: No reliable public search results were retrieved for "${query}" at ${new Date().toLocaleString()}. For current/headline claims, say you could not verify instead of guessing.`;
   }
+
+  return [
+    `LIVE WEB SEARCH RESULTS — fetched at ${new Date().toLocaleString()} for query: "${query}".`,
+    `Use ONLY these results for current facts/headlines. If a result/snippet date is old, say it is old; do not present it as current. Cite sources as [1], [2], etc.`,
+    ...rows.slice(0, 10).map((r, i) => `[${i + 1}] ${r.title}\nURL: ${r.url}\nSource: ${r.source}${r.snippet ? `\nSnippet: ${r.snippet}` : ""}`),
+  ].join("\n");
 }
 
 function toGeminiContents(history: ChatMessage[]) {
@@ -277,7 +323,7 @@ function toGeminiContents(history: ChatMessage[]) {
 }
 
 function getKey(): string {
-  return alphaStore.get().settings.geminiApiKey || "";
+  return cleanApiKey(alphaStore.get().settings.geminiApiKey || "");
 }
 
 export async function sendChat(history: ChatMessage[], opts: { task?: TaskType } = {}): Promise<string> {
@@ -369,8 +415,9 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
     // Same offline-safe local-intent fast path is done inside sendChatOllama.
     const recall = lastUserMsg?.text ? rerankContext(lastUserMsg.text) : "";
     const rolling = conversationSummary.get();
-    const sys = DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling, { offline: true });
-    const text = await sendChatOllama(history, sys);
+    const webContext = online ? await fetchLiveWebContext(lastUserMsg?.text || "") : "";
+    const sys = DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling, { offline: !webContext });
+    const text = await sendChatOllama(history, sys, webContext);
     return executeActionTags(text);
   }
 
@@ -389,7 +436,7 @@ async function callGemini(history: ChatMessage[], model: string): Promise<string
   const key = getKey();
   if (!key) throw new Error("No Gemini API key set.");
   const lastUserMsg = [...history].reverse().find(m => m.role === "user");
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const recall = lastUserMsg?.text ? rerankContext(lastUserMsg.text) : "";
   const rolling = conversationSummary.get();
   // Keep only the recent slice in `contents` — older turns are represented by the rolling summary.
@@ -405,8 +452,8 @@ async function callGemini(history: ChatMessage[], model: string): Promise<string
       thinkingConfig: { thinkingBudget: -1, includeThoughts: false },
     },
   };
-  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 400)}`);
+  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error(formatGeminiError(res.status, await res.text().catch(() => "")));
   const j: any = await res.json();
   const cand = j?.candidates?.[0];
   if (cand?.finishReason === "SAFETY") {
@@ -474,10 +521,10 @@ ${transcript}
 
 LATEST ASSISTANT REPLY (for continuity):
 ${lastAssistant.slice(0, 600)}`;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         generationConfig: { temperature: 0.2, thinkingConfig: { thinkingBudget: 0 } },
@@ -535,6 +582,30 @@ function executeActionTags(text: string): string {
     const e = map[kind]; if (e?.list[0]) { e.del(e.list[0].id); return `🗑 Deleted last ${kind}.`; }
     return `No ${kind}s to delete.`;
   });
+  apply(/\[\[SET_SETTING:\s*([^|\]]+?)\s*\|\s*([^\]]*?)\s*\]\]/gi, (m) => {
+    const key = m[1].trim();
+    const raw = m[2].trim();
+    const cur = alphaStore.get().settings;
+    const boolVal = /^(true|on|yes|enabled|enable)$/i.test(raw);
+    if (key === "aiBackend" && /^(auto|gemini|ollama)$/.test(raw)) { alphaStore.setSettings({ aiBackend: raw as any }); return `⚙️ Backend set to ${raw}.`; }
+    if (key === "voiceEnabled") { alphaStore.setSettings({ voiceEnabled: boolVal }); return `⚙️ Voice replies ${boolVal ? "enabled" : "disabled"}.`; }
+    if (key === "continuousListen") { alphaStore.setSettings({ continuousListen: boolVal }); return `⚙️ Continuous listening ${boolVal ? "enabled" : "disabled"}.`; }
+    if (key === "backgroundEnabled") { alphaStore.setSettings({ backgroundEnabled: boolVal }); return `⚙️ Background processing ${boolVal ? "enabled" : "disabled"}.`; }
+    if (key === "kokoroVoice") { alphaStore.setSettings({ kokoroVoice: raw }); return `⚙️ Kokoro voice set to ${raw}.`; }
+    if (key === "ttsRate") { const rate = Math.max(0.7, Math.min(1.4, Number(raw) || cur.ttsRate)); alphaStore.setSettings({ ttsRate: rate }); return `⚙️ Speech rate set to ${rate.toFixed(2)}x.`; }
+    if (key === "chatModel") { alphaStore.setSettings({ chatModel: raw }); return `⚙️ Gemini model set to ${raw}.`; }
+    if (key === "fastModel") { alphaStore.setSettings({ taskModels: { ...cur.taskModels, fast: raw } }); return `⚙️ Fast model set to ${raw}.`; }
+    if (key === "thinkingModel") { alphaStore.setSettings({ taskModels: { ...cur.taskModels, thinking: raw } }); return `⚙️ Deep model set to ${raw}.`; }
+    if (key === "codingModel") { alphaStore.setSettings({ taskModels: { ...cur.taskModels, coding: raw } }); return `⚙️ Coding model set to ${raw}.`; }
+    return `I can't change setting "${key}" safely.`;
+  });
+  apply(/\[\[SET_PROFILE:\s*([^|\]]*?)\s*\|\s*([^\]]*?)\s*\]\]/gi, (m) => {
+    const profile = alphaStore.get().profile;
+    const name = m[1].trim() || profile.name;
+    const bio = m[2].trim() || profile.bio;
+    alphaStore.setProfile({ name, bio });
+    return `⚙️ Profile updated${name ? ` for ${name}` : ""}.`;
+  });
   if (actions.length) {
     text = text.trim() + (text.trim() ? "\n\n" : "") + actions.join("\n");
   }
@@ -561,10 +632,10 @@ export async function generateImage(prompt: string): Promise<{ dataUrl: string; 
   };
   let lastErr = "";
   for (const model of models) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
     try {
-      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      if (!res.ok) { lastErr = `${model}: ${res.status} ${(await res.text()).slice(0,200)}`; continue; }
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body) });
+      if (!res.ok) { lastErr = `${model}: ${formatGeminiError(res.status, await res.text().catch(() => ""))}`; continue; }
       const j: any = await res.json();
       const parts: any[] = j?.candidates?.[0]?.content?.parts ?? [];
       const inline = parts.find(p => p.inlineData?.data);
@@ -574,5 +645,17 @@ export async function generateImage(prompt: string): Promise<{ dataUrl: string; 
       lastErr = `${model}: ${e?.message || e}`;
     }
   }
-  throw new Error(`Image generation failed. Your API key may not have access to image models on AI Studio. Last error: ${lastErr}`);
+  const fallback = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true`;
+  if (/401|403|invalid authentication|API key/i.test(lastErr)) return { dataUrl: fallback, via: "gemini" };
+  throw new Error(`Image generation failed. Your Gemini key may not have image-model access. Last error: ${lastErr}`);
+}
+
+function formatGeminiError(status: number, body: string): string {
+  let message = body.slice(0, 400);
+  try { message = JSON.parse(body)?.error?.message || message; } catch {}
+  if (status === 401 || /invalid authentication|API key not valid|API_KEY_INVALID|UNAUTHENTICATED/i.test(message)) {
+    return `Gemini ${status}: API key rejected. Paste a Google AI Studio API key that begins with "AIza" in Settings → Online → Gemini API Key. Do not paste an OAuth token, JSON credential, or "Bearer ..." prefix. ${message}`;
+  }
+  if (status === 403) return `Gemini ${status}: key accepted but this model/API is not enabled for the key or project. Try gemini-2.5-flash or create a fresh AI Studio key. ${message}`;
+  return `Gemini ${status}: ${message}`;
 }
