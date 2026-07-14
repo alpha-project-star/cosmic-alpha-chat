@@ -109,9 +109,13 @@ Pollinations. STT: browser Web Speech or local Whisper. TTS: Kokoro or
 browser. Alarms fire from an on-device engine with WebAudio chime, system
 notification, and voice announcement. Alpha recognises the user as Alex.`,
   taskModels: {
-    fast: "groq:llama-3.1-8b-instant",
-    thinking: "gemini:gemini-2.5-pro",
-    coding: "openrouter:qwen/qwen3-coder:free",
+    // Free-tier stack:
+    //  • fast     → Groq Llama 3.3 70B versatile (blazing chat)
+    //  • thinking → OpenRouter DeepSeek R1 free (chain-of-thought reasoning)
+    //  • coding   → OpenRouter Poolside Laguna M.1 free (262K, tool-calling)
+    fast: "groq:llama-3.3-70b-versatile",
+    thinking: "openrouter:deepseek/deepseek-r1:free",
+    coding: "openrouter:poolside/laguna-m.1:free",
   },
 };
 
