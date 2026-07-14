@@ -282,20 +282,20 @@ async function fetchLiveWebContext(query: string): Promise<string> {
     }
   } catch {}
 
-  // Second fetch (DuckDuckGo instant-answer API) only runs when the first
-  // pass came up empty — halves the network cost on the common path.
-  if (!rows.length) {
-    try {
-      const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
-      const j: any = await fetch(url).then(r => r.ok ? r.json() : null).catch(() => null);
-      if (j?.AbstractText) add("DuckDuckGo instant answer", j.AbstractURL || "https://duckduckgo.com", j.AbstractText, "DuckDuckGo");
-      const related = Array.isArray(j?.RelatedTopics) ? j.RelatedTopics : [];
-      for (const item of related) {
-        if (rows.length >= 6) break;
-        if (item?.Text) add(item.Text.split(" - ")[0] || "Result", item.FirstURL || "https://duckduckgo.com", item.Text, "DuckDuckGo");
+  try {
+    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
+    const j: any = await fetch(url).then(r => r.ok ? r.json() : null).catch(() => null);
+    if (j?.AbstractText) add("DuckDuckGo instant answer", j.AbstractURL || "https://duckduckgo.com", j.AbstractText, "DuckDuckGo");
+    const related = Array.isArray(j?.RelatedTopics) ? j.RelatedTopics : [];
+    for (const item of related) {
+      if (rows.length >= 10) break;
+      if (item?.Text) add(item.Text.split(" - ")[0] || "Result", item.FirstURL || "https://duckduckgo.com", item.Text, "DuckDuckGo");
+      if (Array.isArray(item?.Topics)) for (const sub of item.Topics) {
+        if (rows.length >= 10) break;
+        if (sub?.Text) add(sub.Text.split(" - ")[0] || "Result", sub.FirstURL || "https://duckduckgo.com", sub.Text, "DuckDuckGo");
       }
-    } catch {}
-  }
+    }
+  } catch {}
 
   if (!rows.length) {
     return `LIVE WEB SEARCH RESULTS: No reliable public search results were retrieved for "${query}" at ${new Date().toLocaleString()}. For current/headline claims, say you could not verify instead of guessing.`;

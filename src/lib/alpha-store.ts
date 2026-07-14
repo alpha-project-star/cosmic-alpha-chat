@@ -109,13 +109,9 @@ Pollinations. STT: browser Web Speech or local Whisper. TTS: Kokoro or
 browser. Alarms fire from an on-device engine with WebAudio chime, system
 notification, and voice announcement. Alpha recognises the user as Alex.`,
   taskModels: {
-    // Free-tier stack:
-    //  • fast     → Groq Llama 3.3 70B versatile (blazing chat)
-    //  • thinking → OpenRouter DeepSeek R1 free (chain-of-thought reasoning)
-    //  • coding   → OpenRouter Poolside Laguna M.1 free (262K, tool-calling)
-    fast: "groq:llama-3.3-70b-versatile",
-    thinking: "openrouter:deepseek/deepseek-r1:free",
-    coding: "openrouter:poolside/laguna-m.1:free",
+    fast: "groq:llama-3.1-8b-instant",
+    thinking: "gemini:gemini-2.5-pro",
+    coding: "openrouter:qwen/qwen3-coder:free",
   },
 };
 
@@ -142,26 +138,6 @@ let state: AlphaState = {
   profile: readLS<Profile>(K.profile, { name: "", bio: "" }),
   settings: { ...DEFAULT_SETTINGS, ...readLS<Partial<Settings>>(K.settings, {}) },
 };
-
-// One-shot migration: users still on the old task-model defaults get moved to
-// the new free-tier stack (Groq 70B / DeepSeek R1 / Poolside Laguna).
-(function migrateTaskModels() {
-  const legacy = new Set([
-    "groq:llama-3.1-8b-instant",
-    "gemini:gemini-2.5-pro",
-    "openrouter:qwen/qwen3-coder:free",
-  ]);
-  const t = state.settings.taskModels;
-  const migrated = {
-    fast: legacy.has(t.fast) ? DEFAULT_SETTINGS.taskModels.fast : t.fast,
-    thinking: legacy.has(t.thinking) ? DEFAULT_SETTINGS.taskModels.thinking : t.thinking,
-    coding: legacy.has(t.coding) ? DEFAULT_SETTINGS.taskModels.coding : t.coding,
-  };
-  if (migrated.fast !== t.fast || migrated.thinking !== t.thinking || migrated.coding !== t.coding) {
-    state = { ...state, settings: { ...state.settings, taskModels: migrated } };
-    writeLS(K.settings, state.settings);
-  }
-})();
 
 const listeners = new Set<() => void>();
 function emit() { listeners.forEach(l => l()); }
