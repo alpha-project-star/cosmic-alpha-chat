@@ -143,6 +143,26 @@ let state: AlphaState = {
   settings: { ...DEFAULT_SETTINGS, ...readLS<Partial<Settings>>(K.settings, {}) },
 };
 
+// One-shot migration: users still on the old task-model defaults get moved to
+// the new free-tier stack (Groq 70B / DeepSeek R1 / Poolside Laguna).
+(function migrateTaskModels() {
+  const legacy = new Set([
+    "groq:llama-3.1-8b-instant",
+    "gemini:gemini-2.5-pro",
+    "openrouter:qwen/qwen3-coder:free",
+  ]);
+  const t = state.settings.taskModels;
+  const migrated = {
+    fast: legacy.has(t.fast) ? DEFAULT_SETTINGS.taskModels.fast : t.fast,
+    thinking: legacy.has(t.thinking) ? DEFAULT_SETTINGS.taskModels.thinking : t.thinking,
+    coding: legacy.has(t.coding) ? DEFAULT_SETTINGS.taskModels.coding : t.coding,
+  };
+  if (migrated.fast !== t.fast || migrated.thinking !== t.thinking || migrated.coding !== t.coding) {
+    state = { ...state, settings: { ...state.settings, taskModels: migrated } };
+    writeLS(K.settings, state.settings);
+  }
+})();
+
 const listeners = new Set<() => void>();
 function emit() { listeners.forEach(l => l()); }
 function subscribe(l: () => void) { listeners.add(l); return () => listeners.delete(l); }
