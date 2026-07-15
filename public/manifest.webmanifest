@@ -9,7 +9,7 @@
   "background_color": "#000000",
   "theme_color": "#04060f",
   "icons": [
-    { "src": "/__l5e/assets-v1/4ffea6be-a8a1-41c1-9396-80ff3e2f1d57/alpha-avatar.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/__l5e/assets-v1/4ffea6be-a8a1-41c1-9396-80ff3e2f1d57/alpha-avatar.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/__l5e/assets-v1/7c799940-0149-4204-8993-67433fd8a908/alpha-icon.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/__l5e/assets-v1/7c799940-0149-4204-8993-67433fd8a908/alpha-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }

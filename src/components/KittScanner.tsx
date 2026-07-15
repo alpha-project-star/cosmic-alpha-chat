@@ -47,38 +47,58 @@ export function KittScanner({
     : state;
 
   if (curved) {
-    const segmentCount = Math.max(10, bars);
+    const perHalf = Math.max(8, Math.floor(bars / 2));
     const dur =
       effective === "alert" ? 500 :
       effective === "speaking" ? 900 :
       effective === "processing" ? 700 :
       effective === "scanning" ? 1400 : 2600;
-    // Geometry: a proper circular arc that follows the bottom of the orb —
-    // ends rise UP the sides (like headphones / a smile), dipping at centre.
-    // Circle centre above the viewBox so only the lower arc lies inside.
+    // Geometry: circular arc hugging the bottom of the orb. Circle centre is
+    // placed above the viewBox so only the lower smile sits inside.
     const cx = 150, cy = 10, r = 130;
-    const startDeg = 32, endDeg = 148; // sweep across the bottom of the orb
+    // Left half sweeps 32°→86°, right half 94°→148°, leaving a centred gap.
+    const startL = 32, endL = 86, startR = 94, endR = 148;
     const rad = (d: number) => (d * Math.PI) / 180;
-    const arcBars = Array.from({ length: segmentCount }).map((_, i) => {
-      const t = i / (segmentCount - 1);
-      const deg = startDeg + (endDeg - startDeg) * t;
-      const x = cx + r * Math.cos(rad(deg));
-      const y = cy + r * Math.sin(rad(deg));
-      // Tangent orientation: 90° from radial (so segments sit ON the arc).
-      const tangent = deg + 90;
-      // Distance from centre bar, 0..1 (used for wave delay)
-      const centreT = Math.abs(t - 0.5) * 2;
-      const delay = effective === "processing"
-        ? (1 - centreT) * dur           // centre fires first, outward
-        : centreT * dur;                 // ends first, sweep toward centre
-      return { x, y, angle: tangent, delay };
-    });
-    // Rail path — same arc, drawn as a full stroke behind segments.
-    const p0 = { x: cx + r * Math.cos(rad(startDeg)), y: cy + r * Math.sin(rad(startDeg)) };
-    const p1 = { x: cx + r * Math.cos(rad(endDeg)),   y: cy + r * Math.sin(rad(endDeg)) };
-    const railD = `M ${p0.x} ${p0.y} A ${r} ${r} 0 0 1 ${p1.x} ${p1.y}`;
-    // Gap marker sits at bottom-centre of the arc.
-    const gapX = cx, gapY = cy + r; // bottom of circle
+    const pt = (deg: number) => ({ x: cx + r * Math.cos(rad(deg)), y: cy + r * Math.sin(rad(deg)) });
+
+    const makeBars = (a0: number, a1: number, side: "L" | "R") =>
+      Array.from({ length: perHalf }).map((_, i) => {
+        const t = i / (perHalf - 1);
+        const deg = a0 + (a1 - a0) * t;
+        const { x, y } = pt(deg);
+        // Bar sits ON the arc; long axis tangent to circle.
+        const tangent = deg + 90;
+        // Distance from centre gap → sweep timing. side L: i=perHalf-1 is at gap.
+        const gapT = side === "L" ? 1 - t : t;    // 0 at gap, 1 at outer end
+        const outerT = 1 - gapT;                   // 0 at outer end, 1 at gap
+        const delay = effective === "processing" ? gapT * dur : outerT * dur;
+        return { x, y, angle: tangent, delay };
+      });
+
+    const barsL = makeBars(startL, endL, "L");
+    const barsR = makeBars(startR, endR, "R");
+
+    // Rail paths (framed background per half — mirrors chat's kitt-half look)
+    const l0 = pt(startL), l1 = pt(endL);
+    const r0 = pt(startR), r1 = pt(endR);
+    const railL = `M ${l0.x} ${l0.y} A ${r} ${r} 0 0 1 ${l1.x} ${l1.y}`;
+    const railR = `M ${r0.x} ${r0.y} A ${r} ${r} 0 0 1 ${r1.x} ${r1.y}`;
+    // Central gap divider at the very bottom of the orb.
+    const gap = pt(90);
+
+    const renderBar = (b: { x: number; y: number; angle: number; delay: number }, key: string) => (
+      <rect
+        key={key}
+        className="kitt-arc-segment"
+        x={b.x - 5}
+        y={b.y - 7}
+        width="10"
+        height="14"
+        rx="2"
+        style={{ animationDelay: `${b.delay}ms`, transformOrigin: `${b.x}px ${b.y}px`, transform: `rotate(${b.angle}deg)` }}
+      />
+    );
+
     return (
       <svg
         role="presentation"
@@ -87,20 +107,13 @@ export function KittScanner({
         style={{ height, "--kitt-dur": `${dur}ms` } as unknown as React.CSSProperties}
         preserveAspectRatio="none"
       >
-        <path className="kitt-arc-rail" d={railD} />
-        {arcBars.map((b, i) => (
-          <rect
-            key={i}
-            className="kitt-arc-segment"
-            x={b.x - 6}
-            y={b.y - 2.5}
-            width="12"
-            height="5"
-            rx="2"
-            style={{ animationDelay: `${b.delay}ms`, transformOrigin: `${b.x}px ${b.y}px`, transform: `rotate(${b.angle}deg)` }}
-          />
-        ))}
-        <rect className="kitt-arc-gap" x={gapX - 5} y={gapY - 8} width="10" height="16" rx="2" />
+        <path className="kitt-arc-frame" d={railL} />
+        <path className="kitt-arc-frame" d={railR} />
+        <path className="kitt-arc-rail" d={railL} />
+        <path className="kitt-arc-rail" d={railR} />
+        {barsL.map((b, i) => renderBar(b, `l${i}`))}
+        {barsR.map((b, i) => renderBar(b, `r${i}`))}
+        <rect className="kitt-arc-gap" x={gap.x - 2} y={gap.y - 12} width="4" height="22" rx="2" />
       </svg>
     );
   }
