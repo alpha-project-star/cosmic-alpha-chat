@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import alphaAvatar from "../assets/alpha-avatar.png.asset.json";
+import alphaAvatar from "../assets/alpha-icon.png.asset.json";
 import { AudioSpectrum } from "./AudioSpectrum";
 import { speakingState } from "../lib/voice";
 
