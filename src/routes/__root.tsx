@@ -14,6 +14,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import "katex/dist/katex.min.css";
 import { AlphaLock } from "../components/AlphaLock";
 import alphaAvatar from "../assets/alpha-avatar.png.asset.json";
+import alphaIcon from "../assets/alpha-icon.png.asset.json";
 import { GlobalDock } from "../components/GlobalDock";
 import { registerAlphaPWA } from "../lib/pwa";
 import { startAlarmEngine } from "../lib/alarm-engine";
@@ -103,8 +104,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/manifest.webmanifest" },
-      { rel: "icon", href: alphaAvatar.url, type: "image/png" },
-      { rel: "apple-touch-icon", href: alphaAvatar.url },
+      { rel: "icon", href: alphaIcon.url, type: "image/png" },
+      { rel: "apple-touch-icon", href: alphaIcon.url },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Space+Grotesk:wght@300;400;600&display=swap" },
     ],
   }),
