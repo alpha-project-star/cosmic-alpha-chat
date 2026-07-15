@@ -352,14 +352,22 @@
 }
 .kitt-arc-rail {
   fill: none;
-  stroke: oklch(0.55 0.22 250 / 0.3);
-  stroke-width: 8;
+  stroke: oklch(0.55 0.22 250 / 0.35);
+  stroke-width: 18;
   stroke-linecap: round;
 }
+.kitt-arc-frame {
+  fill: none;
+  stroke: oklch(0.75 0.22 245 / 0.55);
+  stroke-width: 22;
+  stroke-linecap: round;
+  opacity: 0.35;
+  filter: drop-shadow(0 0 6px oklch(0.75 0.22 245 / 0.5));
+}
 .kitt-arc-segment {
-  fill: oklch(0.82 0.22 238);
-  opacity: 0.2;
-  filter: drop-shadow(0 0 5px oklch(0.82 0.22 238 / 0.95));
+  fill: oklch(0.86 0.22 240);
+  opacity: 0.25;
+  filter: drop-shadow(0 0 6px oklch(0.82 0.22 238 / 0.95));
   animation: kitt-arc-pulse var(--kitt-dur, 1800ms) ease-in-out infinite alternate;
 }
 .kitt-arc-gap {
