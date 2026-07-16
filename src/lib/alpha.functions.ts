@@ -161,9 +161,18 @@ Use EXACTLY these formats, each on its own line:
 [[ADD_PLAN: title | from | to | date]]
 [[ADD_BILL: name | amount | dueDate]]
 [[DELETE_LAST: note|reminder|memory|plan|bill]]
+[[DELETE_NOTE: title-or-keyword]]
+[[DELETE_REMINDER: title-or-keyword]]
+[[DELETE_MEMORY: topic-or-keyword]]
+[[DELETE_PLAN: title-or-keyword]]
+[[DELETE_BILL: name-or-keyword]]
+[[CLEAR_ALL: notes|reminders|memories|plans|bills]]
+[[UPDATE_NOTE: title-or-keyword | new title | new body]]
+[[MARK_REMINDER_DONE: title-or-keyword]]
+[[MARK_BILL_PAID: name-or-keyword]]
 [[SET_SETTING: settingKey | value]] where settingKey is one of voiceEnabled, continuousListen, backgroundEnabled, kokoroVoice, ttsRate, fastModel, thinkingModel, codingModel
 [[SET_PROFILE: name | bio]]
-Always include the tag whenever a CRUD/settings/profile action is requested. Never say "I've changed it" without emitting the tag.
+Always include the tag whenever a CRUD/settings/profile action is requested. Never say "done", "deleted", "removed", or "I've changed it" without emitting the matching tag on its own line — the app only mutates state when the tag is present. If the user asks to read/list items you don't need a tag; just cite the "Live user data snapshot" above.
 ${extra ? "\nUser personalisation:\n" + extra : ""}`;
 
 function parseRouteSpec(spec: string): { prov: ProviderId; model: string } | null {
