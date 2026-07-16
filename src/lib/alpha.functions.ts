@@ -192,9 +192,10 @@ function cleanApiKey(key: string): string {
 function pickRoute(task: TaskType, hasImages: boolean): { prov: ProviderId; model: string } | null {
   const s = alphaStore.get().settings;
   if (hasImages) {
-    // Vision path: route to a free OpenRouter multimodal model.
+    // Vision path: OpenRouter free multimodal. First candidate is picked here;
+    // sendChat will fall through the VISION_FALLBACKS chain on 404/unavailable.
     if (cleanApiKey(s.openRouterKey)) {
-      return { prov: "openrouter", model: "meta-llama/llama-3.2-11b-vision-instruct:free" };
+      return { prov: "openrouter", model: VISION_FALLBACKS[0] };
     }
     return null;
   }
@@ -211,6 +212,16 @@ function pickRoute(task: TaskType, hasImages: boolean): { prov: ProviderId; mode
   }
   return null;
 }
+
+// Ordered list of free OpenRouter vision models to try. Providers rotate what
+// they offer for free constantly, so we try several before giving up.
+const VISION_FALLBACKS = [
+  "qwen/qwen2.5-vl-72b-instruct:free",
+  "qwen/qwen2.5-vl-32b-instruct:free",
+  "meta-llama/llama-3.2-11b-vision-instruct",
+  "google/gemini-2.0-flash-exp:free",
+  "mistralai/mistral-small-3.2-24b-instruct:free",
+];
 
 function shouldFetchWeb(query: string) {
   return /\b(who|what|when|where|how|why|latest|current|today|yesterday|tomorrow|this week|news|price|score|release|version|weather|web|search|look up|find|source|citation|cite|date|202\d)\b/i.test(query);
