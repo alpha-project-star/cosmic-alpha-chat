@@ -161,7 +161,7 @@ Use EXACTLY these formats, each on its own line:
 [[ADD_PLAN: title | from | to | date]]
 [[ADD_BILL: name | amount | dueDate]]
 [[DELETE_LAST: note|reminder|memory|plan|bill]]
-[[SET_SETTING: settingKey | value]] where settingKey is one of aiBackend, voiceEnabled, continuousListen, backgroundEnabled, kokoroVoice, ttsRate, chatModel, fastModel, thinkingModel, codingModel
+[[SET_SETTING: settingKey | value]] where settingKey is one of voiceEnabled, continuousListen, backgroundEnabled, kokoroVoice, ttsRate, chatModel, fastModel, thinkingModel, codingModel
 [[SET_PROFILE: name | bio]]
 Always include the tag whenever a CRUD/settings/profile action is requested. Never say "I've changed it" without emitting the tag.
 ${extra ? "\nUser personalisation:\n" + extra : ""}`;
