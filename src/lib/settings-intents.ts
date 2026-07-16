@@ -66,11 +66,11 @@ export function trySettingsIntent(raw: string): string | null {
     return `Added "${topic}" to Alpha's watchlist.`;
   }
 
-  // Task model routing quick set: "use groq for fast", "use gemini for coding"
-  const m = t.match(/use\s+(gemini|groq|openai|openrouter)(?:\s+(\S+))?\s+for\s+(fast|thinking|deep|coding|code)/);
+  // Task model routing quick set: "use groq for fast", "use openrouter for coding"
+  const m = t.match(/use\s+(groq|openai|openrouter)(?:\s+(\S+))?\s+for\s+(fast|thinking|deep|coding|code)/);
   if (m) {
     const prov = m[1];
-    const model = m[2] || (prov === "groq" ? "llama-3.1-8b-instant" : prov === "gemini" ? "gemini-2.5-pro" : prov === "openrouter" ? "qwen/qwen3-coder:free" : "gpt-4o-mini");
+    const model = m[2] || (prov === "groq" ? "llama-3.3-70b-versatile" : prov === "openrouter" ? "deepseek/deepseek-r1:free" : "gpt-4o-mini");
     let key: "fast" | "thinking" | "coding" =
       /coding|code/.test(m[3]) ? "coding" :
       /thinking|deep/.test(m[3]) ? "thinking" : "fast";
