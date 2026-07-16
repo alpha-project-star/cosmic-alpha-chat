@@ -8,20 +8,6 @@ export function trySettingsIntent(raw: string): string | null {
   const original = raw.trim();
   const t = original.toLowerCase();
 
-  // Backend switch
-  if (/(switch|go|change|use)\s+.*offline/.test(t) || /offline\s+mode/.test(t)) {
-    alphaStore.setSettings({ aiBackend: "ollama" });
-    return "Switched to offline mode (Ollama).";
-  }
-  if (/(switch|go|change|use)\s+.*online/.test(t) || /online\s+mode/.test(t) || /use\s+gemini/.test(t)) {
-    alphaStore.setSettings({ aiBackend: "gemini" });
-    return "Switched to online mode (Gemini).";
-  }
-  if (/use\s+auto|automatic\s+backend/.test(t)) {
-    alphaStore.setSettings({ aiBackend: "auto" });
-    return "Backend set to Auto.";
-  }
-
   // Voice on/off
   if (/(mute|silence|stop\s+speaking\s+aloud|voice\s+off|disable\s+voice)/.test(t)) {
     alphaStore.setSettings({ voiceEnabled: false });

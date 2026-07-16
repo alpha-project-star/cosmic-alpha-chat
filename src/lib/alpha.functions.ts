@@ -201,7 +201,6 @@ function pickRoute(task: TaskType, hasImages: boolean): { prov: ProviderId; mode
     : s.taskModels.fast || s.taskModels.thinking || s.taskModels.coding;
   const route = parseRouteSpec(preferred);
   if (route && providerHasKey(route.prov)) return route;
-  if (task === "auto" && s.aiBackend === "gemini" && s.geminiApiKey) return { prov: "gemini", model: s.chatModel || "gemini-2.5-pro" };
   return null;
 }
 
@@ -411,9 +410,9 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
     }
   }
 
-  const useOllama =
-    s.aiBackend === "ollama" ||
-    (s.aiBackend === "auto" && (!online || !s.geminiApiKey));
+  // No task route matched (no keys configured, or offline). Fall back to
+  // local Ollama if we can reach it; otherwise require a Gemini key.
+  const useOllama = !online || !s.geminiApiKey;
 
   const lastUserMsg = [...history].reverse().find(m => m.role === "user");
   if (useOllama) {
@@ -427,7 +426,7 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
   }
 
   const key = getKey();
-  if (!key) throw new Error("No Gemini API key set. Either paste one in Settings, or switch AI Backend to Ollama (local).");
+  if (!key) throw new Error("No API key configured for the selected task. Add a key in Settings → Online, or start a local Ollama server.");
   // Local intent shortcut so simple CRUD commands don't burn API credit
   if (lastUserMsg?.text && !lastUserMsg.images?.length) {
     const local = tryLocalIntent(lastUserMsg.text);
@@ -592,7 +591,6 @@ function executeActionTags(text: string): string {
     const raw = m[2].trim();
     const cur = alphaStore.get().settings;
     const boolVal = /^(true|on|yes|enabled|enable)$/i.test(raw);
-    if (key === "aiBackend" && /^(auto|gemini|ollama)$/.test(raw)) { alphaStore.setSettings({ aiBackend: raw as any }); return `⚙️ Backend set to ${raw}.`; }
     if (key === "voiceEnabled") { alphaStore.setSettings({ voiceEnabled: boolVal }); return `⚙️ Voice replies ${boolVal ? "enabled" : "disabled"}.`; }
     if (key === "continuousListen") { alphaStore.setSettings({ continuousListen: boolVal }); return `⚙️ Continuous listening ${boolVal ? "enabled" : "disabled"}.`; }
     if (key === "backgroundEnabled") { alphaStore.setSettings({ backgroundEnabled: boolVal }); return `⚙️ Background processing ${boolVal ? "enabled" : "disabled"}.`; }

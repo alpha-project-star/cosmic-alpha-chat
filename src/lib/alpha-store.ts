@@ -28,7 +28,6 @@ export interface Settings {
   kokoroVoice: string;
   ttsRate: number;
   // ---- Local / offline backends ----
-  aiBackend: "gemini" | "ollama" | "auto";      // "auto" → ollama when offline, gemini when online
   ollamaEndpoint: string;                        // e.g. http://localhost:11434
   ollamaModel: string;                           // active local model tag
   ollamaModels: string[];                        // custom list the user typed in Settings
@@ -84,7 +83,6 @@ const DEFAULT_SETTINGS: Settings = {
   kokoroEndpoint: "",
   kokoroVoice: "am_michael",
   ttsRate: 1.0,
-  aiBackend: "auto",
   ollamaEndpoint: "http://localhost:11434",
   ollamaModel: "llama3.2:3b",
   ollamaModels: [],
