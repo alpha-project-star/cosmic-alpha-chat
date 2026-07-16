@@ -596,7 +596,6 @@ function executeActionTags(text: string): string {
     if (key === "backgroundEnabled") { alphaStore.setSettings({ backgroundEnabled: boolVal }); return `⚙️ Background processing ${boolVal ? "enabled" : "disabled"}.`; }
     if (key === "kokoroVoice") { alphaStore.setSettings({ kokoroVoice: raw }); return `⚙️ Kokoro voice set to ${raw}.`; }
     if (key === "ttsRate") { const rate = Math.max(0.7, Math.min(1.4, Number(raw) || cur.ttsRate)); alphaStore.setSettings({ ttsRate: rate }); return `⚙️ Speech rate set to ${rate.toFixed(2)}x.`; }
-    if (key === "chatModel") { alphaStore.setSettings({ chatModel: raw }); return `⚙️ Gemini model set to ${raw}.`; }
     if (key === "fastModel") { alphaStore.setSettings({ taskModels: { ...cur.taskModels, fast: raw } }); return `⚙️ Fast model set to ${raw}.`; }
     if (key === "thinkingModel") { alphaStore.setSettings({ taskModels: { ...cur.taskModels, thinking: raw } }); return `⚙️ Deep model set to ${raw}.`; }
     if (key === "codingModel") { alphaStore.setSettings({ taskModels: { ...cur.taskModels, coding: raw } }); return `⚙️ Coding model set to ${raw}.`; }
