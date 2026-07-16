@@ -5,7 +5,7 @@ import { sendChatOpenAICompat } from "./openai-compat";
 
 export type TaskType = "auto" | "fast" | "thinking" | "coding";
 
-type ProviderId = "gemini" | "groq" | "openai" | "openrouter";
+type ProviderId = "groq" | "openai" | "openrouter";
 
 // ---------- Temporal anchoring ----------
 function temporalBlock(): string {
@@ -89,7 +89,7 @@ You are fully aware of your own toolkit inside this app:
 - /plans — plans & routes (title, from, to, date, details).
 - /memories — long-term memory the user wants you to keep (topic, detail).
 - /image — image generation dashboard.
-- /settings — Gemini key, model, Kokoro TTS endpoint, voice prefs.
+- /settings — provider keys (Groq / OpenRouter / OpenAI-compat), model routing, Kokoro TTS endpoint, voice prefs.
 
 You ALWAYS have live context of the user's data and may proactively reference it, follow up on it, or casually weave it into conversation when relevant.
 
@@ -104,7 +104,7 @@ ${rolling ? "\nRolling conversation state (compacted from earlier turns):\n" + r
 If the user asks to remember something, suggest "I'll add that to memories — say open memories." If they mention a deadline, offer to add a reminder. If they mention a trip, offer to add a plan. Be casual about it; one sentence.
 
 GROUNDING & TRUTHFULNESS (hard rules — do not violate):
-- Online Gemini turns have a live Google Search tool attached. Other online model turns receive a LIVE WEB SEARCH RESULTS block fetched by Alpha before the model call. Ollama/local turns receive that block too whenever the browser is online; only fully offline turns lack web. Use available web evidence for anything time-sensitive, news, releases, prices, scores, "this week", "latest", "current", or any fact you are not 100% certain of from training.
+- Every online turn receives a LIVE WEB SEARCH RESULTS block fetched by Alpha (DuckDuckGo + Jina reader) before the model call. Ollama/local turns receive that block too whenever the browser is online; only fully offline turns lack web. Use available web evidence for anything time-sensitive, news, releases, prices, scores, "this week", "latest", "current", or any fact you are not 100% certain of from training.
 - EVIDENCE-ONLY MODE for factual claims. You may only state a concrete fact (title, date, author, URL, number, quote, release window, score, price) if it appears verbatim or paraphrased from a retrieved search result you can point to. If no retrieval evidence exists, say plainly: "I couldn't verify that right now" — do NOT guess, fill, or smooth over.
 - You are FORBIDDEN from inventing: article titles, URLs, author names, publication dates, quotations, product version numbers, or organisation announcements. No exceptions.
 - Snippet vs full-page honesty: if you only saw a search snippet, do not claim to have read the article. Say "the snippet says…".
@@ -161,24 +161,21 @@ Use EXACTLY these formats, each on its own line:
 [[ADD_PLAN: title | from | to | date]]
 [[ADD_BILL: name | amount | dueDate]]
 [[DELETE_LAST: note|reminder|memory|plan|bill]]
-[[SET_SETTING: settingKey | value]] where settingKey is one of voiceEnabled, continuousListen, backgroundEnabled, kokoroVoice, ttsRate, chatModel, fastModel, thinkingModel, codingModel
+[[SET_SETTING: settingKey | value]] where settingKey is one of voiceEnabled, continuousListen, backgroundEnabled, kokoroVoice, ttsRate, fastModel, thinkingModel, codingModel
 [[SET_PROFILE: name | bio]]
 Always include the tag whenever a CRUD/settings/profile action is requested. Never say "I've changed it" without emitting the tag.
 ${extra ? "\nUser personalisation:\n" + extra : ""}`;
-
-type GeminiPart = { text?: string } | { inlineData: { mimeType: string; data: string } };
 
 function parseRouteSpec(spec: string): { prov: ProviderId; model: string } | null {
   const [rawProv, ...rest] = (spec || "").split(":");
   const model = rest.join(":").trim();
   const prov = rawProv.trim() as ProviderId;
-  if (!model || !["gemini", "groq", "openai", "openrouter"].includes(prov)) return null;
+  if (!model || !["groq", "openai", "openrouter"].includes(prov)) return null;
   return { prov, model };
 }
 
 function providerHasKey(prov: ProviderId) {
   const s = alphaStore.get().settings;
-  if (prov === "gemini") return !!cleanApiKey(s.geminiApiKey);
   if (prov === "groq") return !!cleanApiKey(s.groqApiKey);
   if (prov === "openai") return !!cleanApiKey(s.openaiCompatKey);
   return !!cleanApiKey(s.openRouterKey);
@@ -194,13 +191,24 @@ function cleanApiKey(key: string): string {
 
 function pickRoute(task: TaskType, hasImages: boolean): { prov: ProviderId; model: string } | null {
   const s = alphaStore.get().settings;
-  if (hasImages) return s.geminiApiKey ? { prov: "gemini", model: s.chatModel || "gemini-2.5-pro" } : null;
+  if (hasImages) {
+    // Vision path: route to a free OpenRouter multimodal model.
+    if (cleanApiKey(s.openRouterKey)) {
+      return { prov: "openrouter", model: "meta-llama/llama-3.2-11b-vision-instruct:free" };
+    }
+    return null;
+  }
   const preferred = task === "coding" ? s.taskModels.coding
     : task === "thinking" ? s.taskModels.thinking
     : task === "fast" ? s.taskModels.fast
     : s.taskModels.fast || s.taskModels.thinking || s.taskModels.coding;
   const route = parseRouteSpec(preferred);
   if (route && providerHasKey(route.prov)) return route;
+  // Fallback: use whichever lane has a working key.
+  for (const lane of [s.taskModels.fast, s.taskModels.thinking, s.taskModels.coding]) {
+    const r = parseRouteSpec(lane);
+    if (r && providerHasKey(r.prov)) return r;
+  }
   return null;
 }
 
