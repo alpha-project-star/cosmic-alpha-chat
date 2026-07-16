@@ -161,9 +161,18 @@ Use EXACTLY these formats, each on its own line:
 [[ADD_PLAN: title | from | to | date]]
 [[ADD_BILL: name | amount | dueDate]]
 [[DELETE_LAST: note|reminder|memory|plan|bill]]
+[[DELETE_NOTE: title-or-keyword]]
+[[DELETE_REMINDER: title-or-keyword]]
+[[DELETE_MEMORY: topic-or-keyword]]
+[[DELETE_PLAN: title-or-keyword]]
+[[DELETE_BILL: name-or-keyword]]
+[[CLEAR_ALL: notes|reminders|memories|plans|bills]]
+[[UPDATE_NOTE: title-or-keyword | new title | new body]]
+[[MARK_REMINDER_DONE: title-or-keyword]]
+[[MARK_BILL_PAID: name-or-keyword]]
 [[SET_SETTING: settingKey | value]] where settingKey is one of voiceEnabled, continuousListen, backgroundEnabled, kokoroVoice, ttsRate, fastModel, thinkingModel, codingModel
 [[SET_PROFILE: name | bio]]
-Always include the tag whenever a CRUD/settings/profile action is requested. Never say "I've changed it" without emitting the tag.
+Always include the tag whenever a CRUD/settings/profile action is requested. Never say "done", "deleted", "removed", or "I've changed it" without emitting the matching tag on its own line — the app only mutates state when the tag is present. If the user asks to read/list items you don't need a tag; just cite the "Live user data snapshot" above.
 ${extra ? "\nUser personalisation:\n" + extra : ""}`;
 
 function parseRouteSpec(spec: string): { prov: ProviderId; model: string } | null {
@@ -192,9 +201,10 @@ function cleanApiKey(key: string): string {
 function pickRoute(task: TaskType, hasImages: boolean): { prov: ProviderId; model: string } | null {
   const s = alphaStore.get().settings;
   if (hasImages) {
-    // Vision path: route to a free OpenRouter multimodal model.
+    // Vision path: OpenRouter free multimodal. First candidate is picked here;
+    // sendChat will fall through the VISION_FALLBACKS chain on 404/unavailable.
     if (cleanApiKey(s.openRouterKey)) {
-      return { prov: "openrouter", model: "meta-llama/llama-3.2-11b-vision-instruct:free" };
+      return { prov: "openrouter", model: VISION_FALLBACKS[0] };
     }
     return null;
   }
@@ -211,6 +221,16 @@ function pickRoute(task: TaskType, hasImages: boolean): { prov: ProviderId; mode
   }
   return null;
 }
+
+// Ordered list of free OpenRouter vision models to try. Providers rotate what
+// they offer for free constantly, so we try several before giving up.
+const VISION_FALLBACKS = [
+  "qwen/qwen2.5-vl-72b-instruct:free",
+  "qwen/qwen2.5-vl-32b-instruct:free",
+  "meta-llama/llama-3.2-11b-vision-instruct",
+  "google/gemini-2.0-flash-exp:free",
+  "mistralai/mistral-small-3.2-24b-instruct:free",
+];
 
 function shouldFetchWeb(query: string) {
   return /\b(who|what|when|where|how|why|latest|current|today|yesterday|tomorrow|this week|news|price|score|release|version|weather|web|search|look up|find|source|citation|cite|date|202\d)\b/i.test(query);
@@ -357,15 +377,34 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
       } else if (prov === "openrouter") {
         const openRouterKey = cleanApiKey(s.openRouterKey);
         if (!openRouterKey) throw new Error("No OpenRouter API key set. Add it in Settings \u2192 Online.");
-        text = await sendChatOpenAICompat(history, sys, {
-          baseUrl: "https://openrouter.ai/api/v1",
-          apiKey: openRouterKey, model,
-          extraHeaders: {
-            "HTTP-Referer": typeof window !== "undefined" ? window.location.origin : "https://alpha.local",
-            "X-Title": "Alpha",
-          },
-          extraBody: shouldFetchWeb(lastUserMsg?.text || "") ? { plugins: [{ id: "web" }] } : undefined,
-        });
+        const orHeaders = {
+          "HTTP-Referer": typeof window !== "undefined" ? window.location.origin : "https://alpha.local",
+          "X-Title": "Alpha",
+        };
+        const orExtraBody = shouldFetchWeb(lastUserMsg?.text || "") ? { plugins: [{ id: "web" }] } : undefined;
+        // Vision: if the chosen model 404s / is unavailable, walk the fallback chain.
+        const candidates = hasImages
+          ? Array.from(new Set([model, ...VISION_FALLBACKS]))
+          : [model];
+        let lastErr: any = null;
+        for (const m of candidates) {
+          try {
+            text = await sendChatOpenAICompat(history, sys, {
+              baseUrl: "https://openrouter.ai/api/v1",
+              apiKey: openRouterKey, model: m,
+              extraHeaders: orHeaders,
+              extraBody: orExtraBody,
+            });
+            lastErr = null;
+            break;
+          } catch (err: any) {
+            lastErr = err;
+            const st = err?.status;
+            const isRetryable = st === 404 || /\b(404|unavailable|not\s+found|no\s+endpoints)\b/i.test(String(err?.message || ""));
+            if (!hasImages || !isRetryable) throw err;
+          }
+        }
+        if (lastErr) throw lastErr;
       }
       const finalText = executeActionTags(appendSourcesIfWeb(text, webContext));
       void maybeCompactSummary(history, finalText);
@@ -505,6 +544,85 @@ function executeActionTags(text: string): string {
     };
     const e = map[kind]; if (e?.list[0]) { e.del(e.list[0].id); return `🗑 Deleted last ${kind}.`; }
     return `No ${kind}s to delete.`;
+  });
+  // ---- Fuzzy delete by name/keyword ---------------------------------------
+  const fuzzyDel = (kind: "note"|"reminder"|"memory"|"plan"|"bill", q: string): string => {
+    const s = alphaStore.get();
+    const lc = q.toLowerCase().trim();
+    if (!lc) return `Need a keyword to delete a ${kind}.`;
+    const pick = <T,>(arr: T[], text: (x: T) => string) =>
+      arr.filter(x => text(x).toLowerCase().includes(lc));
+    if (kind === "note") {
+      const hit = pick(s.notes, n => `${n.title} ${n.body}`);
+      if (!hit.length) return `No note matching "${q}".`;
+      hit.forEach(n => alphaStore.deleteNote(n.id));
+      return `🗑 Deleted ${hit.length} note${hit.length === 1 ? "" : "s"} matching "${q}".`;
+    }
+    if (kind === "reminder") {
+      const hit = pick(s.reminders, r => `${r.title} ${r.notes}`);
+      if (!hit.length) return `No reminder matching "${q}".`;
+      hit.forEach(r => alphaStore.deleteReminder(r.id));
+      return `🗑 Deleted ${hit.length} reminder${hit.length === 1 ? "" : "s"} matching "${q}".`;
+    }
+    if (kind === "memory") {
+      const hit = pick(s.memories, m => `${m.topic} ${m.detail}`);
+      if (!hit.length) return `No memory matching "${q}".`;
+      hit.forEach(m => alphaStore.deleteMemory(m.id));
+      return `🧠 Forgot ${hit.length} memor${hit.length === 1 ? "y" : "ies"} matching "${q}".`;
+    }
+    if (kind === "plan") {
+      const hit = pick(s.plans, p => `${p.title} ${p.from} ${p.to}`);
+      if (!hit.length) return `No plan matching "${q}".`;
+      hit.forEach(p => alphaStore.deletePlan(p.id));
+      return `🗑 Deleted ${hit.length} plan${hit.length === 1 ? "" : "s"} matching "${q}".`;
+    }
+    const hit = pick(s.bills, b => b.name);
+    if (!hit.length) return `No bill matching "${q}".`;
+    hit.forEach(b => alphaStore.deleteBill(b.id));
+    return `🗑 Deleted ${hit.length} bill${hit.length === 1 ? "" : "s"} matching "${q}".`;
+  };
+  apply(/\[\[DELETE_NOTE:\s*([^\]]+?)\s*\]\]/gi, (m) => fuzzyDel("note", m[1]));
+  apply(/\[\[DELETE_REMINDER:\s*([^\]]+?)\s*\]\]/gi, (m) => fuzzyDel("reminder", m[1]));
+  apply(/\[\[DELETE_MEMORY:\s*([^\]]+?)\s*\]\]/gi, (m) => fuzzyDel("memory", m[1]));
+  apply(/\[\[DELETE_PLAN:\s*([^\]]+?)\s*\]\]/gi, (m) => fuzzyDel("plan", m[1]));
+  apply(/\[\[DELETE_BILL:\s*([^\]]+?)\s*\]\]/gi, (m) => fuzzyDel("bill", m[1]));
+  apply(/\[\[CLEAR_ALL:\s*(notes|reminders|memories|plans|bills)\s*\]\]/gi, (m) => {
+    const kind = m[1].toLowerCase();
+    const s = alphaStore.get();
+    const map: Record<string, { list: any[]; del: (id: string) => void }> = {
+      notes: { list: s.notes, del: alphaStore.deleteNote },
+      reminders: { list: s.reminders, del: alphaStore.deleteReminder },
+      memories: { list: s.memories, del: alphaStore.deleteMemory },
+      plans: { list: s.plans, del: alphaStore.deletePlan },
+      bills: { list: s.bills, del: alphaStore.deleteBill },
+    };
+    const e = map[kind]; if (!e) return `Can't clear "${kind}".`;
+    const n = e.list.length;
+    [...e.list].forEach(x => e.del(x.id));
+    return `🗑 Cleared all ${n} ${kind}.`;
+  });
+  apply(/\[\[UPDATE_NOTE:\s*([^|\]]+?)\s*\|\s*([^|\]]*?)\s*\|\s*([^\]]*?)\s*\]\]/gi, (m) => {
+    const q = m[1].toLowerCase().trim();
+    const n = alphaStore.get().notes.find(x => (x.title || "").toLowerCase().includes(q) || (x.body || "").toLowerCase().includes(q));
+    if (!n) return `No note matching "${m[1]}".`;
+    const title = m[2].trim() || n.title;
+    const body = m[3].trim() || n.body;
+    alphaStore.upsertNote({ ...n, title, body, updatedAt: Date.now() });
+    return `📝 Updated note "${title}".`;
+  });
+  apply(/\[\[MARK_REMINDER_DONE:\s*([^\]]+?)\s*\]\]/gi, (m) => {
+    const q = m[1].toLowerCase().trim();
+    const r = alphaStore.get().reminders.find(x => x.title.toLowerCase().includes(q));
+    if (!r) return `No reminder matching "${m[1]}".`;
+    alphaStore.upsertReminder({ ...r, done: "yes" });
+    return `✅ Marked reminder "${r.title}" done.`;
+  });
+  apply(/\[\[MARK_BILL_PAID:\s*([^\]]+?)\s*\]\]/gi, (m) => {
+    const q = m[1].toLowerCase().trim();
+    const b = alphaStore.get().bills.find(x => x.name.toLowerCase().includes(q));
+    if (!b) return `No bill matching "${m[1]}".`;
+    alphaStore.upsertBill({ ...b, status: "paid", balance: 0 });
+    return `💳 Marked bill "${b.name}" paid.`;
   });
   apply(/\[\[SET_SETTING:\s*([^|\]]+?)\s*\|\s*([^\]]*?)\s*\]\]/gi, (m) => {
     const key = m[1].trim();
