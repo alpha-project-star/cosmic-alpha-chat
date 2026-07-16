@@ -142,22 +142,6 @@ function SettingsRoute() {
           hint="Cloud APIs Alpha uses when you have internet."
           open={openGroup === "online"} onToggle={() => setOpenGroup(openGroup === "online" ? null : "online")}>
 
-          <Section title="Gemini API Key (optional)" hint="Only used when a task route below is set to gemini:… or when you send images. Leave empty to route entirely through Groq / OpenRouter / OpenAI-compatible.">
-            <input type="password" value={s.geminiApiKey} onChange={e => alphaStore.setSettings({ geminiApiKey: e.target.value })}
-              placeholder="AI..." className="w-full bg-input rounded-md px-3 py-2 border border-border" />
-          </Section>
-
-          <Section title="Gemini Model (used for image-attached messages)">
-            <select value={s.chatModel} onChange={e => alphaStore.setSettings({ chatModel: e.target.value })}
-              className="w-full bg-input rounded-md px-3 py-2 border border-border">
-              <option value="gemini-2.5-pro">gemini-2.5-pro (most powerful)</option>
-              <option value="gemini-2.5-flash">gemini-2.5-flash (fast)</option>
-              <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (cheapest)</option>
-              <option value="gemini-2.0-flash">gemini-2.0-flash</option>
-              <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp</option>
-            </select>
-          </Section>
-
           <Section title="Groq API Key" hint="Fast text models (Llama, Mixtral). Free tier at console.groq.com.">
             <input type="password" value={s.groqApiKey} onChange={e => alphaStore.setSettings({ groqApiKey: e.target.value })}
               placeholder="gsk_..." className="w-full bg-input rounded-md px-3 py-2 border border-border" />
@@ -175,16 +159,16 @@ function SettingsRoute() {
               placeholder="sk-or-..." className="w-full bg-input rounded-md px-3 py-2 border border-border" />
           </Section>
 
-          <Section title="Task Routing" hint="Which model runs each job. Format: provider:model (providers: gemini, groq, openai, openrouter). Auto uses Fast first when its key is available; the chat composer can switch task per message.">
+          <Section title="Task Routing" hint="Which model runs each job. Format: provider:model (providers: groq, openai, openrouter). Auto uses Fast first when its key is available; the chat composer can switch task per message. Images route to OpenRouter vision automatically.">
             <TaskRow label="⚡ Fast (chat, quick)" value={s.taskModels.fast}
               onChange={v => alphaStore.setSettings({ taskModels: { ...s.taskModels, fast: v } })}
-              examples={["groq:llama-3.3-70b-versatile","groq:llama-3.1-8b-instant","gemini:gemini-1.5-flash"]} />
+              examples={["groq:llama-3.3-70b-versatile","groq:llama-3.1-8b-instant","openrouter:meta-llama/llama-3.3-70b-instruct:free"]} />
             <TaskRow label="🧠 Deep thinking" value={s.taskModels.thinking}
               onChange={v => alphaStore.setSettings({ taskModels: { ...s.taskModels, thinking: v } })}
-              examples={["openrouter:deepseek/deepseek-r1:free","gemini:gemini-2.5-pro","openrouter:qwen/qwen-2.5-72b-instruct:free"]} />
+              examples={["openrouter:deepseek/deepseek-r1:free","openrouter:deepseek/deepseek-chat-v3.1:free","openrouter:qwen/qwq-32b:free"]} />
             <TaskRow label="🛠 Coding & debug" value={s.taskModels.coding}
               onChange={v => alphaStore.setSettings({ taskModels: { ...s.taskModels, coding: v } })}
-              examples={["openrouter:poolside/laguna-m.1:free","openrouter:qwen/qwen3-coder:free","openrouter:cohere/north-mini-code:free"]} />
+              examples={["openrouter:qwen/qwen3-coder:free","openrouter:deepseek/deepseek-r1:free","openrouter:meta-llama/llama-3.3-70b-instruct:free"]} />
           </Section>
 
           <Section title="Kokoro TTS (preferred male voice)" hint="OpenAI-compatible Kokoro endpoint. Empty = browser voice fallback.">
