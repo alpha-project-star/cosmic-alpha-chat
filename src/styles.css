@@ -405,3 +405,41 @@
   55% { opacity: 1; }
   100% { opacity: 0.2; }
 }
+
+/* -------------------------------------------------------------------------
+ * Cyber-Lens Eye — brushed silver bezel + dark groove.
+ * ------------------------------------------------------------------------- */
+@keyframes cyber-spin { to { transform: rotate(360deg); } }
+@keyframes circuit-pulse {
+  0% { background-position: 0% 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0; }
+  100% { background-position: 200% 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0; }
+}
+
+.cyber-bezel {
+  background:
+    conic-gradient(from 0deg,
+      oklch(0.42 0.01 240),
+      oklch(0.88 0.01 240),
+      oklch(0.55 0.02 240),
+      oklch(0.92 0.01 235),
+      oklch(0.4 0.01 240),
+      oklch(0.78 0.02 238),
+      oklch(0.5 0.01 240),
+      oklch(0.9 0.01 235),
+      oklch(0.42 0.01 240));
+  box-shadow:
+    inset 0 0 0 2px oklch(0.25 0.01 240),
+    inset 0 0 14px oklch(0 0 0 / 0.7),
+    0 0 22px oklch(0.7 0.24 240 / 0.35);
+  -webkit-mask: radial-gradient(circle, transparent 62%, #000 63%, #000 100%);
+          mask: radial-gradient(circle, transparent 62%, #000 63%, #000 100%);
+}
+
+.cyber-groove {
+  background: radial-gradient(circle, oklch(0.05 0.03 260) 55%, oklch(0.12 0.02 250) 100%);
+  box-shadow:
+    inset 0 0 0 1px oklch(0.35 0.02 240),
+    inset 0 0 18px oklch(0 0 0 / 0.85),
+    inset 0 0 28px oklch(0.75 0.24 240 / 0.2);
+  border-radius: 9999px;
+}
