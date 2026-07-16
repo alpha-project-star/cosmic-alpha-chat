@@ -32,7 +32,6 @@ function OrbHome() {
   const [active, setActive] = useState(false);
   const [micError, setMicError] = useState("");
   const hasUsableBrain = useAlpha(s => !!(
-    s.settings.geminiApiKey ||
     s.settings.groqApiKey ||
     s.settings.openaiCompatKey ||
     s.settings.openRouterKey
