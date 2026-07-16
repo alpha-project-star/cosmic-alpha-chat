@@ -423,17 +423,18 @@ async function maybeCompactSummary(history: ChatMessage[], lastAssistant: string
     if (turns < 12) return;
     if (turns - lastCompactAt < 10) return;
     lastCompactAt = turns;
-    const key = getKey(); if (!key) return;
+    const groqKey = cleanApiKey(alphaStore.get().settings.groqApiKey);
+    if (!groqKey) return; // Best-effort; skip when no fast-lane key.
     const older = history.slice(0, -10);
     if (!older.length) return;
     const transcript = older.slice(-40).map(m => `${m.role.toUpperCase()}: ${(m.text || "").slice(0, 400)}`).join("\n");
     const previous = conversationSummary.get();
     const prompt = `You are compressing a long chat into a compact STATE MATRIX for an assistant named Alpha. Output <=600 words, bullet-point sections only:
-• User profile & preferences
-• Active projects / topics
-• Open decisions / unanswered questions
-• Facts the user told Alpha (and dates)
-• Recent thread context (last few exchanges, 1 line each)
+\u2022 User profile & preferences
+\u2022 Active projects / topics
+\u2022 Open decisions / unanswered questions
+\u2022 Facts the user told Alpha (and dates)
+\u2022 Recent thread context (last few exchanges, 1 line each)
 No prose, no preamble. Merge with the previous state matrix, overwriting stale items.
 
 PREVIOUS STATE MATRIX:
@@ -444,20 +445,20 @@ ${transcript}
 
 LATEST ASSISTANT REPLY (for continuity):
 ${lastAssistant.slice(0, 600)}`;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
-    const res = await fetch(url, {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
       body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.2, thinkingConfig: { thinkingBudget: 0 } },
+        model: "llama-3.1-8b-instant",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.2, stream: false,
       }),
     });
     if (!res.ok) return;
     const j: any = await res.json();
-    const out = j?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "";
-    if (out.trim()) conversationSummary.set(out.trim());
-  } catch { /* swallow — background */ }
+    const out = j?.choices?.[0]?.message?.content?.trim() || "";
+    if (out) conversationSummary.set(out);
+  } catch { /* swallow \u2014 background */ }
 }
 
 function executeActionTags(text: string): string {
@@ -533,50 +534,10 @@ function executeActionTags(text: string): string {
   return text.trim();
 }
 
-export async function generateImage(prompt: string): Promise<{ dataUrl: string; via: "gemini" }> {
-  const key = getKey();
-  if (!key) {
-    // No Gemini key — go straight to Pollinations (no key required).
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true`;
-    return { dataUrl: url, via: "gemini" };
-  }
-  // Try current model names in order — Google has renamed this several times.
-  const models = [
-    "gemini-2.5-flash-image",
-    "gemini-2.5-flash-image-preview",
-    "gemini-2.0-flash-preview-image-generation",
-    "imagen-3.0-generate-002",
-  ];
-  const body = {
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: { responseModalities: ["IMAGE", "TEXT"] },
-  };
-  let lastErr = "";
-  for (const model of models) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-    try {
-      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body) });
-      if (!res.ok) { lastErr = `${model}: ${formatGeminiError(res.status, await res.text().catch(() => ""))}`; continue; }
-      const j: any = await res.json();
-      const parts: any[] = j?.candidates?.[0]?.content?.parts ?? [];
-      const inline = parts.find(p => p.inlineData?.data);
-      if (!inline) { lastErr = `${model}: no image in response`; continue; }
-      return { dataUrl: `data:${inline.inlineData.mimeType || "image/png"};base64,${inline.inlineData.data}`, via: "gemini" };
-    } catch (e: any) {
-      lastErr = `${model}: ${e?.message || e}`;
-    }
-  }
-  const fallback = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true`;
-  if (/401|403|invalid authentication|API key/i.test(lastErr)) return { dataUrl: fallback, via: "gemini" };
-  throw new Error(`Image generation failed. Your Gemini key may not have image-model access. Last error: ${lastErr}`);
-}
-
-function formatGeminiError(status: number, body: string): string {
-  let message = body.slice(0, 400);
-  try { message = JSON.parse(body)?.error?.message || message; } catch {}
-  if (status === 401 || /invalid authentication|API key not valid|API_KEY_INVALID|UNAUTHENTICATED/i.test(message)) {
-    return `Gemini ${status}: API key rejected. Paste a Google AI Studio API key (new keys start with "AQ.", legacy keys start with "AIza") in Settings → Online → Gemini API Key. Do not paste an OAuth token, JSON credential, or "Bearer ..." prefix. ${message}`;
-  }
-  if (status === 403) return `Gemini ${status}: key accepted but this model/API is not enabled for the key or project. Try gemini-2.5-flash or create a fresh AI Studio key. ${message}`;
-  return `Gemini ${status}: ${message}`;
+export async function generateImage(prompt: string): Promise<{ dataUrl: string; via: "pollinations" }> {
+  // Gemini removed. Pollinations is keyless, unlimited, and stable enough for
+  // a companion app; we cache-bust with a seed to force a fresh render.
+  const seed = Math.floor(Math.random() * 1_000_000);
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${seed}`;
+  return { dataUrl: url, via: "pollinations" };
 }
