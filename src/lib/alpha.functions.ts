@@ -368,15 +368,34 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
       } else if (prov === "openrouter") {
         const openRouterKey = cleanApiKey(s.openRouterKey);
         if (!openRouterKey) throw new Error("No OpenRouter API key set. Add it in Settings \u2192 Online.");
-        text = await sendChatOpenAICompat(history, sys, {
-          baseUrl: "https://openrouter.ai/api/v1",
-          apiKey: openRouterKey, model,
-          extraHeaders: {
-            "HTTP-Referer": typeof window !== "undefined" ? window.location.origin : "https://alpha.local",
-            "X-Title": "Alpha",
-          },
-          extraBody: shouldFetchWeb(lastUserMsg?.text || "") ? { plugins: [{ id: "web" }] } : undefined,
-        });
+        const orHeaders = {
+          "HTTP-Referer": typeof window !== "undefined" ? window.location.origin : "https://alpha.local",
+          "X-Title": "Alpha",
+        };
+        const orExtraBody = shouldFetchWeb(lastUserMsg?.text || "") ? { plugins: [{ id: "web" }] } : undefined;
+        // Vision: if the chosen model 404s / is unavailable, walk the fallback chain.
+        const candidates = hasImages
+          ? Array.from(new Set([model, ...VISION_FALLBACKS]))
+          : [model];
+        let lastErr: any = null;
+        for (const m of candidates) {
+          try {
+            text = await sendChatOpenAICompat(history, sys, {
+              baseUrl: "https://openrouter.ai/api/v1",
+              apiKey: openRouterKey, model: m,
+              extraHeaders: orHeaders,
+              extraBody: orExtraBody,
+            });
+            lastErr = null;
+            break;
+          } catch (err: any) {
+            lastErr = err;
+            const st = err?.status;
+            const isRetryable = st === 404 || /\b(404|unavailable|not\s+found|no\s+endpoints)\b/i.test(String(err?.message || ""));
+            if (!hasImages || !isRetryable) throw err;
+          }
+        }
+        if (lastErr) throw lastErr;
       }
       const finalText = executeActionTags(appendSourcesIfWeb(text, webContext));
       void maybeCompactSummary(history, finalText);
