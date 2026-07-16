@@ -203,13 +203,22 @@
   .conic-ring { background: var(--gradient-aurora); animation: spin-angle 8s linear infinite; }
   .starfield {
     background:
-      radial-gradient(2px 2px at 20% 30%, oklch(0.85 0.18 240 / 0.7), transparent),
-      radial-gradient(1.5px 1.5px at 70% 10%, oklch(0.78 0.22 245 / 0.6), transparent),
-      radial-gradient(1px 1px at 40% 80%, oklch(0.95 0.05 240 / 0.5), transparent),
-      radial-gradient(2px 2px at 85% 60%, oklch(0.72 0.22 250 / 0.6), transparent),
-      radial-gradient(1.5px 1.5px at 10% 70%, oklch(0.85 0.18 240 / 0.5), transparent),
-      radial-gradient(1200px 600px at 50% 20%, oklch(0.15 0.12 260 / 0.6), transparent),
+      /* traveling circuit pulses */
+      linear-gradient(90deg, transparent, oklch(0.85 0.22 238 / 0.08) 45%, oklch(0.9 0.22 235 / 0.14) 50%, oklch(0.85 0.22 238 / 0.08) 55%, transparent) 0 0 / 200% 100%,
+      /* junction dots */
+      radial-gradient(1.4px 1.4px at 20% 30%, oklch(0.85 0.2 238 / 0.85), transparent 60%),
+      radial-gradient(1.4px 1.4px at 70% 15%, oklch(0.8 0.22 240 / 0.7), transparent 60%),
+      radial-gradient(1.4px 1.4px at 40% 78%, oklch(0.9 0.18 235 / 0.7), transparent 60%),
+      radial-gradient(1.4px 1.4px at 85% 62%, oklch(0.82 0.22 240 / 0.75), transparent 60%),
+      radial-gradient(1.4px 1.4px at 12% 68%, oklch(0.85 0.2 238 / 0.7), transparent 60%),
+      /* thin PCB traces */
+      linear-gradient(oklch(0.75 0.22 240 / 0.09) 1px, transparent 1px) 0 0 / 48px 48px,
+      linear-gradient(90deg, oklch(0.75 0.22 240 / 0.09) 1px, transparent 1px) 0 0 / 48px 48px,
+      /* deep nebula */
+      radial-gradient(1200px 700px at 50% 15%, oklch(0.14 0.12 258 / 0.55), transparent),
+      radial-gradient(900px 500px at 80% 90%, oklch(0.1 0.14 255 / 0.4), transparent),
       #000;
+    animation: circuit-pulse 14s linear infinite;
   }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { scrollbar-width: none; }
@@ -219,14 +228,14 @@
   font-family: Orbitron, "Space Grotesk", ui-sans-serif, sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.35em;
-  color: var(--hud-cyan);
-  text-shadow: 0 0 6px oklch(0.72 0.22 240 / 0.7), 0 0 20px oklch(0.6 0.25 250 / 0.5);
+  color: var(--silver);
+  text-shadow: 0 0 6px oklch(0.78 0.24 240 / 0.85), 0 0 20px oklch(0.65 0.26 240 / 0.6);
 }
 
 @utility hud-frame {
   position: relative;
   background: var(--gradient-hud-panel);
-  border: 1px solid var(--hud-cyan-soft);
+  border: 1px solid var(--silver-dark);
   border-radius: 20px;
   box-shadow: var(--shadow-hud);
   backdrop-filter: blur(14px) saturate(140%);
