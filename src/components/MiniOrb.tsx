@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
-import alphaAvatar from "../assets/alpha-avatar.png.asset.json";
+import alphaAvatar from "../assets/alpha-eye.png.asset.json";
 import { recognizer, prepareUtterance, stopSpeaking, speakingState } from "../lib/voice";
 import { alphaStore, uid } from "../lib/alpha-store";
 import { sendChat } from "../lib/alpha.functions";

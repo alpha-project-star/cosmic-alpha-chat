@@ -35,8 +35,7 @@ function OrbHome() {
     s.settings.geminiApiKey ||
     s.settings.groqApiKey ||
     s.settings.openaiCompatKey ||
-    s.settings.openRouterKey ||
-    s.settings.aiBackend === "ollama"
+    s.settings.openRouterKey
   ));
   const bgEnabled = useAlpha(s => s.settings.backgroundEnabled);
   const thinkingRef = useRef(false);

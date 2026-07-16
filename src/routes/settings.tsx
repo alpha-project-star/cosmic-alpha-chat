@@ -142,26 +142,12 @@ function SettingsRoute() {
           hint="Cloud APIs Alpha uses when you have internet."
           open={openGroup === "online"} onToggle={() => setOpenGroup(openGroup === "online" ? null : "online")}>
 
-          <Section title="AI Backend" hint="Auto = Gemini when online, Ollama when offline. Force one to override.">
-            <div className="grid grid-cols-3 gap-2 mb-3">
-              {(["auto","gemini","ollama"] as const).map(v => (
-                <button key={v} onClick={() => alphaStore.setSettings({ aiBackend: v })}
-                  className={`px-3 py-2 rounded-md text-sm border ${s.aiBackend === v ? "bg-primary text-primary-foreground border-primary" : "glass neon-border"}`}>
-                  {v === "auto" ? "Auto" : v === "gemini" ? "Gemini (cloud)" : "Ollama (local)"}
-                </button>
-              ))}
-            </div>
-            <div className="text-[11px] text-muted-foreground">
-              Current: <b>{s.aiBackend === "gemini" ? "Gemini" : s.aiBackend === "ollama" ? "Ollama" : (online && s.geminiApiKey ? "Gemini (auto)" : "Ollama (auto — offline / no key)")}</b>
-            </div>
-          </Section>
-
-          <Section title="Gemini API Key" hint="Google AI Studio key. Stored locally only.">
+          <Section title="Gemini API Key (optional)" hint="Only used when a task route below is set to gemini:… or when you send images. Leave empty to route entirely through Groq / OpenRouter / OpenAI-compatible.">
             <input type="password" value={s.geminiApiKey} onChange={e => alphaStore.setSettings({ geminiApiKey: e.target.value })}
               placeholder="AI..." className="w-full bg-input rounded-md px-3 py-2 border border-border" />
           </Section>
 
-          <Section title="Default Gemini Chat Model">
+          <Section title="Gemini Model (used for image-attached messages)">
             <select value={s.chatModel} onChange={e => alphaStore.setSettings({ chatModel: e.target.value })}
               className="w-full bg-input rounded-md px-3 py-2 border border-border">
               <option value="gemini-2.5-pro">gemini-2.5-pro (most powerful)</option>
