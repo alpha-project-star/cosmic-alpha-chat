@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
-import alphaAvatar from "../assets/alpha-eye.png.asset.json";
 import { recognizer, prepareUtterance, stopSpeaking, speakingState } from "../lib/voice";
 import { alphaStore, uid } from "../lib/alpha-store";
 import { sendChat } from "../lib/alpha.functions";
 import { speakWith } from "../lib/voice";
 import { parseIntent } from "../lib/voice-router";
 import { tryLocalIntent } from "../lib/local-intents";
+import { CyberEye } from "./CyberEye";
 
 /**
  * Tiny beating orb in the chat header. Tap to start/stop voice — keeps the
@@ -16,20 +16,7 @@ export function MiniOrb({ size = 56 }: { size?: number }) {
   const router = useRouter();
   const [active, setActive] = useState(false);
   const [speaking, setSpeaking] = useState(false);
-  const [beat, setBeat] = useState(0);
-
   useEffect(() => speakingState.sub(setSpeaking), []);
-
-  useEffect(() => {
-    if (!speaking && !active) { setBeat(0); return; }
-    let raf = 0; const t0 = performance.now();
-    const loop = () => {
-      const t = (performance.now() - t0) / 1000;
-      setBeat(0.5 + 0.5 * Math.sin(t * (speaking ? 4 : 2.5)));
-      raf = requestAnimationFrame(loop);
-    };
-    loop(); return () => cancelAnimationFrame(raf);
-  }, [speaking, active]);
 
   async function handleFinal(text: string) {
     if (!text.trim()) return;
@@ -65,26 +52,15 @@ export function MiniOrb({ size = 56 }: { size?: number }) {
     recognizer.start();
   }
 
-  const scale = 1 + (active || speaking ? beat * 0.18 : 0);
-
   return (
     <button
       type="button"
       onClick={toggle}
       aria-label={active ? "Stop voice" : "Talk to Alpha"}
-      className="relative rounded-full overflow-hidden ring-2 ring-primary/70 active:scale-95 transition shrink-0"
-      style={{ width: size, height: size, boxShadow: active || speaking ? "0 0 16px oklch(0.72 0.22 250 / 0.7), 0 0 32px oklch(0.6 0.25 250 / 0.4)" : "0 0 8px oklch(0.6 0.25 250 / 0.25)" }}
+      className="relative rounded-full active:scale-95 transition shrink-0"
+      style={{ width: size, height: size }}
     >
-      <img
-        src={alphaAvatar.url}
-        alt="Alpha"
-        className="w-full h-full object-cover"
-        style={{ transform: `scale(${scale})`, transition: "transform .1s linear" }}
-      />
-      {(active || speaking) && (
-        <span className="absolute inset-0 rounded-full pointer-events-none"
-          style={{ boxShadow: "inset 0 0 10px oklch(0.85 0.18 240 / 0.6)" }} />
-      )}
+      <CyberEye analyser={recognizer.analyserNode} active={active} speaking={speaking} size={size} showMicroText={false} />
     </button>
   );
 }
