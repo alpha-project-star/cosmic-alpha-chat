@@ -18,8 +18,6 @@ export interface Memory { id: string; topic: string; detail: string; updatedAt: 
 export interface Profile { name: string; bio: string }
 
 export interface Settings {
-  geminiApiKey: string;
-  chatModel: string;
   voiceEnabled: boolean;
   continuousListen: boolean;
   preferredVoice: string;
@@ -74,8 +72,6 @@ const K = {
 };
 
 const DEFAULT_SETTINGS: Settings = {
-  geminiApiKey: "",
-  chatModel: "gemini-2.5-pro",
   voiceEnabled: true,
   continuousListen: true,
   preferredVoice: "",
@@ -101,19 +97,20 @@ Alpha is a voice-first, futuristic AI companion built with Alex as one of its
 creators. Core layout: cosmic Orb home, split-column desktop HUD, chat with
 MiniOrb sticky header, and dedicated Notes / Bills / Reminders / Plans /
 Memories / Image tools. State lives in localStorage. Chat routes across
-Gemini (deep + web grounding), Groq (fast), OpenRouter Qwen (coding), with a
-429 fallback that reroutes automatically. Images use Gemini first, then
-Pollinations. STT: browser Web Speech or local Whisper. TTS: Kokoro or
-browser. Alarms fire from an on-device engine with WebAudio chime, system
-notification, and voice announcement. Alpha recognises the user as Alex.`,
+Groq (fast Llama), OpenRouter DeepSeek R1 (deep thinking), OpenRouter Qwen /
+Poolside (coding) — every online turn is grounded with a live DuckDuckGo/Jina
+web-search block before the model call. Images use Pollinations (no key).
+STT: browser Web Speech or local Whisper. TTS: Kokoro or browser. Alarms
+fire from an on-device engine with WebAudio chime, system notification, and
+voice announcement. Alpha recognises the user as Alex.`,
   taskModels: {
-    // Free-tier stack:
+    // Free-tier stack (Gemini removed — all providers key-based & web-grounded):
     //  • fast     → Groq Llama 3.3 70B versatile (blazing chat)
     //  • thinking → OpenRouter DeepSeek R1 free (chain-of-thought reasoning)
-    //  • coding   → OpenRouter Poolside Laguna M.1 free (262K, tool-calling)
+    //  • coding   → OpenRouter Qwen3 Coder free (long-context coding)
     fast: "groq:llama-3.3-70b-versatile",
     thinking: "openrouter:deepseek/deepseek-r1:free",
-    coding: "openrouter:poolside/laguna-m.1:free",
+    coding: "openrouter:qwen/qwen3-coder:free",
   },
 };
 
@@ -147,13 +144,14 @@ let state: AlphaState = {
   const legacy = new Set([
     "groq:llama-3.1-8b-instant",
     "gemini:gemini-2.5-pro",
-    "openrouter:qwen/qwen3-coder:free",
+    "openrouter:poolside/laguna-m.1:free",
   ]);
   const t = state.settings.taskModels;
   const migrated = {
-    fast: legacy.has(t.fast) ? DEFAULT_SETTINGS.taskModels.fast : t.fast,
-    thinking: legacy.has(t.thinking) ? DEFAULT_SETTINGS.taskModels.thinking : t.thinking,
-    coding: legacy.has(t.coding) ? DEFAULT_SETTINGS.taskModels.coding : t.coding,
+    // Any route pointing at a gemini:… model must be moved off — Gemini is gone.
+    fast: legacy.has(t.fast) || /^gemini:/i.test(t.fast) ? DEFAULT_SETTINGS.taskModels.fast : t.fast,
+    thinking: legacy.has(t.thinking) || /^gemini:/i.test(t.thinking) ? DEFAULT_SETTINGS.taskModels.thinking : t.thinking,
+    coding: legacy.has(t.coding) || /^gemini:/i.test(t.coding) ? DEFAULT_SETTINGS.taskModels.coding : t.coding,
   };
   if (migrated.fast !== t.fast || migrated.thinking !== t.thinking || migrated.coding !== t.coding) {
     state = { ...state, settings: { ...state.settings, taskModels: migrated } };
