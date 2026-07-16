@@ -16,13 +16,24 @@ export async function sendChatOpenAICompat(
     );
   }
   const url = opts.baseUrl.replace(/\/+$/, "") + "/chat/completions";
-  const messages = [
-    { role: "system", content: systemPrompt },
-    ...history.filter(m => m.role !== "system").slice(-40).map(m => ({
-      role: m.role === "user" ? "user" : "assistant",
-      content: m.text || "",
-    })),
-  ];
+  // Multimodal-aware: if a user turn has base64 images, emit an OpenAI-style
+  // content array (text + image_url data URLs). OpenRouter vision models and
+  // OpenAI vision endpoints both accept this shape; text-only providers
+  // (Groq Llama text lanes) will simply see the array and ignore images if
+  // they don't support vision — callers should route image turns to a
+  // vision-capable model.
+  const messages: any[] = [{ role: "system", content: systemPrompt }];
+  for (const m of history.filter(m => m.role !== "system").slice(-40)) {
+    const role = m.role === "user" ? "user" : "assistant";
+    if (role === "user" && m.images?.length) {
+      const parts: any[] = [];
+      if (m.text) parts.push({ type: "text", text: m.text });
+      for (const img of m.images) parts.push({ type: "image_url", image_url: { url: img } });
+      messages.push({ role, content: parts });
+    } else {
+      messages.push({ role, content: m.text || "" });
+    }
+  }
   const res = await fetch(url, {
     method: "POST",
     headers: {
