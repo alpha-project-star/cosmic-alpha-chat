@@ -1,78 +1,61 @@
-# Alpha Agent Framework — Phase 1
+## Alpha "Cyber-Lens" Redesign
 
-Focused on the four numbered asks you flagged as "start here". Larger pieces (background workers, Supabase tables, presence check, proactive TTS) come in Phase 2 once these land, because they depend on Lovable Cloud being enabled and on the local-intent surface from #2.
+Transform Alpha's entire visual identity around the uploaded cyber-lens eye: brushed silver bezel, deep black core, electric neon blue circuitry, animated iris. This replaces the anime portrait orb everywhere and shifts the whole app theme to a live "advanced robot" circuit-board aesthetic.
 
-## 1. KITT Scanner Bar (status ring, reimagined)
+### 1. New Orb = Cyber Eye (replaces `AlphaOrb.tsx` visual)
 
-Replace the "glowing ring" idea with a **horizontal Knight Rider scanner** in electric blue.
+Build a pure CSS/SVG stacked "eye" — no static image — so it feels alive and reacts to voice level + speaking state:
 
-- New component `src/components/KittScanner.tsx`: a row of ~24 vertical bars, CSS-only, driven by a single `state` prop (`idle | scanning | speaking`).
-  - `idle`: slow left→right→left sweep, low brightness (breathing).
-  - `scanning`: fast sweep, high brightness, subtle glow trail.
-  - `speaking`: audio-reactive — bars scale from a shared amplitude value (reuse the analyser in `AudioSpectrum.tsx`), fallback to fast ripple if no mic stream.
-- Placement:
-  - **Desktop HUD**: inside `DesktopShell`, spanning the top of the right-hand HUD panel (above chat), and a second thin instance under the wordmark.
-  - **Mobile**: inside the chat header strip and on the home Orb page directly under the orb.
-- Colors pulled from existing `--hud-cyan` / primary tokens — no new palette.
-- State source: a tiny `useAlphaStatus()` hook reading `listening / busy / speaking` flags already tracked in chat + voice modules.
+- **Outer bezel** — brushed-silver conic gradient ring that rotates constantly (slow when idle, ~5s when active), with fine tick marks and small "CYBER-LENS 0.1nm RES" micro-text curved around it (SVG textPath).
+- **Mid ring** — dark metallic groove with animated segmented dashes (the diagonal blade slits from the reference).
+- **HUD ring** — neon-blue circuit lattice: concentric arcs, radial spokes, tiny data glyphs, drawn in SVG so we can animate stroke-dashoffset for a "scanning" feel.
+- **Iris** — animated aperture blades (6–8 SVG polygons) that subtly breathe open/closed with audio level; blades rotate opposite the bezel.
+- **Pupil core** — bright blue radial glow with a cross-hair reticle and a pulsing center that beats with `speakingState` / analyser level (reuses existing hooks in `AlphaOrb`).
+- **Overlay** — faint horizontal + vertical scan lines crossing the whole eye (matches the reference cross-hair).
 
-## 2. Full CRUD Control for Alpha
+All layers respond to the existing `analyser` + `speakingState` the current orb already consumes, so behavior stays intact.
 
-Extend `src/lib/local-intents.ts` so Alpha can actually mutate every store surface via natural language, not just create.
+### 2. `MiniOrb` (chat header)
 
-Add intent handlers for:
-- **Delete**: "delete note about X", "remove reminder to call mom", "clear all bills", "delete memory of Y". Fuzzy match on title/body; if multiple matches, ask which.
-- **Update**: "mark bill electric as paid", "rename note X to Y", "reschedule reminder X to tomorrow 8am", "mark reminder done".
-- **Read/List**: "what reminders do I have", "list my notes", "show unpaid bills", "what do you remember about X" — returns a formatted markdown answer inline (no API call).
-- **Navigate/Settings**: "open settings", "switch to offline mode", "use groq for fast", "set voice to af_heart" — dispatched through a new `settings-intents.ts`.
-- **Bulk**: "clear all done reminders", "delete all notes from last week".
+Rebuild as a scaled-down version of the same eye (bezel + iris + pupil only, no micro-text) so the chat header matches. Same component API, no other file changes needed.
 
-Each handler returns a confirmation string that flows through the normal chat reply path so it also gets spoken.
+### 3. Theme tokens — silver / black / neon blue
 
-## 3. Live Time Monitor
+Rewrite the color layer in `src/styles.css`:
 
-Add a compact real-time clock so Alpha (and the user) can see time flow.
+- `--background`: pure black `oklch(0 0 0)` (already is)
+- `--foreground`: cool silver `oklch(0.92 0.02 240)`
+- `--primary` / `--accent` / `--ring`: electric cyber-blue `oklch(0.75 0.24 245)` with a brighter `--neon-glow oklch(0.9 0.2 235)`
+- `--hud-cyan`: shift to true neon blue (currently more cyan) to match the eye
+- New `--silver` / `--silver-dark` tokens for bezel + panel edges
+- New `--gradient-brushed`: repeating linear-gradient simulating brushed metal for bezels and HUD frame borders
+- `--gradient-nebula`: deep-blue radial, less purple
+- `--shadow-glow` / `--shadow-hud`: retuned to the new neon blue
 
-- New `src/components/LiveClock.tsx`: shows `HH:MM:SS` + weekday + date, updates every second via `setInterval`, cleaned up on unmount.
-- Placement: top-right of `DesktopShell` (next to wordmark area), and mobile chat header (small, right of MiniOrb).
-- Also inject the current ISO timestamp into every system prompt call in `alpha.functions.ts` (append to the existing `temporalBlock()`), so the model always knows the *exact* moment of the request — this feeds later reminder logic.
+### 4. "Live circuit" ambient theme
 
-## 4. Real Background Alarm for Reminders
+Global circuit-board feel, everywhere (not just the orb):
 
-The current `Reminder` type stores `when` as free text. Upgrade it to an actual scheduled alarm.
+- **Starfield → CircuitGrid**: replace `.starfield` background on `DesktopShell` and mobile shell with a layered SVG/CSS "PCB" background — thin blue traces, junction dots, faint hex/grid pattern, animated pulses traveling along traces (CSS `stroke-dashoffset` animation on a fixed full-viewport SVG).
+- **HUD frames** (`hud-frame`, `hud-frame-corners`): swap border to brushed-silver gradient with brighter neon-blue corner ticks and a subtle inner circuit trace line.
+- **KITT scanner**: recolor bars/arc to the new neon-blue palette so it reads as part of the same system.
+- **Wordmark "ALPHA"**: keep Orbitron, recolor to neon blue with a subtle silver stroke.
 
-- Store change (`alpha-store.ts`):
-  - `Reminder.when` becomes an ISO datetime string (keep old string as fallback via `Date.parse`).
-  - Add `firedAt?: number` so alarms don't re-fire.
-- New `src/lib/alarm-engine.ts`:
-  - A singleton started at app root that ticks every 15 seconds.
-  - Scans reminders; when `Date.now() >= parse(when)` and not `firedAt` and not `done=yes`, fires.
-  - **Fire action**: (a) speak "Excuse me — reminder: {title}. {notes}" via existing `speakWith`, (b) request `Notification` permission the first time and show a system notification, (c) play a short audio chime (WebAudio oscillator, no asset needed), (d) mark `firedAt` and persist.
-  - Keeps running while tab is open. When tab is hidden, notifications + chime still fire (browsers allow both from an already-running page). Real background-when-closed alarms need a service-worker `push` or `periodicSync`, which is a Phase 2 item — we'll note this in the UI.
-- Reminders route: add a "time" input (`datetime-local`) alongside the existing text field so new reminders get a real ISO value.
-- Add a "Test alarm now" button in Settings → Alpha Data for quick verification.
+### 5. Assets
 
-## Files touched
+Keep `alpha-eye.png` as the installed PWA app icon and favicon (already set). Stop using `alpha-icon.png` inside the running UI — the in-app orb becomes the live CSS/SVG eye. No new binary assets needed.
 
-- `src/components/KittScanner.tsx` (new)
-- `src/components/LiveClock.tsx` (new)
-- `src/lib/alarm-engine.ts` (new)
-- `src/lib/settings-intents.ts` (new)
-- `src/lib/local-intents.ts` (extend: delete / update / list / bulk)
-- `src/lib/alpha-store.ts` (Reminder ISO + firedAt)
-- `src/lib/alpha.functions.ts` (inject live timestamp into system prompt)
-- `src/components/desktop/DesktopShell.tsx` (scanner + clock placement)
-- `src/routes/chat.tsx` (mobile header scanner + clock)
-- `src/routes/index.tsx` (home scanner under orb)
-- `src/routes/reminders.tsx` (datetime input + status column)
-- `src/routes/__root.tsx` (boot alarm engine)
-- `src/routes/settings.tsx` (test-alarm button)
+### Files to touch
 
-## Explicitly deferred to Phase 2 (after you confirm Phase 1)
+- `src/components/AlphaOrb.tsx` — replace image core with layered SVG/CSS eye
+- `src/components/MiniOrb.tsx` — mirror the new eye at small size
+- `src/styles.css` — theme tokens, `.starfield` → circuit background, `hud-frame*`, `wordmark`, `kitt-*` recolor, new `@keyframes` for bezel spin / iris breathe / trace pulse
+- `src/components/desktop/OrbStage.tsx` — minor tweaks so nebula tint matches new blue (no structural change)
 
-- Groq/Gemini hybrid routing on image upload — most of it already exists in `alpha.functions.ts`; needs a hardening pass.
-- `agent_tasks` + `news_logs` tables, background worker cron — requires enabling **Lovable Cloud** (Supabase). I'll ask before enabling.
-- `system_capabilities.md` living blueprint injected into every system prompt.
-- User Presence Check + auto-notes fallback.
+### Out of scope
 
-Say go and I'll implement Phase 1 in one pass.
+No changes to voice pipeline, model routing, CRUD/agent logic, alarms, or settings behavior. Purely visual + theme.
+
+### Answer to "is this possible"
+
+Yes — fully doable with CSS + inline SVG, no extra libraries, no image generation. The eye stays crisp at any size, animates smoothly, and reacts to the existing audio analyser.
