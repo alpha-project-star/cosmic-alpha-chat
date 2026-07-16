@@ -315,39 +315,15 @@ async function fetchLiveWebContext(query: string): Promise<string> {
   ].join("\n");
 }
 
-function toGeminiContents(history: ChatMessage[]) {
-  return history.filter(m => m.role !== "system").slice(-100).map(m => {
-    const parts: GeminiPart[] = [];
-    if (m.text) parts.push({ text: m.text });
-    if (m.images?.length) {
-      for (const img of m.images) {
-        const match = img.match(/^data:(.+?);base64,(.+)$/);
-        if (match) parts.push({ inlineData: { mimeType: match[1], data: match[2] } });
-      }
-    }
-    return { role: m.role === "user" ? "user" : "model", parts };
-  });
-}
-
-function getKey(): string {
-  return cleanApiKey(alphaStore.get().settings.geminiApiKey || "");
-}
-
 export async function sendChat(history: ChatMessage[], opts: { task?: TaskType } = {}): Promise<string> {
-  // ---- Backend routing (Gemini cloud vs Ollama local) --------------------
   const s = alphaStore.get().settings;
   const online = typeof navigator !== "undefined" ? navigator.onLine : true;
   const task: TaskType = opts.task ?? "auto";
 
-  // If the user attached images, force Gemini multimodal (Groq/OpenRouter chat
-  // endpoints don't accept our inlineData shape). Keeps a single unified
-  // history array regardless of which model handled the previous turn.
   const lastMsg = [...history].reverse().find(m => m.role === "user");
   const hasImages = !!lastMsg?.images?.length;
-  const effectiveTask: TaskType = hasImages && online && s.geminiApiKey ? "auto" : task;
 
-  // ---- Explicit task routing overrides default backend --------------------
-  const route = online ? pickRoute(effectiveTask, hasImages) : null;
+  const route = online ? pickRoute(task, hasImages) : null;
 
   if (route && online) {
     const { prov, model } = route;
@@ -358,32 +334,30 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
     }
     const recall = lastUserMsg?.text ? rerankContext(lastUserMsg.text) : "";
     const rolling = conversationSummary.get();
-    const webContext = prov === "gemini" ? "" : await fetchLiveWebContext(lastUserMsg?.text || "");
+    // Every online provider gets the same live web-search evidence block.
+    const webContext = await fetchLiveWebContext(lastUserMsg?.text || "");
     const sys = DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling) + (webContext ? `\n\n${webContext}` : "");
 
     try {
+      let text = "";
       if (prov === "groq") {
         const groqKey = cleanApiKey(s.groqApiKey);
-        if (!groqKey) throw new Error("No Groq API key set. Add it in Settings → Online.");
-        const text = await sendChatOpenAICompat(history, sys, {
+        if (!groqKey) throw new Error("No Groq API key set. Add it in Settings \u2192 Online.");
+        text = await sendChatOpenAICompat(history, sys, {
           baseUrl: "https://api.groq.com/openai/v1",
           apiKey: groqKey, model,
         });
-        return executeActionTags(text);
-      }
-      if (prov === "openai") {
+      } else if (prov === "openai") {
         const openaiKey = cleanApiKey(s.openaiCompatKey);
-        if (!openaiKey) throw new Error("No OpenAI-compat API key set. Add it in Settings → Online.");
-        const text = await sendChatOpenAICompat(history, sys, {
+        if (!openaiKey) throw new Error("No OpenAI-compat API key set. Add it in Settings \u2192 Online.");
+        text = await sendChatOpenAICompat(history, sys, {
           baseUrl: s.openaiCompatBase || "https://api.openai.com/v1",
           apiKey: openaiKey, model,
         });
-        return executeActionTags(text);
-      }
-      if (prov === "openrouter") {
+      } else if (prov === "openrouter") {
         const openRouterKey = cleanApiKey(s.openRouterKey);
-        if (!openRouterKey) throw new Error("No OpenRouter API key set. Add it in Settings → Online.");
-        const text = await sendChatOpenAICompat(history, sys, {
+        if (!openRouterKey) throw new Error("No OpenRouter API key set. Add it in Settings \u2192 Online.");
+        text = await sendChatOpenAICompat(history, sys, {
           baseUrl: "https://openrouter.ai/api/v1",
           apiKey: openRouterKey, model,
           extraHeaders: {
@@ -392,15 +366,11 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
           },
           extraBody: shouldFetchWeb(lastUserMsg?.text || "") ? { plugins: [{ id: "web" }] } : undefined,
         });
-        return executeActionTags(text);
       }
-      if (prov === "gemini" && model) {
-        return await callGemini(history, model);
-      }
+      const finalText = executeActionTags(appendSourcesIfWeb(text, webContext));
+      void maybeCompactSummary(history, finalText);
+      return finalText;
     } catch (e: any) {
-      // Defensive fallback: on 429 / quota / connection errors, reroute to
-      // the fast lane (Groq if configured) so the app never surfaces a hard
-      // error block to the user for a transient quota hit.
       const msg = String(e?.message || "");
       const is429 = e?.status === 429 || /\b429\b|quota|rate.?limit|limit:\s*0/i.test(msg);
       const isAuthOrNotFound = e?.status === 401 || e?.status === 404 || /\b401\b|\b404\b|authentication|unauthor/i.test(msg);
@@ -411,97 +381,38 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
             apiKey: cleanApiKey(s.groqApiKey), model: "llama-3.1-8b-instant",
           });
           const why = is429 ? "rate-limited" : "unavailable (auth/model error)";
-          return executeActionTags(text) + `\n\n_⚠️ Primary model was ${why} — answered via Groq fallback._`;
+          return executeActionTags(appendSourcesIfWeb(text, webContext)) + `\n\n_\u26a0\ufe0f Primary model was ${why} \u2014 answered via Groq fallback._`;
         } catch { /* fall through */ }
       }
       throw e;
     }
   }
 
-  // No task route matched (no keys configured, or offline). Fall back to
-  // local Ollama if we can reach it; otherwise require a Gemini key.
-  const useOllama = !online || !s.geminiApiKey;
-
+  // No online route (no keys or offline) \u2014 fall through to local Ollama.
   const lastUserMsg = [...history].reverse().find(m => m.role === "user");
-  if (useOllama) {
-    // Same offline-safe local-intent fast path is done inside sendChatOllama.
-    const recall = lastUserMsg?.text ? rerankContext(lastUserMsg.text) : "";
-    const rolling = conversationSummary.get();
-    const webContext = online ? await fetchLiveWebContext(lastUserMsg?.text || "") : "";
-    const sys = DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling, { offline: !webContext });
-    const text = await sendChatOllama(history, sys, webContext);
-    return executeActionTags(text);
-  }
-
-  const key = getKey();
-  if (!key) throw new Error("No API key configured for the selected task. Add a key in Settings → Online, or start a local Ollama server.");
-  // Local intent shortcut so simple CRUD commands don't burn API credit
-  if (lastUserMsg?.text && !lastUserMsg.images?.length) {
-    const local = tryLocalIntent(lastUserMsg.text);
-    if (local) return local;
-  }
-  const model = alphaStore.get().settings.chatModel || "gemini-2.5-pro";
-  return await callGemini(history, model);
-}
-
-async function callGemini(history: ChatMessage[], model: string): Promise<string> {
-  const key = getKey();
-  if (!key) throw new Error("No Gemini API key set.");
-  const lastUserMsg = [...history].reverse().find(m => m.role === "user");
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const recall = lastUserMsg?.text ? rerankContext(lastUserMsg.text) : "";
   const rolling = conversationSummary.get();
-  // Keep only the recent slice in `contents` — older turns are represented by the rolling summary.
-  const trimmedHistory = history.slice(-20);
-  const body = {
-    systemInstruction: { role: "system", parts: [{ text: DEFAULT_SYSTEM(alphaStore.get().settings.personaExtra || "", recall, rolling) }] },
-    contents: toGeminiContents(trimmedHistory),
-    tools: [{ google_search: {} }],
-    generationConfig: {
-      temperature: 0.85,
-      topP: 0.95,
-      // Enable native reasoning on 2.5-class models. Ignored by older models.
-      thinkingConfig: { thinkingBudget: -1, includeThoughts: false },
-    },
-  };
-  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body) });
-  if (!res.ok) throw new Error(formatGeminiError(res.status, await res.text().catch(() => "")));
-  const j: any = await res.json();
-  const cand = j?.candidates?.[0];
-  if (cand?.finishReason === "SAFETY") {
-    return "Mm — that one tripped a safety filter. Let's reframe: tell me the underlying goal in plain terms and I'll route around it.";
+  const webContext = online ? await fetchLiveWebContext(lastUserMsg?.text || "") : "";
+  const sys = DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling, { offline: !webContext });
+  const text = await sendChatOllama(history, sys, webContext);
+  return executeActionTags(appendSourcesIfWeb(text, webContext));
+}
+
+/** Build a Sources footer from the LIVE WEB SEARCH RESULTS block we fed the
+ *  model so every provider surfaces the same citations. */
+function appendSourcesIfWeb(text: string, webContext: string): string {
+  if (!webContext || /\*\*Sources:?\*\*/i.test(text)) return text;
+  const lines = webContext.split("\n");
+  const rows: Array<{ n: number; title: string; url: string }> = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^\[(\d+)\]\s+(.+)$/);
+    if (m) {
+      const url = (lines[i + 1] || "").replace(/^URL:\s*/i, "").trim();
+      if (url) rows.push({ n: Number(m[1]), title: m[2].trim(), url });
+    }
   }
-  // Skip parts flagged as thoughts (when includeThoughts is on) — only render polished final.
-  let text = (cand?.content?.parts ?? [])
-    .filter((p: any) => !p?.thought)
-    .map((p: any) => p?.text ?? "")
-    .join("") ?? "";
-
-  // ----- Structured evidence extraction from grounding metadata -----
-  const chunks: any[] = cand?.groundingMetadata?.groundingChunks ?? [];
-  const supports: any[] = cand?.groundingMetadata?.groundingSupports ?? [];
-  const evidence = chunks.map((c, i) => ({
-    n: i + 1,
-    title: c?.web?.title || "",
-    url: c?.web?.uri || "",
-  })).filter(e => e.url);
-
-  // NOTE: removed the second "fact-checker" pass — it doubled the API cost per
-  // user message. The system prompt already enforces evidence-only mode.
-  const lastUser = lastUserMsg?.text || "";
-  const looksFactual = /\b(who|what|when|where|how many|release|price|score|news|latest|today|yesterday|this week|version|date)\b/i.test(lastUser);
-
-  if (evidence.length) {
-    text += "\n\n**Sources:**\n" + evidence.slice(0, 6).map(e => `- [${e.n}] [${e.title || e.url}](${e.url})`).join("\n");
-  } else if (looksFactual) {
-    text += "\n\n_No web sources were returned for this answer — treat any specifics as uncertain._";
-  }
-
-  if (!text) throw new Error("Empty response from Gemini.");
-  const finalText = executeActionTags(text);
-  // Fire-and-forget rolling-summary compaction every ~10 turns.
-  void maybeCompactSummary(history, finalText);
-  return finalText;
+  if (!rows.length) return text;
+  return text.trim() + "\n\n**Sources:**\n" + rows.slice(0, 6).map(r => `- [${r.n}] [${r.title}](${r.url})`).join("\n");
 }
 
 // ---------- Background semantic compactor ----------
