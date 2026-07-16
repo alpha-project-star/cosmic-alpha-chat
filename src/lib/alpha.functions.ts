@@ -657,7 +657,7 @@ function formatGeminiError(status: number, body: string): string {
   let message = body.slice(0, 400);
   try { message = JSON.parse(body)?.error?.message || message; } catch {}
   if (status === 401 || /invalid authentication|API key not valid|API_KEY_INVALID|UNAUTHENTICATED/i.test(message)) {
-    return `Gemini ${status}: API key rejected. Paste a Google AI Studio API key that begins with "AIza" in Settings → Online → Gemini API Key. Do not paste an OAuth token, JSON credential, or "Bearer ..." prefix. ${message}`;
+    return `Gemini ${status}: API key rejected. Paste a Google AI Studio API key (new keys start with "AQ.", legacy keys start with "AIza") in Settings → Online → Gemini API Key. Do not paste an OAuth token, JSON credential, or "Bearer ..." prefix. ${message}`;
   }
   if (status === 403) return `Gemini ${status}: key accepted but this model/API is not enabled for the key or project. Try gemini-2.5-flash or create a fresh AI Studio key. ${message}`;
   return `Gemini ${status}: ${message}`;
