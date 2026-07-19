@@ -267,8 +267,6 @@ export function CyberEye({
           ))}
           {/* Bright rim of the pupil disc */}
           <circle cx="50" cy="50" r={rP + 0.4} fill="none" stroke="oklch(0.99 0.22 232)" strokeWidth="0.35" opacity="0.9" />
-          {/* Soft top-left highlight for glass feel */}
-          <ellipse cx="47.5" cy="46.5" rx="3.5" ry="1.6" fill="oklch(0.99 0.06 232)" opacity="0.55" />
         </g>
 
         {/* Pitch-black micro void at dead center */}
