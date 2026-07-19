@@ -282,15 +282,17 @@ function BezelOverlay() {
   // upright glyphs on every browser.
   //   • R_TEXT is the radius of the text baseline in viewBox units (0..100)
   //   • Bezel visible ring runs ~33..50 in viewBox radius
-  const R_TEXT = 42;
+  // Bezel visible ring in viewBox coords: ~42..50 (groove ends at 42, bezel
+  // outer edge at 50). Text sits at R=46 — the middle of the silver rim.
+  const R_TEXT = 46;
   const LABEL = "CYBER-LENS 0.1nm RES";
   // Four cardinal positions and the rotation each label needs so it reads
   // upright when viewed from outside the ring.
   const labels = [
-    { angle: 0,    tx: 50, ty: 50 - R_TEXT + 1.2, rotate: 0   }, // TOP
-    { angle: 90,   tx: 50 + R_TEXT - 1.2, ty: 50, rotate: 90  }, // RIGHT (top→bottom)
-    { angle: 180,  tx: 50, ty: 50 + R_TEXT - 0.4, rotate: 180 }, // BOTTOM (upside-down glyphs = upright when read from outside/below)
-    { angle: 270,  tx: 50 - R_TEXT + 1.2, ty: 50, rotate: 270 }, // LEFT (bottom→top)
+    { tx: 50,             ty: 50 - R_TEXT + 1.0, rotate: 0   }, // TOP
+    { tx: 50 + R_TEXT - 1.0, ty: 50,             rotate: 90  }, // RIGHT
+    { tx: 50,             ty: 50 + R_TEXT - 0.2, rotate: 180 }, // BOTTOM (label rotates 180 so it reads upright when viewed from outside the ring)
+    { tx: 50 - R_TEXT + 1.0, ty: 50,             rotate: 270 }, // LEFT
   ];
   return (
     <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full pointer-events-none">
@@ -316,8 +318,8 @@ function BezelOverlay() {
          style={{ filter: "drop-shadow(0 0 0.6px oklch(0.9 0.28 235))" }}>
         {[45, 135, 225, 315].map((deg) => {
           const a = (deg - 90) * Math.PI / 180;
-          const cx = 50 + Math.cos(a) * R_TEXT;
-          const cy = 50 + Math.sin(a) * R_TEXT;
+          const cx = 50 + Math.cos(a) * 46;
+          const cy = 50 + Math.sin(a) * 46;
           // Tangent direction for the tick strip
           const tx = -Math.sin(a), ty = Math.cos(a);
           // Radial direction (for tick length)
@@ -345,8 +347,8 @@ function BezelOverlay() {
       <g stroke="oklch(0.6 0.06 240 / 0.9)" strokeWidth="0.14">
         {Array.from({ length: 120 }).map((_, i) => {
           const a = (i / 120) * Math.PI * 2;
-          const r1 = 36.5;
-          const r2 = i % 5 === 0 ? 35.2 : 35.8;
+          const r1 = 43.5;
+          const r2 = i % 5 === 0 ? 42.3 : 42.9;
           return (
             <line key={i}
               x1={50 + Math.cos(a) * r1} y1={50 + Math.sin(a) * r1}
