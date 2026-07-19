@@ -60,15 +60,19 @@ export function CyberEye({
   const rPupil = 12;
   const bladeStreaks = Array.from({ length: BLADES }, (_, i) => {
     const a0 = (i / BLADES) * Math.PI * 2 - Math.PI / 2;
-    const a1 = a0 + 0.32;
+    // Long sweeping arc — blade wraps ~55° (0.95 rad) counterclockwise
+    // from the outer rim into the pupil, matching the reference's long
+    // flowing crescents.
+    const a1 = a0 + 0.95;
     const x1 = 50 + Math.cos(a0) * rOuter;
     const y1 = 50 + Math.sin(a0) * rOuter;
     const x2 = 50 + Math.cos(a1) * (rPupil + 1);
     const y2 = 50 + Math.sin(a1) * (rPupil + 1);
     const am = (a0 + a1) / 2;
-    // Control point slightly off the chord for gentle curvature.
-    const cx = 50 + Math.cos(am + 0.12) * ((rOuter + rPupil) / 2);
-    const cy = 50 + Math.sin(am + 0.12) * ((rOuter + rPupil) / 2);
+    // Control point pulled outward from the chord midpoint so the arc
+    // bows outward, giving each blade a gentle scimitar curve.
+    const cx = 50 + Math.cos(am - 0.15) * ((rOuter + rPupil) / 2 + 4);
+    const cy = 50 + Math.sin(am - 0.15) * ((rOuter + rPupil) / 2 + 4);
     return `M ${x1.toFixed(2)},${y1.toFixed(2)} Q ${cx.toFixed(2)},${cy.toFixed(2)} ${x2.toFixed(2)},${y2.toFixed(2)}`;
   });
 
