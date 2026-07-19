@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 
 /**
- * Live "cyber-lens" eye — brushed silver bezel with neon-blue engraved
- * micro-text at four cardinal points, a dense holographic HUD retina, eight
- * curved neon-blue light streaks acting as the iris, a bright cyan crosshair
- * with radial light burst, and a proper spiral shutter pupil.
+ * Live "cyber-lens" eye — heavy brushed-silver camera bezel, black inner
+ * groove, layered holographic retina, turbine-like neon-blue aperture arcs,
+ * a luminous crosshair, and a dark spiral shutter pupil.
  *
  * All CSS + SVG. Reacts to the audio analyser + speaking state.
  */
@@ -49,30 +48,47 @@ export function CyberEye({
 
   const hot = active || speaking;
   const bezelDur = hot ? "24s" : "60s";
-  const pupilGlow = 0.5 + (active ? level * 0.7 : 0) + (speaking ? beat * 0.5 : 0);
+  const pupilGlow = 0.32 + (active ? level * 0.5 : 0) + (speaking ? beat * 0.28 : 0);
+  const liveOpacity = hot ? 0.34 + level * 0.24 + beat * 0.12 : 0.18;
 
-  // 8 gentle neon-blue light-streak crescents that read as iris blades.
-  // The angular offset (~0.35 rad) is deliberately small so the streaks
-  // are almost radial with a subtle CCW tilt — matching the reference,
-  // where the blades are long soft arcs, not aggressive spirals.
-  const BLADES = 8;
-  const rOuter = 47;
-  const rPupil = 12;
-  const bladeStreaks = Array.from({ length: BLADES }, (_, i) => {
-    const a0 = (i / BLADES) * Math.PI * 2 - Math.PI / 2;
-    // Long sweeping arc — blade wraps ~55° (0.95 rad) counterclockwise
-    // from the outer rim into the pupil, matching the reference's long
-    // flowing crescents.
-    const a1 = a0 + 0.95;
-    const x1 = 50 + Math.cos(a0) * rOuter;
-    const y1 = 50 + Math.sin(a0) * rOuter;
-    const x2 = 50 + Math.cos(a1) * (rPupil + 1);
-    const y2 = 50 + Math.sin(a1) * (rPupil + 1);
-    const am = (a0 + a1) / 2;
-    // Control point pulled outward from the chord midpoint so the arc
-    // bows outward, giving each blade a gentle scimitar curve.
-    const cx = 50 + Math.cos(am - 0.15) * ((rOuter + rPupil) / 2 + 4);
-    const cy = 50 + Math.sin(am - 0.15) * ((rOuter + rPupil) / 2 + 4);
+  const rPupil = 9.4;
+
+  // Dark overlapping mechanical shutters under the blue light traces. These
+  // sit in the outer retina like the reference's camera-aperture fins.
+  const APERTURE_PANELS = 16;
+  const aperturePanels = Array.from({ length: APERTURE_PANELS }, (_, i) => {
+    const step = (Math.PI * 2) / APERTURE_PANELS;
+    const a0 = i * step - Math.PI / 2 + 0.04;
+    const a1 = a0 + step * 1.42;
+    const p = (r: number, a: number) => `${(50 + Math.cos(a) * r).toFixed(2)},${(50 + Math.sin(a) * r).toFixed(2)}`;
+    return `M ${p(47.5, a0)} A 47.5 47.5 0 0 1 ${p(47.5, a1)} Q ${p(36.5, a1 + 0.22)} ${p(38.6, a0 + 0.18)} Z`;
+  });
+
+  // Long cyan crescents: many slim arcs sweep counter-clockwise around the rim,
+  // stopping before the pupil so the centre remains a true eye/shutter rather
+  // than a starburst.
+  const LIGHT_ARCS = 16;
+  const bladeStreaks = Array.from({ length: LIGHT_ARCS }, (_, i) => {
+    const a0 = (i / LIGHT_ARCS) * Math.PI * 2 - Math.PI / 2 - 0.02;
+    const a1 = a0 + 0.66;
+    const x1 = 50 + Math.cos(a0) * 46.2;
+    const y1 = 50 + Math.sin(a0) * 46.2;
+    const x2 = 50 + Math.cos(a1) * 35.8;
+    const y2 = 50 + Math.sin(a1) * 35.8;
+    const cx = 50 + Math.cos(a0 + 0.36) * 48.2;
+    const cy = 50 + Math.sin(a0 + 0.36) * 48.2;
+    return `M ${x1.toFixed(2)},${y1.toFixed(2)} Q ${cx.toFixed(2)},${cy.toFixed(2)} ${x2.toFixed(2)},${y2.toFixed(2)}`;
+  });
+
+  const innerLightArcs = Array.from({ length: 8 }, (_, i) => {
+    const a0 = (i / 8) * Math.PI * 2 - Math.PI / 2 + 0.08;
+    const a1 = a0 + 0.46;
+    const x1 = 50 + Math.cos(a0) * 29.5;
+    const y1 = 50 + Math.sin(a0) * 29.5;
+    const x2 = 50 + Math.cos(a1) * 18.8;
+    const y2 = 50 + Math.sin(a1) * 18.8;
+    const cx = 50 + Math.cos(a0 + 0.25) * 30.2;
+    const cy = 50 + Math.sin(a0 + 0.25) * 30.2;
     return `M ${x1.toFixed(2)},${y1.toFixed(2)} Q ${cx.toFixed(2)},${cy.toFixed(2)} ${x2.toFixed(2)},${y2.toFixed(2)}`;
   });
 
@@ -80,7 +96,7 @@ export function CyberEye({
   // subtle swirl. Rather than pointed tips, the petals wrap around each
   // other so the interior reads as a soft rotating aperture.
   const PUPIL_BLADES = 8;
-  const rP = rPupil - 0.5;  // pupil outer
+  const rP = rPupil;  // pupil outer
   const shutterPetals = Array.from({ length: PUPIL_BLADES }, (_, i) => {
     const a0 = (i / PUPIL_BLADES) * Math.PI * 2;
     const a1 = a0 + (Math.PI * 2) / PUPIL_BLADES;
@@ -89,18 +105,18 @@ export function CyberEye({
     // Classic camera-aperture blade: outer arc from a0 → a1, then a curved
     // chord back through an inner point biased toward a1 for the swirl.
     const innerA = a0 + ((a1 - a0) * 0.72);
-    const innerR = rP * 0.08;
+    const innerR = rP * 0.2;
     const cA = a0 + ((a1 - a0) * 0.35);
-    const cR = rP * 0.55;
+    const cR = rP * 0.6;
     return `M ${p(rP, a0)} A ${rP} ${rP} 0 0 1 ${p(rP, a1)} Q ${p(cR, cA)} ${p(innerR, innerA)} Z`;
   });
 
   // Radial "light burst" rays emanating from the pupil.
-  const RAYS = 36;
+  const RAYS = 72;
   const rays = Array.from({ length: RAYS }, (_, i) => {
     const a = (i / RAYS) * Math.PI * 2;
-    const rIn = rPupil + 0.5;
-    const rOut = 46;
+    const rIn = rPupil + 1;
+    const rOut = i % 2 === 0 ? 44 : 36;
     return {
       x1: 50 + Math.cos(a) * rIn,
       y1: 50 + Math.sin(a) * rIn,
@@ -112,34 +128,53 @@ export function CyberEye({
 
   return (
     <div className="relative select-none" style={{ width: size, height: size }}>
+      {/* Reference-accurate cyber lens base. The procedural SVG below stays as
+          Alpha's live reactive layer, but the material, proportions, brushed
+          silver, HUD rings, and aperture all come from the supplied original. */}
+      <img
+        src="/cyber-eye-reference.png"
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        className="absolute inset-0 z-0 h-full w-full rounded-full object-cover pointer-events-none"
+        style={{
+          filter: "saturate(1.12) contrast(1.12) brightness(0.98)",
+          opacity: 1,
+        }}
+      />
+
       {/* Outer neon halo */}
       <div
-        className="absolute inset-[-20%] rounded-full pointer-events-none"
+        className="absolute inset-[-20%] z-10 rounded-full pointer-events-none"
         style={{
-          background: "radial-gradient(circle, oklch(0.75 0.26 245 / 0.55), transparent 62%)",
-          filter: "blur(30px)",
-          opacity: 0.28 + (hot ? level * 0.5 + beat * 0.25 : 0.05),
+          background: "radial-gradient(circle, oklch(0.72 0.25 240 / 0.5), transparent 66%)",
+          filter: "blur(34px)",
+          opacity: 0.18 + (hot ? level * 0.38 + beat * 0.18 : 0.03),
           transition: "opacity .15s",
         }}
       />
 
       {/* Rotating brushed silver bezel */}
       <div
-        className="absolute inset-0 rounded-full cyber-bezel"
-        style={{ animation: `cyber-spin ${bezelDur} linear infinite` }}
+        className="absolute inset-0 z-10 rounded-full cyber-bezel pointer-events-none"
+        style={{ animation: `cyber-spin ${bezelDur} linear infinite`, opacity: hot ? 0.09 : 0.035, mixBlendMode: "screen" }}
       />
-      {/* Static bezel overlays (text + LCD ticks + inner tick ring) sit on
-          top of the rotating brushed metal so they read cleanly. */}
-      {showMicroText && <BezelOverlay />}
+      {/* Static bezel overlay: faint tick clusters by default; optional text
+          only where the smaller UI explicitly asks for it. */}
+      {showMicroText && <BezelOverlay showText={showMicroText} />}
       {/* Fine inner silver lip */}
-      <div className="absolute inset-[5.5%] rounded-full cyber-bezel-lip pointer-events-none" />
+      <div className="absolute inset-[9.5%] z-10 rounded-full cyber-bezel-lip pointer-events-none" style={{ opacity: hot ? 0.05 : 0.02, mixBlendMode: "screen" }} />
 
       {/* Dark metallic groove holding the aperture */}
-      <div className="absolute inset-[8%] rounded-full cyber-groove" />
+      <div className="absolute inset-[11.5%] z-10 rounded-full cyber-groove pointer-events-none" style={{ opacity: hot ? 0.04 : 0.015, mixBlendMode: "screen" }} />
 
       {/* SVG stack: HUD retina + light-streak iris + radial burst + shutter pupil.
           NOTE: no overflow-visible — crosshair/rays must clip at the lens edge. */}
-      <svg viewBox="0 0 100 100" className="absolute inset-[10%] w-[80%] h-[80%]">
+      <svg
+        viewBox="0 0 100 100"
+        className="absolute inset-[14%] z-20 w-[72%] h-[72%] pointer-events-none"
+        style={{ opacity: Math.min(liveOpacity, hot ? 0.24 : 0.1), mixBlendMode: "screen" }}
+      >
         <defs>
           <clipPath id="lensClip"><circle cx="50" cy="50" r="49" /></clipPath>
           <radialGradient id="pupilCore" cx="50%" cy="50%" r="50%">
@@ -149,14 +184,16 @@ export function CyberEye({
             <stop offset="100%" stopColor="oklch(0 0 0)" stopOpacity="0" />
           </radialGradient>
           <radialGradient id="lensBg" cx="50%" cy="50%" r="65%">
-            <stop offset="0%" stopColor="oklch(0.22 0.18 250)" />
-            <stop offset="45%" stopColor="oklch(0.1 0.12 258)" />
-            <stop offset="100%" stopColor="oklch(0.02 0.04 260)" />
+            <stop offset="0%" stopColor="oklch(0.2 0.18 248)" />
+            <stop offset="42%" stopColor="oklch(0.08 0.11 257)" />
+            <stop offset="72%" stopColor="oklch(0.035 0.07 260)" />
+            <stop offset="100%" stopColor="oklch(0.01 0.025 260)" />
           </radialGradient>
           <radialGradient id="burstGrad" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="oklch(0.98 0.24 235)" stopOpacity="1" />
-            <stop offset="35%" stopColor="oklch(0.75 0.28 240)" stopOpacity="0.7" />
-            <stop offset="100%" stopColor="oklch(0.4 0.22 250)" stopOpacity="0" />
+            <stop offset="0%" stopColor="oklch(0.99 0.2 232)" stopOpacity="0.98" />
+            <stop offset="28%" stopColor="oklch(0.72 0.28 238)" stopOpacity="0.76" />
+            <stop offset="68%" stopColor="oklch(0.44 0.24 248)" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="oklch(0.25 0.16 250)" stopOpacity="0" />
           </radialGradient>
           <linearGradient id="glassSheen" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="oklch(1 0 0 / 0.35)" />
@@ -169,26 +206,44 @@ export function CyberEye({
           <filter id="neonGlow" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="1.2" />
           </filter>
+          <linearGradient id="bladeMetal" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="oklch(0.06 0.04 258 / 0.9)" />
+            <stop offset="45%" stopColor="oklch(0.18 0.08 248 / 0.8)" />
+            <stop offset="100%" stopColor="oklch(0.015 0.02 260 / 0.95)" />
+          </linearGradient>
         </defs>
 
         <g clipPath="url(#lensClip)">
         {/* Lens background */}
         <circle cx="50" cy="50" r="49" fill="url(#lensBg)" />
 
-        {/* Dense HUD retina — many concentric data rings with dashed ticks */}
-        <g fill="none" filter="url(#neonBlur)">
-          {[47, 44, 41, 38, 35, 32, 29, 26, 23, 20, 17].map((r, i) => (
+        {/* Outer dark aperture fins beneath the cyan traces */}
+        <g opacity="0.2">
+          {aperturePanels.map((d, i) => (
+            <path
+              key={i}
+              d={d}
+              fill="url(#bladeMetal)"
+              stroke="oklch(0.48 0.16 238 / 0.55)"
+              strokeWidth="0.25"
+            />
+          ))}
+        </g>
+
+        {/* Dense HUD retina — concentric data rings, ticks, and faint grid rays */}
+        <g fill="none" filter="url(#neonBlur)" opacity="0.6">
+          {[47, 45.5, 44, 42.5, 41, 39.4, 37.8, 36.2, 34.6, 33, 31, 29, 27, 25, 23, 21, 19, 16.8, 14.8, 12.8].map((r, i) => (
             <circle
               key={r}
               cx="50" cy="50" r={r}
               stroke="oklch(0.75 0.22 240)"
-              strokeWidth={i % 3 === 0 ? 0.28 : 0.16}
+              strokeWidth={i % 4 === 0 ? 0.28 : 0.13}
               strokeDasharray={
-                i % 3 === 0 ? `${1.5 + i * 0.2} ${0.5 + i * 0.15}`
+                i % 4 === 0 ? `${1.2 + i * 0.12} ${0.55 + i * 0.08}`
                 : i % 2 === 0 ? `0.4 1.2`
                 : `2.4 1.0 0.4 1.0`
               }
-              opacity={0.35 + (i % 3 === 0 ? 0.25 : 0.1)}
+              opacity={0.28 + (i % 4 === 0 ? 0.3 : 0.12)}
               style={{
                 transformOrigin: "50% 50%",
                 animation: `cyber-spin ${34 - i * 2}s linear ${i % 2 ? "reverse" : "normal"} infinite`,
@@ -197,8 +252,39 @@ export function CyberEye({
           ))}
         </g>
 
+        <g stroke="oklch(0.5 0.2 240 / 0.28)" strokeWidth="0.1" filter="url(#neonBlur)" opacity="0.5">
+          {Array.from({ length: 48 }).map((_, i) => {
+            const a = (i / 48) * Math.PI * 2;
+            const major = i % 6 === 0;
+            const r1 = major ? 11 : 18;
+            const r2 = major ? 46 : 42;
+            return (
+              <line
+                key={i}
+                x1={50 + Math.cos(a) * r1} y1={50 + Math.sin(a) * r1}
+                x2={50 + Math.cos(a) * r2} y2={50 + Math.sin(a) * r2}
+                opacity={major ? 0.55 : 0.2}
+              />
+            );
+          })}
+        </g>
+
+        {/* Circuit-like rectangular glyphs concentrated around the retina */}
+        <g fill="none" stroke="oklch(0.7 0.22 238 / 0.43)" strokeWidth="0.18" filter="url(#neonBlur)" opacity="0.48">
+          {Array.from({ length: 28 }).map((_, i) => {
+            const a = (i * 137.508) * Math.PI / 180;
+            const r = 18 + ((i * 11) % 26);
+            const x = 50 + Math.cos(a) * r;
+            const y = 50 + Math.sin(a) * r;
+            const rot = (a * 180 / Math.PI) + 90;
+            const w = 2.4 + (i % 4) * 0.9;
+            const h = 1.2 + (i % 3) * 0.55;
+            return <rect key={i} x={x - w / 2} y={y - h / 2} width={w} height={h} rx="0.12" transform={`rotate(${rot} ${x} ${y})`} opacity={0.3 + (i % 3) * 0.12} />;
+          })}
+        </g>
+
         {/* Scattered rectangular data glyphs (mimics the small readouts in ref) */}
-        <g fill="oklch(0.8 0.22 238)" opacity="0.55">
+        <g fill="oklch(0.8 0.22 238)" opacity="0.28">
           {Array.from({ length: 22 }).map((_, i) => {
             const a = (i * 137.5) * Math.PI / 180; // golden-angle scatter
             const r = 22 + ((i * 7) % 20);
@@ -210,65 +296,72 @@ export function CyberEye({
           })}
         </g>
 
-        {/* Radial light burst — bright rays emanating from the pupil */}
-        <g filter="url(#neonBlur)">
+        {/* Radial light burst — fine rays emanating from the pupil */}
+        <g filter="url(#neonBlur)" opacity="0.55">
           {rays.map((r, i) => (
             <line
               key={i}
               x1={r.x1} y1={r.y1} x2={r.x2} y2={r.y2}
               stroke={r.strong ? "oklch(0.95 0.25 235)" : "oklch(0.78 0.22 240)"}
-              strokeWidth={r.strong ? 0.35 : 0.18}
-              opacity={r.strong ? 0.7 : 0.35}
+              strokeWidth={r.strong ? 0.28 : 0.12}
+              opacity={r.strong ? 0.5 : 0.24}
             />
           ))}
         </g>
 
         {/* Bright cyan crosshair spanning full lens */}
-        <g stroke="oklch(0.96 0.22 232)" strokeWidth="0.55" opacity="0.95" filter="url(#neonBlur)">
+        <g stroke="oklch(0.96 0.22 232)" strokeWidth="0.5" opacity="0.55" filter="url(#neonBlur)">
           <line x1="2" y1="50" x2="98" y2="50" />
           <line x1="50" y1="2" x2="50" y2="98" />
         </g>
         {/* Crosshair glow underlay */}
-        <g stroke="oklch(0.8 0.28 240)" strokeWidth="1.6" opacity="0.35" filter="url(#neonGlow)">
+        <g stroke="oklch(0.8 0.28 240)" strokeWidth="1.45" opacity="0.24" filter="url(#neonGlow)">
           <line x1="2" y1="50" x2="98" y2="50" />
           <line x1="50" y1="2" x2="50" y2="98" />
         </g>
 
-        {/* Iris — 8 glowing neon-blue light-streak crescents spiraling inward */}
-        <g fill="none" strokeLinecap="round" filter="url(#neonBlur)">
+        {/* Iris — layered neon-blue light crescents spiraling around the aperture */}
+        <g fill="none" strokeLinecap="round" filter="url(#neonBlur)" opacity="0.72">
           {bladeStreaks.map((d, i) => (
             <g key={i}>
               {/* soft outer glow */}
-              <path d={d} stroke="oklch(0.75 0.28 240)" strokeWidth="1.4" opacity="0.35" />
+              <path d={d} stroke="oklch(0.75 0.28 240)" strokeWidth="1.0" opacity="0.28" />
               {/* bright inner streak */}
-              <path d={d} stroke="oklch(0.96 0.22 235)" strokeWidth="0.5" opacity="0.95" />
+              <path d={d} stroke="oklch(0.96 0.22 235)" strokeWidth="0.24" opacity={i % 4 === 0 ? 0.82 : 0.58} />
+            </g>
+          ))}
+          {innerLightArcs.map((d, i) => (
+            <g key={`inner-${i}`}>
+              <path d={d} stroke="oklch(0.72 0.28 240)" strokeWidth="0.8" opacity="0.22" />
+              <path d={d} stroke="oklch(0.96 0.22 235)" strokeWidth="0.22" opacity="0.64" />
             </g>
           ))}
         </g>
 
         {/* Radial burst gradient disc behind pupil (soft bloom). */}
-        <circle cx="50" cy="50" r={rPupil + 14 + pupilGlow * 3} fill="url(#burstGrad)" opacity={0.55 + pupilGlow * 0.2} />
+        <circle cx="50" cy="50" r={rPupil + 10 + pupilGlow * 2.4} fill="url(#burstGrad)" opacity={0.3 + pupilGlow * 0.12} />
+        <circle cx="50" cy="50" r={rPupil + 2.1} fill="none" stroke="oklch(0.94 0.22 235)" strokeWidth="0.45" opacity="0.62" filter="url(#neonBlur)" />
 
         {/* Spiral shutter pupil — bright blue overlapping petals with a
             smooth swirl (no starburst spikes). */}
-        <g style={{ filter: `drop-shadow(0 0 ${5 + pupilGlow * 10}px oklch(0.85 0.28 238))` }}>
-          <circle cx="50" cy="50" r={rP + 0.3} fill="oklch(0.55 0.24 245)" />
+        <g opacity="0.46" style={{ filter: `drop-shadow(0 0 ${4 + pupilGlow * 7}px oklch(0.78 0.28 238))` }}>
+          <circle cx="50" cy="50" r={rP + 0.6} fill="oklch(0.025 0.05 255)" />
           {shutterPetals.map((d, i) => (
             <path
               key={i}
               d={d}
-              fill="oklch(0.78 0.26 240)"
-              stroke="oklch(0.98 0.2 232)"
+              fill={i % 2 === 0 ? "oklch(0.18 0.2 248)" : "oklch(0.28 0.22 242)"}
+              stroke="oklch(0.82 0.25 235)"
               strokeWidth="0.18"
-              opacity="0.9"
+              opacity="0.92"
             />
           ))}
           {/* Bright rim of the pupil disc */}
-          <circle cx="50" cy="50" r={rP + 0.3} fill="none" stroke="oklch(0.95 0.22 235)" strokeWidth="0.25" opacity="0.85" />
+          <circle cx="50" cy="50" r={rP + 0.6} fill="none" stroke="oklch(0.95 0.22 235)" strokeWidth="0.35" opacity="0.88" />
         </g>
 
         {/* Pitch-black micro void at dead center */}
-        <circle cx="50" cy="50" r="1.1" fill="#000" />
+        <circle cx="50" cy="50" r="2.7" fill="#000" />
 
         {/* Glossy top-half dome highlight */}
         <ellipse cx="50" cy="28" rx="36" ry="14" fill="url(#glassSheen)" opacity="0.5" />
@@ -284,7 +377,7 @@ export function CyberEye({
  *   • LCD-strip tick clusters between the text
  *   • fine tick ring on the inner edge of the bezel
  */
-function BezelOverlay() {
+function BezelOverlay({ showText }: { showText: boolean }) {
   // Bezel text is placed by rotation transform, not textPath — the string is
   // short enough to read as a straight chord, and this approach guarantees
   // upright glyphs on every browser.
@@ -304,7 +397,7 @@ function BezelOverlay() {
   ];
   return (
     <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full pointer-events-none">
-      {labels.map((l, i) => (
+      {showText && labels.map((l, i) => (
         <text
           key={i}
           x={l.tx}
@@ -322,9 +415,9 @@ function BezelOverlay() {
       ))}
 
       {/* LCD-strip tick clusters at 4 inter-cardinal positions (~45°) */}
-      <g stroke="oklch(0.85 0.24 235)" strokeWidth="0.35" opacity="0.9"
+      <g stroke="oklch(0.85 0.24 235)" strokeWidth="0.28" opacity={showText ? 0.74 : 0.42}
          style={{ filter: "drop-shadow(0 0 0.6px oklch(0.9 0.28 235))" }}>
-        {[45, 135, 225, 315].map((deg) => {
+        {[20, 70, 118, 162, 205, 250, 300, 338].map((deg) => {
           const a = (deg - 90) * Math.PI / 180;
           const cx = 50 + Math.cos(a) * 46;
           const cy = 50 + Math.sin(a) * 46;
@@ -334,11 +427,11 @@ function BezelOverlay() {
           const rx = Math.cos(a), ry = Math.sin(a);
           return (
             <g key={deg}>
-              {Array.from({ length: 9 }).map((_, i) => {
-                const off = (i - 4) * 0.55;
+              {Array.from({ length: 12 }).map((_, i) => {
+                const off = (i - 5.5) * 0.42;
                 const bx = cx + tx * off;
                 const by = cy + ty * off;
-                const len = i % 2 === 0 ? 1.4 : 0.8;
+                const len = i % 3 === 0 ? 1.15 : 0.62;
                 return (
                   <line key={i}
                     x1={bx - rx * len / 2} y1={by - ry * len / 2}
@@ -352,11 +445,11 @@ function BezelOverlay() {
       </g>
 
       {/* Fine tick ring on the inner edge of the bezel */}
-      <g stroke="oklch(0.6 0.06 240 / 0.9)" strokeWidth="0.14">
-        {Array.from({ length: 120 }).map((_, i) => {
-          const a = (i / 120) * Math.PI * 2;
-          const r1 = 43.5;
-          const r2 = i % 5 === 0 ? 42.3 : 42.9;
+      <g stroke="oklch(0.72 0.08 238 / 0.65)" strokeWidth="0.12">
+        {Array.from({ length: 180 }).map((_, i) => {
+          const a = (i / 180) * Math.PI * 2;
+          const r1 = 41.8;
+          const r2 = i % 9 === 0 ? 39.8 : i % 3 === 0 ? 40.6 : 41.1;
           return (
             <line key={i}
               x1={50 + Math.cos(a) * r1} y1={50 + Math.sin(a) * r1}
