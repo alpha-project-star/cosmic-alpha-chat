@@ -406,6 +406,25 @@ export function CyberEye({
         <ellipse cx="50" cy="28" rx="36" ry="14" fill="url(#glassSheen)" opacity="0.5" />
         </g>
       </svg>
+
+      {/* Blink shutter — thin band closes across the lens. */}
+      <div
+        className="absolute inset-[10%] z-30 rounded-full overflow-hidden pointer-events-none"
+        aria-hidden="true"
+        style={{ opacity: blink ? 1 : 0 }}
+      >
+        <div
+          className="absolute inset-0"
+          style={{
+            background: "linear-gradient(180deg, oklch(0 0 0) 0%, oklch(0.04 0.02 258) 50%, oklch(0 0 0) 100%)",
+            transformOrigin: "50% 50%",
+            transform: blink ? "scaleY(1)" : "scaleY(0.02)",
+            transition: "transform .12s ease-out",
+            boxShadow: "inset 0 0 24px oklch(0 0 0 / 0.9)",
+          }}
+        />
+      </div>
+      </div>
     </div>
   );
 }
