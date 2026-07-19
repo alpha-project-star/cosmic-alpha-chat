@@ -60,15 +60,19 @@ export function CyberEye({
   const rPupil = 12;
   const bladeStreaks = Array.from({ length: BLADES }, (_, i) => {
     const a0 = (i / BLADES) * Math.PI * 2 - Math.PI / 2;
-    const a1 = a0 + 0.32;
+    // Long sweeping arc — blade wraps ~55° (0.95 rad) counterclockwise
+    // from the outer rim into the pupil, matching the reference's long
+    // flowing crescents.
+    const a1 = a0 + 0.95;
     const x1 = 50 + Math.cos(a0) * rOuter;
     const y1 = 50 + Math.sin(a0) * rOuter;
     const x2 = 50 + Math.cos(a1) * (rPupil + 1);
     const y2 = 50 + Math.sin(a1) * (rPupil + 1);
     const am = (a0 + a1) / 2;
-    // Control point slightly off the chord for gentle curvature.
-    const cx = 50 + Math.cos(am + 0.12) * ((rOuter + rPupil) / 2);
-    const cy = 50 + Math.sin(am + 0.12) * ((rOuter + rPupil) / 2);
+    // Control point pulled outward from the chord midpoint so the arc
+    // bows outward, giving each blade a gentle scimitar curve.
+    const cx = 50 + Math.cos(am - 0.15) * ((rOuter + rPupil) / 2 + 4);
+    const cy = 50 + Math.sin(am - 0.15) * ((rOuter + rPupil) / 2 + 4);
     return `M ${x1.toFixed(2)},${y1.toFixed(2)} Q ${cx.toFixed(2)},${cy.toFixed(2)} ${x2.toFixed(2)},${y2.toFixed(2)}`;
   });
 
@@ -82,13 +86,13 @@ export function CyberEye({
     const a1 = a0 + (Math.PI * 2) / PUPIL_BLADES;
     const p = (r: number, ang: number) =>
       `${(50 + Math.cos(ang) * r).toFixed(2)},${(50 + Math.sin(ang) * r).toFixed(2)}`;
-    // Petal follows the outer arc, then curves inward with a soft C-shape
-    // toward the *next* blade's start position for the swirl overlap.
-    const cA = a0 + 0.55;
+    // Classic camera-aperture blade: outer arc from a0 → a1, then a curved
+    // chord back through an inner point biased toward a1 for the swirl.
+    const innerA = a0 + ((a1 - a0) * 0.72);
+    const innerR = rP * 0.08;
+    const cA = a0 + ((a1 - a0) * 0.35);
     const cR = rP * 0.55;
-    const tipA = a0 + 0.75;
-    const tipR = rP * 0.15;
-    return `M ${p(rP, a0)} A ${rP} ${rP} 0 0 1 ${p(rP, a1)} Q ${p(cR, cA)} ${p(tipR, tipA)} Z`;
+    return `M ${p(rP, a0)} A ${rP} ${rP} 0 0 1 ${p(rP, a1)} Q ${p(cR, cA)} ${p(innerR, innerA)} Z`;
   });
 
   // Radial "light burst" rays emanating from the pupil.
@@ -242,10 +246,8 @@ export function CyberEye({
           ))}
         </g>
 
-        {/* Radial burst gradient disc behind pupil (soft bloom) — larger and
-            brighter so the pupil clearly radiates, matching the reference. */}
-        <circle cx="50" cy="50" r={rPupil + 16 + pupilGlow * 4} fill="url(#burstGrad)" opacity={0.75 + pupilGlow * 0.25} />
-        <circle cx="50" cy="50" r={rPupil + 6} fill="oklch(0.95 0.24 235)" opacity={0.35 + pupilGlow * 0.25} filter="url(#neonGlow)" />
+        {/* Radial burst gradient disc behind pupil (soft bloom). */}
+        <circle cx="50" cy="50" r={rPupil + 14 + pupilGlow * 3} fill="url(#burstGrad)" opacity={0.55 + pupilGlow * 0.2} />
 
         {/* Spiral shutter pupil — bright blue overlapping petals with a
             smooth swirl (no starburst spikes). */}
@@ -262,9 +264,7 @@ export function CyberEye({
             />
           ))}
           {/* Bright rim of the pupil disc */}
-          <circle cx="50" cy="50" r={rP + 0.4} fill="none" stroke="oklch(0.99 0.22 232)" strokeWidth="0.35" opacity="0.9" />
-          {/* Soft top-left highlight for glass feel */}
-          <ellipse cx="47.5" cy="46.5" rx="3.5" ry="1.6" fill="oklch(0.99 0.06 232)" opacity="0.55" />
+          <circle cx="50" cy="50" r={rP + 0.3} fill="none" stroke="oklch(0.95 0.22 235)" strokeWidth="0.25" opacity="0.85" />
         </g>
 
         {/* Pitch-black micro void at dead center */}
