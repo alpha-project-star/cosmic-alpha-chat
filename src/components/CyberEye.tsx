@@ -72,21 +72,23 @@ export function CyberEye({
     return `M ${x1.toFixed(2)},${y1.toFixed(2)} Q ${cx.toFixed(2)},${cy.toFixed(2)} ${x2.toFixed(2)},${y2.toFixed(2)}`;
   });
 
-  // 8-segment spiral shutter pupil — overlapping curved petals forming the
-  // classic camera-aperture swirl at the very centre. Tip angle is small
-  // (0.35 rad) so blades curve smoothly rather than spike outward.
+  // 8-segment spiral shutter pupil — smooth overlapping petals with a
+  // subtle swirl. Rather than pointed tips, the petals wrap around each
+  // other so the interior reads as a soft rotating aperture.
   const PUPIL_BLADES = 8;
-  const rP = rPupil - 1;   // pupil outer
-  const rC = 1.6;          // where petal tips converge
+  const rP = rPupil - 0.5;  // pupil outer
   const shutterPetals = Array.from({ length: PUPIL_BLADES }, (_, i) => {
     const a0 = (i / PUPIL_BLADES) * Math.PI * 2;
     const a1 = a0 + (Math.PI * 2) / PUPIL_BLADES;
-    const aTip = a0 + 0.35;
     const p = (r: number, ang: number) =>
       `${(50 + Math.cos(ang) * r).toFixed(2)},${(50 + Math.sin(ang) * r).toFixed(2)}`;
-    const cA = a0 + 0.25;
-    const cR = (rP + rC) / 2 + 1.2;
-    return `M ${p(rP, a0)} A ${rP} ${rP} 0 0 1 ${p(rP, a1)} Q ${p(cR, cA)} ${p(rC, aTip)} Z`;
+    // Petal follows the outer arc, then curves inward with a soft C-shape
+    // toward the *next* blade's start position for the swirl overlap.
+    const cA = a0 + 0.55;
+    const cR = rP * 0.55;
+    const tipA = a0 + 0.75;
+    const tipR = rP * 0.15;
+    return `M ${p(rP, a0)} A ${rP} ${rP} 0 0 1 ${p(rP, a1)} Q ${p(cR, cA)} ${p(tipR, tipA)} Z`;
   });
 
   // Radial "light burst" rays emanating from the pupil.
@@ -240,27 +242,33 @@ export function CyberEye({
           ))}
         </g>
 
-        {/* Radial burst gradient disc behind pupil (soft bloom) */}
-        <circle cx="50" cy="50" r={rPupil + 10 + pupilGlow * 3} fill="url(#burstGrad)" opacity={0.55 + pupilGlow * 0.35} />
+        {/* Radial burst gradient disc behind pupil (soft bloom) — larger and
+            brighter so the pupil clearly radiates, matching the reference. */}
+        <circle cx="50" cy="50" r={rPupil + 16 + pupilGlow * 4} fill="url(#burstGrad)" opacity={0.75 + pupilGlow * 0.25} />
+        <circle cx="50" cy="50" r={rPupil + 6} fill="oklch(0.95 0.24 235)" opacity={0.35 + pupilGlow * 0.25} filter="url(#neonGlow)" />
 
-        {/* Spiral shutter pupil — bright blue overlapping petals */}
-        <g style={{ filter: `drop-shadow(0 0 ${4 + pupilGlow * 8}px oklch(0.85 0.28 238))` }}>
+        {/* Spiral shutter pupil — bright blue overlapping petals with a
+            smooth swirl (no starburst spikes). */}
+        <g style={{ filter: `drop-shadow(0 0 ${5 + pupilGlow * 10}px oklch(0.85 0.28 238))` }}>
+          <circle cx="50" cy="50" r={rP + 0.3} fill="oklch(0.55 0.24 245)" />
           {shutterPetals.map((d, i) => (
             <path
               key={i}
               d={d}
-              fill="oklch(0.72 0.28 240)"
-              stroke="oklch(0.98 0.22 232)"
-              strokeWidth="0.25"
-              opacity="0.95"
+              fill="oklch(0.78 0.26 240)"
+              stroke="oklch(0.98 0.2 232)"
+              strokeWidth="0.18"
+              opacity="0.9"
             />
           ))}
-          {/* Highlight on top-left of pupil */}
-          <ellipse cx="47" cy="46" rx="4.5" ry="2.2" fill="oklch(0.99 0.08 232)" opacity="0.75" />
+          {/* Bright rim of the pupil disc */}
+          <circle cx="50" cy="50" r={rP + 0.4} fill="none" stroke="oklch(0.99 0.22 232)" strokeWidth="0.35" opacity="0.9" />
+          {/* Soft top-left highlight for glass feel */}
+          <ellipse cx="47.5" cy="46.5" rx="3.5" ry="1.6" fill="oklch(0.99 0.06 232)" opacity="0.55" />
         </g>
 
         {/* Pitch-black micro void at dead center */}
-        <circle cx="50" cy="50" r="1.4" fill="#000" />
+        <circle cx="50" cy="50" r="1.1" fill="#000" />
 
         {/* Glossy top-half dome highlight */}
         <ellipse cx="50" cy="28" rx="36" ry="14" fill="url(#glassSheen)" opacity="0.5" />
