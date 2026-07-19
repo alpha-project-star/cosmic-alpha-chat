@@ -277,43 +277,39 @@ export function CyberEye({
  *   • fine tick ring on the inner edge of the bezel
  */
 function BezelOverlay() {
-  // Text sits on the outer silver bezel. Radius 42 places it just inside the
-  // visible rim of the ring.
+  // Bezel text is placed by rotation transform, not textPath — the string is
+  // short enough to read as a straight chord, and this approach guarantees
+  // upright glyphs on every browser.
+  //   • R_TEXT is the radius of the text baseline in viewBox units (0..100)
+  //   • Bezel visible ring runs ~33..50 in viewBox radius
   const R_TEXT = 42;
-  // Two full-circle paths used purely as text tracks:
-  //   • CW path starts at 9 o'clock going CW  →  TOP at 25%, RIGHT at 50%
-  //   • CCW path starts at 3 o'clock going CCW →  BOTTOM at 25%, LEFT at 50%
-  // This keeps every glyph upright when read from outside the ring.
+  const LABEL = "CYBER-LENS 0.1nm RES";
+  // Four cardinal positions and the rotation each label needs so it reads
+  // upright when viewed from outside the ring.
+  const labels = [
+    { angle: 0,    tx: 50, ty: 50 - R_TEXT + 1.2, rotate: 0   }, // TOP
+    { angle: 90,   tx: 50 + R_TEXT - 1.2, ty: 50, rotate: 90  }, // RIGHT (top→bottom)
+    { angle: 180,  tx: 50, ty: 50 + R_TEXT - 0.4, rotate: 180 }, // BOTTOM (upside-down glyphs = upright when read from outside/below)
+    { angle: 270,  tx: 50 - R_TEXT + 1.2, ty: 50, rotate: 270 }, // LEFT (bottom→top)
+  ];
   return (
     <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full pointer-events-none">
-      <defs>
-        {/* CW: start at (50-R, 50) = 9 o'clock, sweep=1 (CW), full circle */}
-        <path id="bezelCW"
-          d={`M ${50 - R_TEXT},50 A ${R_TEXT} ${R_TEXT} 0 1 1 ${(50 - R_TEXT + 0.01).toFixed(2)},50`} />
-        {/* CCW: start at (50+R, 50) = 3 o'clock, sweep=0 (CCW), full circle */}
-        <path id="bezelCCW"
-          d={`M ${50 + R_TEXT},50 A ${R_TEXT} ${R_TEXT} 0 1 0 ${(50 + R_TEXT - 0.01).toFixed(2)},50`} />
-      </defs>
-
-      <g
-        fill="oklch(0.85 0.24 235)"
-        style={{
-          fontSize: 2.4,
-          letterSpacing: "0.22em",
-          fontFamily: "Orbitron, sans-serif",
-          textTransform: "uppercase",
-          filter: "drop-shadow(0 0 0.6px oklch(0.9 0.28 235))",
-        }}
-      >
-        {/* TOP — on CW path (start=9), 25% around = 12 o'clock, upright */}
-        <text><textPath href="#bezelCW" startOffset="25%" textAnchor="middle">CYBER-LENS 0.1nm RES</textPath></text>
-        {/* RIGHT — CW 50% = 3 o'clock, reads top→bottom on outer edge */}
-        <text><textPath href="#bezelCW" startOffset="50%" textAnchor="middle">CYBER-LENS 0.1nm RES</textPath></text>
-        {/* BOTTOM — CCW path (start=3), 25% around CCW = 6 o'clock, upright */}
-        <text><textPath href="#bezelCCW" startOffset="25%" textAnchor="middle">CYBER-LENS 0.1nm RES</textPath></text>
-        {/* LEFT — CCW 50% = 9 o'clock, reads bottom→top on outer edge */}
-        <text><textPath href="#bezelCCW" startOffset="50%" textAnchor="middle">CYBER-LENS 0.1nm RES</textPath></text>
-      </g>
+      {labels.map((l, i) => (
+        <text
+          key={i}
+          x={l.tx}
+          y={l.ty}
+          transform={`rotate(${l.rotate} ${l.tx} ${l.ty})`}
+          textAnchor="middle"
+          fill="oklch(0.9 0.24 235)"
+          fontFamily="Orbitron, sans-serif"
+          fontSize="2.6"
+          letterSpacing="0.35"
+          style={{ textTransform: "uppercase", filter: "drop-shadow(0 0 0.5px oklch(0.95 0.28 235))" }}
+        >
+          {LABEL}
+        </text>
+      ))}
 
       {/* LCD-strip tick clusters at 4 inter-cardinal positions (~45°) */}
       <g stroke="oklch(0.85 0.24 235)" strokeWidth="0.35" opacity="0.9"
