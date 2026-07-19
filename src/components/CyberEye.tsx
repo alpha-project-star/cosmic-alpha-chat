@@ -277,26 +277,22 @@ export function CyberEye({
  *   • fine tick ring on the inner edge of the bezel
  */
 function BezelOverlay() {
-  // Text path radius (in viewBox units, 0..100). Bezel spans ~68..96.
+  // Text sits on the outer silver bezel. Radius 42 places it just inside the
+  // visible rim of the ring.
   const R_TEXT = 42;
-  // Four cardinal starting offsets on the circular text path.
-  // startOffset percentages: 12=25% (top), 3=50% (right — but text would be
-  // upside-down going clockwise), so we use two paths: outer (clockwise) for
-  // top+right, inner reversed path for bottom+left so the text always faces out.
+  // Two full-circle paths used purely as text tracks:
+  //   • CW path starts at 9 o'clock going CW  →  TOP at 25%, RIGHT at 50%
+  //   • CCW path starts at 3 o'clock going CCW →  BOTTOM at 25%, LEFT at 50%
+  // This keeps every glyph upright when read from outside the ring.
   return (
     <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full pointer-events-none">
       <defs>
-        {/* Clockwise circle starting at 12 o'clock */}
-        <path
-          id="bezelCW"
-          d={`M 50,${50 - R_TEXT} A ${R_TEXT} ${R_TEXT} 0 1 1 ${(50 - 0.01).toFixed(2)},${50 - R_TEXT}`}
-        />
-        {/* Counter-clockwise circle starting at 6 o'clock — for bottom-side
-            text so glyphs remain upright when read from outside. */}
-        <path
-          id="bezelCCW"
-          d={`M 50,${50 + R_TEXT} A ${R_TEXT} ${R_TEXT} 0 1 0 ${(50 - 0.01).toFixed(2)},${50 + R_TEXT}`}
-        />
+        {/* CW: start at (50-R, 50) = 9 o'clock, sweep=1 (CW), full circle */}
+        <path id="bezelCW"
+          d={`M ${50 - R_TEXT},50 A ${R_TEXT} ${R_TEXT} 0 1 1 ${(50 - R_TEXT + 0.01).toFixed(2)},50`} />
+        {/* CCW: start at (50+R, 50) = 3 o'clock, sweep=0 (CCW), full circle */}
+        <path id="bezelCCW"
+          d={`M ${50 + R_TEXT},50 A ${R_TEXT} ${R_TEXT} 0 1 0 ${(50 + R_TEXT - 0.01).toFixed(2)},50`} />
       </defs>
 
       <g
@@ -309,30 +305,14 @@ function BezelOverlay() {
           filter: "drop-shadow(0 0 0.6px oklch(0.9 0.28 235))",
         }}
       >
-        {/* TOP (12 o'clock) */}
-        <text>
-          <textPath href="#bezelCW" startOffset="46%" textAnchor="middle">
-            CYBER-LENS 0.1nm RES
-          </textPath>
-        </text>
-        {/* RIGHT (3 o'clock) — reads top-to-bottom on the right side */}
-        <text>
-          <textPath href="#bezelCW" startOffset="21%" textAnchor="middle">
-            CYBER-LENS 0.1nm RES
-          </textPath>
-        </text>
-        {/* BOTTOM (6 o'clock) — upright by using the CCW path */}
-        <text>
-          <textPath href="#bezelCCW" startOffset="46%" textAnchor="middle">
-            CYBER-LENS 0.1nm RES
-          </textPath>
-        </text>
-        {/* LEFT (9 o'clock) — upright via CCW path */}
-        <text>
-          <textPath href="#bezelCCW" startOffset="21%" textAnchor="middle">
-            CYBER-LENS 0.1nm RES
-          </textPath>
-        </text>
+        {/* TOP — on CW path (start=9), 25% around = 12 o'clock, upright */}
+        <text><textPath href="#bezelCW" startOffset="25%" textAnchor="middle">CYBER-LENS 0.1nm RES</textPath></text>
+        {/* RIGHT — CW 50% = 3 o'clock, reads top→bottom on outer edge */}
+        <text><textPath href="#bezelCW" startOffset="50%" textAnchor="middle">CYBER-LENS 0.1nm RES</textPath></text>
+        {/* BOTTOM — CCW path (start=3), 25% around CCW = 6 o'clock, upright */}
+        <text><textPath href="#bezelCCW" startOffset="25%" textAnchor="middle">CYBER-LENS 0.1nm RES</textPath></text>
+        {/* LEFT — CCW 50% = 9 o'clock, reads bottom→top on outer edge */}
+        <text><textPath href="#bezelCCW" startOffset="50%" textAnchor="middle">CYBER-LENS 0.1nm RES</textPath></text>
       </g>
 
       {/* LCD-strip tick clusters at 4 inter-cardinal positions (~45°) */}
