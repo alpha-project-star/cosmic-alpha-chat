@@ -182,8 +182,8 @@
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 30px oklch(0.72 0.22 250 / 0.4), 0 0 80px oklch(0.6 0.25 250 / 0.25); }
-  50% { box-shadow: 0 0 60px oklch(0.78 0.22 245 / 0.7), 0 0 140px oklch(0.6 0.25 250 / 0.5); }
+  0%, 100% { box-shadow: 0 0 30px oklch(0.4 0.15 260 / 0.35), 0 0 80px oklch(0.3 0.16 260 / 0.22); }
+  50% { box-shadow: 0 0 60px oklch(0.5 0.16 260 / 0.6), 0 0 140px oklch(0.35 0.18 260 / 0.45); }
 }
 
 @keyframes orb-beat {
@@ -273,10 +273,10 @@
   padding: 2px 4px;
   border-radius: 6px;
   background: linear-gradient(180deg,
-    oklch(0.10 0.06 260 / 0.4),
-    oklch(0.05 0.04 260 / 0.55));
-  border: 1px solid oklch(0.55 0.22 250 / 0.35);
-  box-shadow: inset 0 0 10px oklch(0.55 0.22 250 / 0.15);
+    oklch(0.07 0.03 260 / 0.5),
+    oklch(0.03 0.02 260 / 0.65));
+  border: 1px solid oklch(0.7 0.01 240 / 0.22);
+  box-shadow: inset 0 0 10px oklch(0.35 0.15 260 / 0.18);
   overflow: hidden;
 }
 .kitt-bar {
@@ -284,9 +284,9 @@
   min-width: 2px;
   border-radius: 2px;
   background: linear-gradient(180deg,
-    oklch(0.85 0.22 240),
-    oklch(0.55 0.25 250));
-  box-shadow: 0 0 6px oklch(0.75 0.25 245 / 0.9);
+    oklch(0.55 0.16 260),
+    oklch(0.3 0.16 262));
+  box-shadow: 0 0 6px oklch(0.42 0.16 260 / 0.85);
   opacity: var(--kitt-min, 0.2);
   animation-name: kitt-wave;
   animation-duration: var(--kitt-dur, 1800ms);
@@ -318,10 +318,10 @@
   padding: 2px 4px;
   border-radius: 6px;
   background: linear-gradient(180deg,
-    oklch(0.10 0.06 260 / 0.4),
-    oklch(0.05 0.04 260 / 0.55));
-  border: 1px solid oklch(0.55 0.22 250 / 0.35);
-  box-shadow: inset 0 0 10px oklch(0.55 0.22 250 / 0.15);
+    oklch(0.07 0.03 260 / 0.5),
+    oklch(0.03 0.02 260 / 0.65));
+  border: 1px solid oklch(0.7 0.01 240 / 0.22);
+  box-shadow: inset 0 0 10px oklch(0.35 0.15 260 / 0.18);
   overflow: hidden;
   min-width: 0;
 }
@@ -330,9 +330,9 @@
 .kitt-gap {
   flex: 0 0 10px;
   align-self: stretch;
-  border-left: 1px solid oklch(0.85 0.2 245 / 0.6);
-  border-right: 1px solid oklch(0.85 0.2 245 / 0.6);
-  box-shadow: 0 0 8px oklch(0.75 0.25 245 / 0.6);
+  border-left: 1px solid oklch(0.86 0.01 240 / 0.55);
+  border-right: 1px solid oklch(0.86 0.01 240 / 0.55);
+  box-shadow: 0 0 8px oklch(0.4 0.16 260 / 0.5);
 }
 .kitt-scanner.kitt-off .kitt-bar,
 .kitt-split.kitt-off .kitt-bar { animation: none; opacity: 0; }
@@ -356,33 +356,33 @@
   display: block;
   width: 100%;
   overflow: visible;
-  filter: drop-shadow(0 0 10px oklch(0.75 0.22 245 / 0.75));
+  filter: drop-shadow(0 0 10px oklch(0.4 0.16 260 / 0.7));
 }
 .kitt-arc-rail {
   fill: none;
-  stroke: oklch(0.55 0.22 250 / 0.35);
+  stroke: oklch(0.7 0.01 240 / 0.28);
   stroke-width: 18;
   stroke-linecap: round;
 }
 .kitt-arc-frame {
   fill: none;
-  stroke: oklch(0.75 0.22 245 / 0.55);
+  stroke: oklch(0.45 0.15 260 / 0.5);
   stroke-width: 22;
   stroke-linecap: round;
   opacity: 0.35;
-  filter: drop-shadow(0 0 6px oklch(0.75 0.22 245 / 0.5));
+  filter: drop-shadow(0 0 6px oklch(0.4 0.16 260 / 0.45));
 }
 .kitt-arc-segment {
-  fill: oklch(0.86 0.22 240);
+  fill: oklch(0.5 0.16 260);
   opacity: 0.25;
-  filter: drop-shadow(0 0 6px oklch(0.82 0.22 238 / 0.95));
+  filter: drop-shadow(0 0 6px oklch(0.42 0.16 260 / 0.9));
   animation: kitt-arc-pulse var(--kitt-dur, 1800ms) ease-in-out infinite alternate;
 }
 .kitt-arc-gap {
   fill: oklch(0.06 0.04 260 / 0.96);
-  stroke: oklch(0.8 0.2 245 / 0.5);
+  stroke: oklch(0.86 0.01 240 / 0.55);
   stroke-width: 1;
-  filter: drop-shadow(0 0 6px oklch(0.75 0.25 245 / 0.65));
+  filter: drop-shadow(0 0 6px oklch(0.4 0.16 260 / 0.55));
 }
 .kitt-arc.kitt-off .kitt-arc-segment { animation: none; opacity: 0.05; }
 .kitt-arc.kitt-off .kitt-arc-rail,
@@ -473,10 +473,10 @@
 }
 .alpha-ripple {
   border-style: solid;
-  border-color: oklch(0.82 0.24 238 / 0.55);
+  border-color: oklch(0.5 0.16 260 / 0.5);
   box-shadow:
-    0 0 24px oklch(0.72 0.28 240 / 0.35),
-    inset 0 0 18px oklch(0.72 0.28 240 / 0.25);
+    0 0 24px oklch(0.4 0.16 260 / 0.3),
+    inset 0 0 18px oklch(0.4 0.16 260 / 0.22);
   animation-name: alpha-ripple;
   animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
   animation-iteration-count: infinite;
