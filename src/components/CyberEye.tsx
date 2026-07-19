@@ -22,6 +22,9 @@ export function CyberEye({
 }) {
   const [level, setLevel] = useState(0);
   const [beat, setBeat] = useState(0);
+  const [tilt, setTilt] = useState({ x: 0, y: 0, r: 0 });
+  const [blink, setBlink] = useState(0);
+  const [pulse, setPulse] = useState(0);
 
   useEffect(() => {
     if (!analyser || !active) { setLevel(0); return; }
@@ -46,9 +49,39 @@ export function CyberEye({
     loop(); return () => cancelAnimationFrame(raf);
   }, [speaking, active]);
 
+  // Idle micro-tilt: the eye subtly drifts / glances around, always alive.
+  useEffect(() => {
+    let raf = 0; const t0 = performance.now();
+    const loop = () => {
+      const t = (performance.now() - t0) / 1000;
+      const x = Math.sin(t * 0.37) * 2.4 + Math.sin(t * 0.91 + 1.3) * 1.1;
+      const y = Math.cos(t * 0.29) * 1.8 + Math.sin(t * 0.73 + 0.6) * 0.9;
+      const r = Math.sin(t * 0.21) * 1.2;
+      setTilt({ x, y, r });
+      setPulse(0.5 + 0.5 * Math.sin(t * 1.6));
+      raf = requestAnimationFrame(loop);
+    };
+    loop(); return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // Occasional blink — closes for ~150ms every 5–9s.
+  useEffect(() => {
+    let cancelled = false;
+    const schedule = () => {
+      const wait = 5000 + Math.random() * 4000;
+      setTimeout(() => {
+        if (cancelled) return;
+        setBlink(1);
+        setTimeout(() => { if (!cancelled) setBlink(0); schedule(); }, 150);
+      }, wait);
+    };
+    schedule();
+    return () => { cancelled = true; };
+  }, []);
+
   const hot = active || speaking;
   const bezelDur = hot ? "24s" : "60s";
-  const pupilGlow = 0.32 + (active ? level * 0.5 : 0) + (speaking ? beat * 0.28 : 0);
+  const pupilGlow = 0.32 + (active ? level * 0.5 : 0) + (speaking ? beat * 0.28 : 0) + pulse * 0.18;
   const liveOpacity = hot ? 0.34 + level * 0.24 + beat * 0.12 : 0.18;
 
   const rPupil = 9.4;
@@ -128,9 +161,15 @@ export function CyberEye({
 
   return (
     <div className="relative select-none" style={{ width: size, height: size }}>
-      {/* Reference-accurate cyber lens base. The procedural SVG below stays as
-          Alpha's live reactive layer, but the material, proportions, brushed
-          silver, HUD rings, and aperture all come from the supplied original. */}
+      <div
+        className="absolute inset-0"
+        style={{
+          transform: `translate3d(${tilt.x * 0.35}%, ${tilt.y * 0.35}%, 0) rotate(${tilt.r * 0.2}deg)`,
+          animation: "cyber-breath 5.2s ease-in-out infinite",
+          transition: "transform .18s ease-out",
+        }}
+      >
+      {/* Reference-accurate cyber lens base. */}
       <img
         src="/cyber-eye-reference.png"
         alt=""
