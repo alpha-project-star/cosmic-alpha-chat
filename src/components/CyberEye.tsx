@@ -51,40 +51,42 @@ export function CyberEye({
   const bezelDur = hot ? "24s" : "60s";
   const pupilGlow = 0.5 + (active ? level * 0.7 : 0) + (speaking ? beat * 0.5 : 0);
 
-  // 8 curved neon-blue light streaks that read as spiraling iris blades.
-  // Each streak is a quadratic curve from the outer HUD edge inward toward
-  // the pupil rim, with a control point offset tangentially to give the
-  // characteristic spiral. These are drawn as glowing strokes, not fills,
-  // so the HUD retina remains fully visible behind them.
+  // 8 gentle neon-blue light-streak crescents that read as iris blades.
+  // The angular offset (~0.35 rad) is deliberately small so the streaks
+  // are almost radial with a subtle CCW tilt — matching the reference,
+  // where the blades are long soft arcs, not aggressive spirals.
   const BLADES = 8;
   const rOuter = 47;
-  const rPupil = 14;
+  const rPupil = 12;
   const bladeStreaks = Array.from({ length: BLADES }, (_, i) => {
     const a0 = (i / BLADES) * Math.PI * 2 - Math.PI / 2;
-    const a1 = a0 + 0.85; // spiral inward with angular offset
+    const a1 = a0 + 0.32;
     const x1 = 50 + Math.cos(a0) * rOuter;
     const y1 = 50 + Math.sin(a0) * rOuter;
     const x2 = 50 + Math.cos(a1) * (rPupil + 1);
     const y2 = 50 + Math.sin(a1) * (rPupil + 1);
-    // Control point pulled tangentially for the spiral curvature
     const am = (a0 + a1) / 2;
-    const cx = 50 + Math.cos(am + 0.35) * ((rOuter + rPupil) / 2);
-    const cy = 50 + Math.sin(am + 0.35) * ((rOuter + rPupil) / 2);
+    // Control point slightly off the chord for gentle curvature.
+    const cx = 50 + Math.cos(am + 0.12) * ((rOuter + rPupil) / 2);
+    const cy = 50 + Math.sin(am + 0.12) * ((rOuter + rPupil) / 2);
     return `M ${x1.toFixed(2)},${y1.toFixed(2)} Q ${cx.toFixed(2)},${cy.toFixed(2)} ${x2.toFixed(2)},${y2.toFixed(2)}`;
   });
 
   // 8-segment spiral shutter pupil — overlapping curved petals forming the
-  // classic camera-aperture swirl at the very centre.
+  // classic camera-aperture swirl at the very centre. Tip angle is small
+  // (0.35 rad) so blades curve smoothly rather than spike outward.
   const PUPIL_BLADES = 8;
-  const rP = rPupil - 2;   // pupil outer
-  const rC = 2.6;          // where petal tips converge
+  const rP = rPupil - 1;   // pupil outer
+  const rC = 1.6;          // where petal tips converge
   const shutterPetals = Array.from({ length: PUPIL_BLADES }, (_, i) => {
     const a0 = (i / PUPIL_BLADES) * Math.PI * 2;
     const a1 = a0 + (Math.PI * 2) / PUPIL_BLADES;
-    const aTip = a0 + 0.55; // rotation gives the swirl
+    const aTip = a0 + 0.35;
     const p = (r: number, ang: number) =>
       `${(50 + Math.cos(ang) * r).toFixed(2)},${(50 + Math.sin(ang) * r).toFixed(2)}`;
-    return `M ${p(rP, a0)} A ${rP} ${rP} 0 0 1 ${p(rP, a1)} Q ${p(rC + 1.5, aTip + 0.2)} ${p(rC, aTip)} Z`;
+    const cA = a0 + 0.25;
+    const cR = (rP + rC) / 2 + 1.2;
+    return `M ${p(rP, a0)} A ${rP} ${rP} 0 0 1 ${p(rP, a1)} Q ${p(cR, cA)} ${p(rC, aTip)} Z`;
   });
 
   // Radial "light burst" rays emanating from the pupil.
@@ -129,9 +131,11 @@ export function CyberEye({
       {/* Dark metallic groove holding the aperture */}
       <div className="absolute inset-[8%] rounded-full cyber-groove" />
 
-      {/* SVG stack: HUD retina + light-streak iris + radial burst + shutter pupil */}
-      <svg viewBox="0 0 100 100" className="absolute inset-[10%] w-[80%] h-[80%] overflow-visible">
+      {/* SVG stack: HUD retina + light-streak iris + radial burst + shutter pupil.
+          NOTE: no overflow-visible — crosshair/rays must clip at the lens edge. */}
+      <svg viewBox="0 0 100 100" className="absolute inset-[10%] w-[80%] h-[80%]">
         <defs>
+          <clipPath id="lensClip"><circle cx="50" cy="50" r="49" /></clipPath>
           <radialGradient id="pupilCore" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="oklch(0.99 0.06 232)" stopOpacity="1" />
             <stop offset="28%" stopColor="oklch(0.82 0.28 240)" stopOpacity="0.95" />
@@ -161,6 +165,7 @@ export function CyberEye({
           </filter>
         </defs>
 
+        <g clipPath="url(#lensClip)">
         {/* Lens background */}
         <circle cx="50" cy="50" r="49" fill="url(#lensBg)" />
 
@@ -259,6 +264,7 @@ export function CyberEye({
 
         {/* Glossy top-half dome highlight */}
         <ellipse cx="50" cy="28" rx="36" ry="14" fill="url(#glassSheen)" opacity="0.5" />
+        </g>
       </svg>
     </div>
   );
