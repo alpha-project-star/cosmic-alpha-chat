@@ -86,13 +86,13 @@ export function CyberEye({
     const a1 = a0 + (Math.PI * 2) / PUPIL_BLADES;
     const p = (r: number, ang: number) =>
       `${(50 + Math.cos(ang) * r).toFixed(2)},${(50 + Math.sin(ang) * r).toFixed(2)}`;
-    // Petal follows the outer arc, then curves inward with a soft C-shape
-    // toward the *next* blade's start position for the swirl overlap.
-    const cA = a0 + 0.55;
+    // Classic camera-aperture blade: outer arc from a0 → a1, then a curved
+    // chord back through an inner point biased toward a1 for the swirl.
+    const innerA = a0 + ((a1 - a0) * 0.72);
+    const innerR = rP * 0.08;
+    const cA = a0 + ((a1 - a0) * 0.35);
     const cR = rP * 0.55;
-    const tipA = a0 + 0.75;
-    const tipR = rP * 0.15;
-    return `M ${p(rP, a0)} A ${rP} ${rP} 0 0 1 ${p(rP, a1)} Q ${p(cR, cA)} ${p(tipR, tipA)} Z`;
+    return `M ${p(rP, a0)} A ${rP} ${rP} 0 0 1 ${p(rP, a1)} Q ${p(cR, cA)} ${p(innerR, innerA)} Z`;
   });
 
   // Radial "light burst" rays emanating from the pupil.
