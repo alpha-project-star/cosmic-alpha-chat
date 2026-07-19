@@ -143,9 +143,9 @@ export function CyberEye({
         className="absolute inset-0 rounded-full cyber-bezel"
         style={{ animation: `cyber-spin ${bezelDur} linear infinite` }}
       />
-      {/* Static bezel overlays (text + LCD ticks + inner tick ring) sit on
-          top of the rotating brushed metal so they read cleanly. */}
-      {showMicroText && <BezelOverlay />}
+      {/* Static bezel overlay: faint tick clusters by default; optional text
+          only where the smaller UI explicitly asks for it. */}
+      <BezelOverlay showText={showMicroText} />
       {/* Fine inner silver lip */}
       <div className="absolute inset-[9.5%] rounded-full cyber-bezel-lip pointer-events-none" />
 
@@ -357,7 +357,7 @@ export function CyberEye({
  *   • LCD-strip tick clusters between the text
  *   • fine tick ring on the inner edge of the bezel
  */
-function BezelOverlay() {
+function BezelOverlay({ showText }: { showText: boolean }) {
   // Bezel text is placed by rotation transform, not textPath — the string is
   // short enough to read as a straight chord, and this approach guarantees
   // upright glyphs on every browser.
@@ -377,7 +377,7 @@ function BezelOverlay() {
   ];
   return (
     <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full pointer-events-none">
-      {labels.map((l, i) => (
+      {showText && labels.map((l, i) => (
         <text
           key={i}
           x={l.tx}
@@ -395,9 +395,9 @@ function BezelOverlay() {
       ))}
 
       {/* LCD-strip tick clusters at 4 inter-cardinal positions (~45°) */}
-      <g stroke="oklch(0.85 0.24 235)" strokeWidth="0.35" opacity="0.9"
+      <g stroke="oklch(0.85 0.24 235)" strokeWidth="0.28" opacity={showText ? 0.74 : 0.42}
          style={{ filter: "drop-shadow(0 0 0.6px oklch(0.9 0.28 235))" }}>
-        {[45, 135, 225, 315].map((deg) => {
+        {[20, 70, 118, 162, 205, 250, 300, 338].map((deg) => {
           const a = (deg - 90) * Math.PI / 180;
           const cx = 50 + Math.cos(a) * 46;
           const cy = 50 + Math.sin(a) * 46;
@@ -407,11 +407,11 @@ function BezelOverlay() {
           const rx = Math.cos(a), ry = Math.sin(a);
           return (
             <g key={deg}>
-              {Array.from({ length: 9 }).map((_, i) => {
-                const off = (i - 4) * 0.55;
+              {Array.from({ length: 12 }).map((_, i) => {
+                const off = (i - 5.5) * 0.42;
                 const bx = cx + tx * off;
                 const by = cy + ty * off;
-                const len = i % 2 === 0 ? 1.4 : 0.8;
+                const len = i % 3 === 0 ? 1.15 : 0.62;
                 return (
                   <line key={i}
                     x1={bx - rx * len / 2} y1={by - ry * len / 2}
@@ -425,11 +425,11 @@ function BezelOverlay() {
       </g>
 
       {/* Fine tick ring on the inner edge of the bezel */}
-      <g stroke="oklch(0.6 0.06 240 / 0.9)" strokeWidth="0.14">
-        {Array.from({ length: 120 }).map((_, i) => {
-          const a = (i / 120) * Math.PI * 2;
-          const r1 = 43.5;
-          const r2 = i % 5 === 0 ? 42.3 : 42.9;
+      <g stroke="oklch(0.72 0.08 238 / 0.65)" strokeWidth="0.12">
+        {Array.from({ length: 180 }).map((_, i) => {
+          const a = (i / 180) * Math.PI * 2;
+          const r1 = 41.8;
+          const r2 = i % 9 === 0 ? 39.8 : i % 3 === 0 ? 40.6 : 41.1;
           return (
             <line key={i}
               x1={50 + Math.cos(a) * r1} y1={50 + Math.sin(a) * r1}
