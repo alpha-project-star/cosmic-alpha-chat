@@ -136,16 +136,16 @@ export function CyberEye({
         alt=""
         aria-hidden="true"
         draggable={false}
-        className="absolute inset-0 h-full w-full rounded-full object-cover pointer-events-none"
+        className="absolute inset-0 z-0 h-full w-full rounded-full object-cover pointer-events-none"
         style={{
-          filter: "saturate(1.08) contrast(1.08) brightness(0.96)",
-          opacity: 0.98,
+          filter: "saturate(1.12) contrast(1.12) brightness(0.98)",
+          opacity: 1,
         }}
       />
 
       {/* Outer neon halo */}
       <div
-        className="absolute inset-[-20%] rounded-full pointer-events-none"
+        className="absolute inset-[-20%] z-10 rounded-full pointer-events-none"
         style={{
           background: "radial-gradient(circle, oklch(0.72 0.25 240 / 0.5), transparent 66%)",
           filter: "blur(34px)",
@@ -156,24 +156,24 @@ export function CyberEye({
 
       {/* Rotating brushed silver bezel */}
       <div
-        className="absolute inset-0 rounded-full cyber-bezel pointer-events-none"
-        style={{ animation: `cyber-spin ${bezelDur} linear infinite`, opacity: hot ? 0.22 : 0.12, mixBlendMode: "screen" }}
+        className="absolute inset-0 z-10 rounded-full cyber-bezel pointer-events-none"
+        style={{ animation: `cyber-spin ${bezelDur} linear infinite`, opacity: hot ? 0.09 : 0.035, mixBlendMode: "screen" }}
       />
       {/* Static bezel overlay: faint tick clusters by default; optional text
           only where the smaller UI explicitly asks for it. */}
       {showMicroText && <BezelOverlay showText={showMicroText} />}
       {/* Fine inner silver lip */}
-      <div className="absolute inset-[9.5%] rounded-full cyber-bezel-lip pointer-events-none" style={{ opacity: hot ? 0.16 : 0.08, mixBlendMode: "screen" }} />
+      <div className="absolute inset-[9.5%] z-10 rounded-full cyber-bezel-lip pointer-events-none" style={{ opacity: hot ? 0.05 : 0.02, mixBlendMode: "screen" }} />
 
       {/* Dark metallic groove holding the aperture */}
-      <div className="absolute inset-[11.5%] rounded-full cyber-groove pointer-events-none" style={{ opacity: hot ? 0.18 : 0.08, mixBlendMode: "screen" }} />
+      <div className="absolute inset-[11.5%] z-10 rounded-full cyber-groove pointer-events-none" style={{ opacity: hot ? 0.04 : 0.015, mixBlendMode: "screen" }} />
 
       {/* SVG stack: HUD retina + light-streak iris + radial burst + shutter pupil.
           NOTE: no overflow-visible — crosshair/rays must clip at the lens edge. */}
       <svg
         viewBox="0 0 100 100"
-        className="absolute inset-[14%] w-[72%] h-[72%] pointer-events-none"
-        style={{ opacity: liveOpacity, mixBlendMode: "screen" }}
+        className="absolute inset-[14%] z-20 w-[72%] h-[72%] pointer-events-none"
+        style={{ opacity: Math.min(liveOpacity, hot ? 0.24 : 0.1), mixBlendMode: "screen" }}
       >
         <defs>
           <clipPath id="lensClip"><circle cx="50" cy="50" r="49" /></clipPath>
