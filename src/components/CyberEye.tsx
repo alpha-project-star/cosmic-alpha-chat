@@ -50,44 +50,44 @@ export function CyberEye({
   const bezelDur = hot ? "24s" : "60s";
   const pupilGlow = 0.32 + (active ? level * 0.5 : 0) + (speaking ? beat * 0.28 : 0);
 
-  const rPupil = 8.6;
+  const rPupil = 9.4;
 
   // Dark overlapping mechanical shutters under the blue light traces. These
   // sit in the outer retina like the reference's camera-aperture fins.
-  const APERTURE_PANELS = 18;
+  const APERTURE_PANELS = 16;
   const aperturePanels = Array.from({ length: APERTURE_PANELS }, (_, i) => {
     const step = (Math.PI * 2) / APERTURE_PANELS;
     const a0 = i * step - Math.PI / 2 + 0.04;
     const a1 = a0 + step * 1.42;
     const p = (r: number, a: number) => `${(50 + Math.cos(a) * r).toFixed(2)},${(50 + Math.sin(a) * r).toFixed(2)}`;
-    return `M ${p(47.8, a0)} A 47.8 47.8 0 0 1 ${p(47.8, a1)} Q ${p(33.5, a1 + 0.34)} ${p(36.8, a0 + 0.2)} Z`;
+    return `M ${p(47.5, a0)} A 47.5 47.5 0 0 1 ${p(47.5, a1)} Q ${p(36.5, a1 + 0.22)} ${p(38.6, a0 + 0.18)} Z`;
   });
 
   // Long cyan crescents: many slim arcs sweep counter-clockwise around the rim,
   // stopping before the pupil so the centre remains a true eye/shutter rather
   // than a starburst.
-  const LIGHT_ARCS = 18;
+  const LIGHT_ARCS = 16;
   const bladeStreaks = Array.from({ length: LIGHT_ARCS }, (_, i) => {
-    const a0 = (i / LIGHT_ARCS) * Math.PI * 2 - Math.PI / 2 - 0.07;
-    const a1 = a0 + 0.78;
-    const x1 = 50 + Math.cos(a0) * 46.6;
-    const y1 = 50 + Math.sin(a0) * 46.6;
-    const x2 = 50 + Math.cos(a1) * 33.2;
-    const y2 = 50 + Math.sin(a1) * 33.2;
-    const cx = 50 + Math.cos(a0 + 0.43) * 48.8;
-    const cy = 50 + Math.sin(a0 + 0.43) * 48.8;
+    const a0 = (i / LIGHT_ARCS) * Math.PI * 2 - Math.PI / 2 - 0.02;
+    const a1 = a0 + 0.66;
+    const x1 = 50 + Math.cos(a0) * 46.2;
+    const y1 = 50 + Math.sin(a0) * 46.2;
+    const x2 = 50 + Math.cos(a1) * 35.8;
+    const y2 = 50 + Math.sin(a1) * 35.8;
+    const cx = 50 + Math.cos(a0 + 0.36) * 48.2;
+    const cy = 50 + Math.sin(a0 + 0.36) * 48.2;
     return `M ${x1.toFixed(2)},${y1.toFixed(2)} Q ${cx.toFixed(2)},${cy.toFixed(2)} ${x2.toFixed(2)},${y2.toFixed(2)}`;
   });
 
-  const innerLightArcs = Array.from({ length: 10 }, (_, i) => {
-    const a0 = (i / 10) * Math.PI * 2 - Math.PI / 2 + 0.12;
-    const a1 = a0 + 0.5;
-    const x1 = 50 + Math.cos(a0) * 31;
-    const y1 = 50 + Math.sin(a0) * 31;
-    const x2 = 50 + Math.cos(a1) * 17;
-    const y2 = 50 + Math.sin(a1) * 17;
-    const cx = 50 + Math.cos(a0 + 0.28) * 32.5;
-    const cy = 50 + Math.sin(a0 + 0.28) * 32.5;
+  const innerLightArcs = Array.from({ length: 8 }, (_, i) => {
+    const a0 = (i / 8) * Math.PI * 2 - Math.PI / 2 + 0.08;
+    const a1 = a0 + 0.46;
+    const x1 = 50 + Math.cos(a0) * 29.5;
+    const y1 = 50 + Math.sin(a0) * 29.5;
+    const x2 = 50 + Math.cos(a1) * 18.8;
+    const y2 = 50 + Math.sin(a1) * 18.8;
+    const cx = 50 + Math.cos(a0 + 0.25) * 30.2;
+    const cy = 50 + Math.sin(a0 + 0.25) * 30.2;
     return `M ${x1.toFixed(2)},${y1.toFixed(2)} Q ${cx.toFixed(2)},${cy.toFixed(2)} ${x2.toFixed(2)},${y2.toFixed(2)}`;
   });
 
@@ -147,14 +147,14 @@ export function CyberEye({
           top of the rotating brushed metal so they read cleanly. */}
       {showMicroText && <BezelOverlay />}
       {/* Fine inner silver lip */}
-      <div className="absolute inset-[12.5%] rounded-full cyber-bezel-lip pointer-events-none" />
+      <div className="absolute inset-[9.5%] rounded-full cyber-bezel-lip pointer-events-none" />
 
       {/* Dark metallic groove holding the aperture */}
-      <div className="absolute inset-[15%] rounded-full cyber-groove" />
+      <div className="absolute inset-[11.5%] rounded-full cyber-groove" />
 
       {/* SVG stack: HUD retina + light-streak iris + radial burst + shutter pupil.
           NOTE: no overflow-visible — crosshair/rays must clip at the lens edge. */}
-      <svg viewBox="0 0 100 100" className="absolute inset-[18%] w-[64%] h-[64%]">
+      <svg viewBox="0 0 100 100" className="absolute inset-[14%] w-[72%] h-[72%]">
         <defs>
           <clipPath id="lensClip"><circle cx="50" cy="50" r="49" /></clipPath>
           <radialGradient id="pupilCore" cx="50%" cy="50%" r="50%">
@@ -198,7 +198,7 @@ export function CyberEye({
         <circle cx="50" cy="50" r="49" fill="url(#lensBg)" />
 
         {/* Outer dark aperture fins beneath the cyan traces */}
-        <g opacity="0.78">
+        <g opacity="0.9">
           {aperturePanels.map((d, i) => (
             <path
               key={i}
@@ -232,7 +232,7 @@ export function CyberEye({
           ))}
         </g>
 
-        <g stroke="oklch(0.5 0.2 240 / 0.34)" strokeWidth="0.12" filter="url(#neonBlur)">
+        <g stroke="oklch(0.5 0.2 240 / 0.28)" strokeWidth="0.1" filter="url(#neonBlur)">
           {Array.from({ length: 48 }).map((_, i) => {
             const a = (i / 48) * Math.PI * 2;
             const major = i % 6 === 0;
@@ -250,8 +250,8 @@ export function CyberEye({
         </g>
 
         {/* Circuit-like rectangular glyphs concentrated around the retina */}
-        <g fill="none" stroke="oklch(0.7 0.22 238 / 0.5)" strokeWidth="0.22" filter="url(#neonBlur)">
-          {Array.from({ length: 34 }).map((_, i) => {
+        <g fill="none" stroke="oklch(0.7 0.22 238 / 0.43)" strokeWidth="0.18" filter="url(#neonBlur)">
+          {Array.from({ length: 28 }).map((_, i) => {
             const a = (i * 137.508) * Math.PI / 180;
             const r = 18 + ((i * 11) % 26);
             const x = 50 + Math.cos(a) * r;
@@ -305,9 +305,9 @@ export function CyberEye({
           {bladeStreaks.map((d, i) => (
             <g key={i}>
               {/* soft outer glow */}
-              <path d={d} stroke="oklch(0.75 0.28 240)" strokeWidth="1.15" opacity="0.34" />
+              <path d={d} stroke="oklch(0.75 0.28 240)" strokeWidth="1.0" opacity="0.28" />
               {/* bright inner streak */}
-              <path d={d} stroke="oklch(0.96 0.22 235)" strokeWidth="0.32" opacity={i % 3 === 0 ? 0.9 : 0.72} />
+              <path d={d} stroke="oklch(0.96 0.22 235)" strokeWidth="0.24" opacity={i % 4 === 0 ? 0.82 : 0.58} />
             </g>
           ))}
           {innerLightArcs.map((d, i) => (
@@ -325,7 +325,7 @@ export function CyberEye({
         {/* Spiral shutter pupil — bright blue overlapping petals with a
             smooth swirl (no starburst spikes). */}
         <g style={{ filter: `drop-shadow(0 0 ${4 + pupilGlow * 7}px oklch(0.78 0.28 238))` }}>
-          <circle cx="50" cy="50" r={rP + 0.6} fill="oklch(0.05 0.08 255)" />
+          <circle cx="50" cy="50" r={rP + 0.6} fill="oklch(0.025 0.05 255)" />
           {shutterPetals.map((d, i) => (
             <path
               key={i}
