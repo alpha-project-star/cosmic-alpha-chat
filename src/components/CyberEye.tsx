@@ -246,10 +246,8 @@ export function CyberEye({
           ))}
         </g>
 
-        {/* Radial burst gradient disc behind pupil (soft bloom) — larger and
-            brighter so the pupil clearly radiates, matching the reference. */}
-        <circle cx="50" cy="50" r={rPupil + 16 + pupilGlow * 4} fill="url(#burstGrad)" opacity={0.75 + pupilGlow * 0.25} />
-        <circle cx="50" cy="50" r={rPupil + 6} fill="oklch(0.95 0.24 235)" opacity={0.35 + pupilGlow * 0.25} filter="url(#neonGlow)" />
+        {/* Radial burst gradient disc behind pupil (soft bloom). */}
+        <circle cx="50" cy="50" r={rPupil + 14 + pupilGlow * 3} fill="url(#burstGrad)" opacity={0.55 + pupilGlow * 0.2} />
 
         {/* Spiral shutter pupil — bright blue overlapping petals with a
             smooth swirl (no starburst spikes). */}
@@ -266,7 +264,7 @@ export function CyberEye({
             />
           ))}
           {/* Bright rim of the pupil disc */}
-          <circle cx="50" cy="50" r={rP + 0.4} fill="none" stroke="oklch(0.99 0.22 232)" strokeWidth="0.35" opacity="0.9" />
+          <circle cx="50" cy="50" r={rP + 0.3} fill="none" stroke="oklch(0.95 0.22 235)" strokeWidth="0.25" opacity="0.85" />
         </g>
 
         {/* Pitch-black micro void at dead center */}
