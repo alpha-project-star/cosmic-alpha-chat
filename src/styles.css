@@ -220,14 +220,14 @@
   font-family: Orbitron, "Space Grotesk", ui-sans-serif, sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.35em;
-  color: var(--silver);
-  text-shadow: 0 0 6px oklch(0.5 0.16 260 / 0.75), 0 0 20px oklch(0.35 0.16 260 / 0.55);
+  color: oklch(0.82 0.28 258);
+  text-shadow: 0 0 8px oklch(0.75 0.3 258 / 0.95), 0 0 24px oklch(0.6 0.3 258 / 0.7), 0 0 40px oklch(0.5 0.3 258 / 0.4);
 }
 
 @utility hud-frame {
   position: relative;
   background: var(--gradient-hud-panel);
-  border: 1px solid var(--silver-dark);
+  border: 1px solid oklch(0.9 0.01 240 / 0.55);
   border-radius: 20px;
   box-shadow: var(--shadow-hud);
   backdrop-filter: blur(14px) saturate(140%);
@@ -249,11 +249,11 @@
 }
 
 @utility hud-bubble {
-  background: linear-gradient(180deg, oklch(0.09 0.03 260 / 0.65), oklch(0.03 0.02 260 / 0.8));
-  border: 1px solid oklch(0.7 0.01 240 / 0.22);
+  background: linear-gradient(180deg, oklch(0.12 0.06 260 / 0.7), oklch(0.04 0.03 260 / 0.85));
+  border: 1px solid oklch(0.75 0.22 258 / 0.45);
   border-radius: 14px;
-  box-shadow: 0 0 10px oklch(0.35 0.16 260 / 0.22), inset 0 0 8px oklch(0.35 0.16 260 / 0.1);
-  color: oklch(0.92 0.01 240);
+  box-shadow: 0 0 14px oklch(0.65 0.28 258 / 0.4), inset 0 0 10px oklch(0.55 0.28 258 / 0.18);
+  color: oklch(0.96 0.03 240);
 }
 
 @keyframes hud-scan {
