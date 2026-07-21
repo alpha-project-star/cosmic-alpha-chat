@@ -154,7 +154,11 @@ function chunkForTTS(text: string, firstMax = 80, restMax = 220): string[] {
 
 function browserSpeak(text: string): Promise<void> {
   return new Promise(resolve => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) { resolve(); return; }
+    if (typeof window === "undefined" || !("speechSynthesis" in window) || !window.speechSynthesis) {
+      // WebView (e.g. LovableApp on Android) has no speechSynthesis — use network fallback.
+      networkSpeak(text).then(() => resolve());
+      return;
+    }
     if (!cachedVoice) cachedVoice = pickVoice();
     const u = new SpeechSynthesisUtterance(text);
     if (cachedVoice) { u.voice = cachedVoice; u.lang = cachedVoice.lang; }
@@ -170,6 +174,26 @@ function browserSpeak(text: string): Promise<void> {
       window.speechSynthesis.speak(u);
     } catch { resolve(); }
   });
+}
+
+/**
+ * Network TTS fallback for environments without window.speechSynthesis
+ * (Android WebView / LovableApp). Uses StreamElements' free CORS-enabled
+ * endpoint with a British male voice.
+ */
+async function networkSpeak(text: string): Promise<void> {
+  try {
+    const voice = "Brian"; // British male; matches Alpha's persona
+    const url = `https://api.streamelements.com/kappa/v2/speech?voice=${encodeURIComponent(voice)}&text=${encodeURIComponent(text.slice(0, 500))}`;
+    const audio = new Audio(url);
+    audio.crossOrigin = "anonymous";
+    audio.playbackRate = alphaStore.get().settings.ttsRate || 1;
+    currentAudio = audio;
+    await playAudio(audio);
+    currentAudio = null;
+  } catch (e) {
+    console.warn("[voice] network TTS failed:", e);
+  }
 }
 
 /**
