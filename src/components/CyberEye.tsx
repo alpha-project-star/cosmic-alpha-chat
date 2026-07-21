@@ -212,7 +212,7 @@ export function CyberEye({
       <svg
         viewBox="0 0 100 100"
         className="absolute inset-[14%] z-20 w-[72%] h-[72%] pointer-events-none"
-        style={{ opacity: Math.min(liveOpacity, hot ? 0.24 : 0.1), mixBlendMode: "screen" }}
+        style={{ opacity: Math.max(0.55, Math.min(1, liveOpacity + 0.4)), mixBlendMode: "screen" }}
       >
         <defs>
           <clipPath id="lensClip"><circle cx="50" cy="50" r="49" /></clipPath>
@@ -381,26 +381,37 @@ export function CyberEye({
         <circle cx="50" cy="50" r={rPupil + 10 + pupilGlow * 2.4} fill="url(#burstGrad)" opacity={0.3 + pupilGlow * 0.12} />
         <circle cx="50" cy="50" r={rPupil + 2.1} fill="none" stroke="oklch(0.94 0.22 235)" strokeWidth="0.45" opacity="0.62" filter="url(#neonBlur)" />
 
-        {/* Spiral shutter pupil — bright blue overlapping petals with a
-            smooth swirl (no starburst spikes). */}
-        <g opacity="0.46" style={{ filter: `drop-shadow(0 0 ${4 + pupilGlow * 7}px oklch(0.78 0.28 238))` }}>
-          <circle cx="50" cy="50" r={rP + 0.6} fill="oklch(0.025 0.05 255)" />
+        {/* Spiral shutter pupil — spinning, glowing, alive. */}
+        <g
+          opacity="1"
+          style={{
+            transformOrigin: "50px 50px",
+            transformBox: "fill-box",
+            animation: "cyber-spin 6s linear infinite",
+            filter: `drop-shadow(0 0 ${8 + pupilGlow * 14}px oklch(0.9 0.3 254)) drop-shadow(0 0 ${16 + pupilGlow * 22}px oklch(0.72 0.32 258))`,
+          }}
+        >
+          <circle cx="50" cy="50" r={rP + 1.2} fill="oklch(0.06 0.14 258)" />
           {shutterPetals.map((d, i) => (
             <path
               key={i}
               d={d}
-              fill={i % 2 === 0 ? "oklch(0.18 0.2 248)" : "oklch(0.28 0.22 242)"}
-              stroke="oklch(0.82 0.25 235)"
-              strokeWidth="0.18"
-              opacity="0.92"
+              fill={i % 2 === 0 ? "oklch(0.55 0.3 258)" : "oklch(0.75 0.28 254)"}
+              stroke="oklch(0.98 0.22 250)"
+              strokeWidth="0.25"
+              opacity="1"
             />
           ))}
           {/* Bright rim of the pupil disc */}
-          <circle cx="50" cy="50" r={rP + 0.6} fill="none" stroke="oklch(0.95 0.22 235)" strokeWidth="0.35" opacity="0.88" />
+          <circle cx="50" cy="50" r={rP + 1.2} fill="none" stroke="oklch(0.98 0.22 250)" strokeWidth="0.5" opacity="1" />
         </g>
 
-        {/* Pitch-black micro void at dead center */}
-        <circle cx="50" cy="50" r="2.7" fill="#000" />
+        {/* Living core — bright pulsing navy-neon center */}
+        <g style={{ transformOrigin: "50px 50px", transformBox: "fill-box", animation: "cyber-pupil-pulse 1.6s ease-in-out infinite" }}>
+          <circle cx="50" cy="50" r={2.4 + pupilGlow * 1.4} fill="oklch(0.98 0.22 250)" opacity="0.95"
+            style={{ filter: "drop-shadow(0 0 6px oklch(0.85 0.3 254)) drop-shadow(0 0 12px oklch(0.7 0.32 258))" }} />
+          <circle cx="50" cy="50" r={1.1 + pupilGlow * 0.6} fill="#fff" opacity="1" />
+        </g>
 
         {/* Glossy top-half dome highlight */}
         <ellipse cx="50" cy="28" rx="36" ry="14" fill="url(#glassSheen)" opacity="0.5" />
