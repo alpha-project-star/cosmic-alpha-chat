@@ -284,9 +284,9 @@
   min-width: 2px;
   border-radius: 2px;
   background: linear-gradient(180deg,
-    oklch(0.55 0.16 260),
-    oklch(0.3 0.16 262));
-  box-shadow: 0 0 6px oklch(0.42 0.16 260 / 0.85);
+    oklch(0.88 0.28 254),
+    oklch(0.55 0.3 258));
+  box-shadow: 0 0 8px oklch(0.78 0.3 258 / 0.95);
   opacity: var(--kitt-min, 0.2);
   animation-name: kitt-wave;
   animation-duration: var(--kitt-dur, 1800ms);
@@ -373,9 +373,9 @@
   filter: drop-shadow(0 0 6px oklch(0.4 0.16 260 / 0.45));
 }
 .kitt-arc-segment {
-  fill: oklch(0.5 0.16 260);
+  fill: oklch(0.78 0.3 258);
   opacity: 0.25;
-  filter: drop-shadow(0 0 6px oklch(0.42 0.16 260 / 0.9));
+  filter: drop-shadow(0 0 8px oklch(0.78 0.3 258 / 1));
   animation: kitt-arc-pulse var(--kitt-dur, 1800ms) ease-in-out infinite alternate;
 }
 .kitt-arc-gap {
@@ -473,10 +473,10 @@
 }
 .alpha-ripple {
   border-style: solid;
-  border-color: oklch(0.5 0.16 260 / 0.5);
+  border-color: oklch(0.78 0.3 258 / 0.75);
   box-shadow:
-    0 0 24px oklch(0.4 0.16 260 / 0.3),
-    inset 0 0 18px oklch(0.4 0.16 260 / 0.22);
+    0 0 32px oklch(0.72 0.3 258 / 0.55),
+    inset 0 0 22px oklch(0.7 0.3 258 / 0.4);
   animation-name: alpha-ripple;
   animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
   animation-iteration-count: infinite;
