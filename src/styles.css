@@ -198,18 +198,18 @@
     -webkit-backdrop-filter: blur(18px) saturate(140%);
     border: 1px solid oklch(0.7 0.01 240 / 0.22);
   }
-  .neon-text { color: oklch(0.86 0.01 240); text-shadow: 0 0 8px oklch(0.45 0.16 260 / 0.7), 0 0 24px oklch(0.35 0.16 260 / 0.5); }
+  .neon-text { color: oklch(0.82 0.28 258); text-shadow: 0 0 10px oklch(0.75 0.3 258 / 0.9), 0 0 28px oklch(0.6 0.3 258 / 0.65); }
   .neon-border { box-shadow: var(--shadow-glow); }
   .conic-ring { background: var(--gradient-aurora); animation: spin-angle 8s linear infinite; }
   .starfield {
     background:
-      /* subtle silver sweep */
-      linear-gradient(115deg, transparent 40%, oklch(0.86 0.01 240 / 0.06) 50%, transparent 60%) 0 0 / 300% 100%,
-      /* faint neon-blue vignette */
-      radial-gradient(1400px 800px at 50% -10%, oklch(0.18 0.12 260 / 0.32), transparent 60%),
-      radial-gradient(1000px 700px at 50% 110%, oklch(0.14 0.1 260 / 0.28), transparent 60%),
+      /* bright silver sweep */
+      linear-gradient(115deg, transparent 38%, oklch(0.96 0.01 240 / 0.12) 50%, transparent 62%) 0 0 / 300% 100%,
+      /* vivid navy neon vignette */
+      radial-gradient(1400px 800px at 50% -10%, oklch(0.42 0.3 258 / 0.55), transparent 62%),
+      radial-gradient(1000px 700px at 50% 110%, oklch(0.32 0.28 258 / 0.48), transparent 62%),
       /* deep obsidian base */
-      radial-gradient(circle at 50% 50%, oklch(0.04 0.02 260) 0%, #000 80%);
+      radial-gradient(circle at 50% 50%, oklch(0.05 0.05 260) 0%, #000 80%);
     animation: circuit-sweep 22s linear infinite;
   }
   .no-scrollbar::-webkit-scrollbar { display: none; }
