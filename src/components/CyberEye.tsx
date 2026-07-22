@@ -379,35 +379,12 @@ export function CyberEye({
 
         {/* Radial burst gradient disc behind pupil (soft bloom). */}
         <circle cx="50" cy="50" r={rPupil + 10 + pupilGlow * 2.4} fill="url(#burstGrad)" opacity={0.3 + pupilGlow * 0.12} />
-        <circle cx="50" cy="50" r={rPupil + 2.1} fill="none" stroke="oklch(0.94 0.22 235)" strokeWidth="0.45" opacity="0.62" filter="url(#neonBlur)" />
 
-        {/* Spiral shutter pupil — spinning, glowing, alive. */}
-        <g
-          opacity="1"
-          style={{
-            transformOrigin: "50px 50px",
-            transformBox: "fill-box",
-            animation: "cyber-spin 6s linear infinite",
-            filter: `drop-shadow(0 0 ${8 + pupilGlow * 14}px oklch(0.9 0.3 254)) drop-shadow(0 0 ${16 + pupilGlow * 22}px oklch(0.72 0.32 258))`,
-          }}
-        >
-          <circle cx="50" cy="50" r={rP + 1.2} fill="oklch(0.06 0.14 258)" />
-          {shutterPetals.map((d, i) => (
-            <path
-              key={i}
-              d={d}
-              fill={i % 2 === 0 ? "oklch(0.55 0.3 258)" : "oklch(0.75 0.28 254)"}
-              stroke="oklch(0.98 0.22 250)"
-              strokeWidth="0.25"
-              opacity="1"
-            />
-          ))}
-          {/* Bright rim of the pupil disc */}
-          <circle cx="50" cy="50" r={rP + 1.2} fill="none" stroke="oklch(0.98 0.22 250)" strokeWidth="0.5" opacity="1" />
-        </g>
-
-        {/* Living core — bright pulsing navy-neon center */}
+        {/* Living core — bright pulsing navy-neon center (the ONLY pupil now). */}
         <g style={{ transformOrigin: "50px 50px", transformBox: "fill-box", animation: "cyber-pupil-pulse 1.6s ease-in-out infinite" }}>
+          <circle cx="50" cy="50" r={rPupil * 0.85 + pupilGlow * 1.2} fill="oklch(0.08 0.18 258)" opacity="0.85" />
+          <circle cx="50" cy="50" r={rPupil * 0.65 + pupilGlow * 1.0} fill="oklch(0.42 0.28 254)" opacity="0.7"
+            style={{ filter: "drop-shadow(0 0 6px oklch(0.75 0.32 254))" }} />
           <circle cx="50" cy="50" r={2.4 + pupilGlow * 1.4} fill="oklch(0.98 0.22 250)" opacity="0.95"
             style={{ filter: "drop-shadow(0 0 6px oklch(0.85 0.3 254)) drop-shadow(0 0 12px oklch(0.7 0.32 258))" }} />
           <circle cx="50" cy="50" r={1.1 + pupilGlow * 0.6} fill="#fff" opacity="1" />
