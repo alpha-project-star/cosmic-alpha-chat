@@ -503,6 +503,19 @@ export const recognizer = {
   setHandlers(h: RecHandlers) { _handlers = h; if (_current) _current.setHandlers(h); },
   start() {
     const kind = pickBackend();
+    // Friendly diagnostics: if the runtime has neither Web Speech nor a
+    // reachable Whisper endpoint configured, tell the user what to do
+    // instead of firing a confusing "Whisper unreachable localhost" later.
+    if (kind === "whisper") {
+      const ep = (alphaStore.get().settings.whisperEndpoint || "").trim();
+      const isDefaultLocal = !ep || /^https?:\/\/localhost/i.test(ep) || /^https?:\/\/127\./.test(ep);
+      if (!browserSttSupported() && isDefaultLocal) {
+        _handlers.onError?.(
+          "Voice input isn't available in this app shell (no Web Speech). Open Alpha in Chrome, or set a Whisper endpoint in Settings → Offline."
+        );
+        return;
+      }
+    }
     const needSwap = _current && ((kind === "whisper" && _current !== (_whisper as any)) || (kind === "browser" && _current !== (browserRec as any)));
     if (needSwap) { try { _current!.stop(); } catch {} _current = null; }
     if (!_current) _current = pickInstance(kind);
