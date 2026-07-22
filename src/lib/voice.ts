@@ -1,6 +1,7 @@
 import { normalizeForSpeech } from "./speech-text";
 import { alphaStore } from "./alpha-store";
 import { WhisperRecognizer } from "./whisper";
+import { GroqWhisperRecognizer } from "./groq-whisper";
 
 // ============================================================
 // Speaking pub-sub (so UI can pulse orbs while Alpha talks)
@@ -473,6 +474,7 @@ type AnyRec = {
 };
 
 let _whisper: WhisperRecognizer | null = null;
+let _groq: GroqWhisperRecognizer | null = null;
 let _handlers: RecHandlers = {};
 let _current: AnyRec | null = null;
 
@@ -481,15 +483,25 @@ function browserSttSupported(): boolean {
   return !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 }
 
-function pickBackend(): "browser" | "whisper" {
+function pickBackend(): "browser" | "whisper" | "groq" {
   const pref = alphaStore.get().settings.sttBackend;
   const online = typeof navigator !== "undefined" ? navigator.onLine : true;
-  if (pref === "whisper") return "whisper";
-  if (pref === "browser") return browserSttSupported() ? "browser" : "whisper";
-  return online && browserSttSupported() ? "browser" : "whisper";
+  const hasGroq = !!(alphaStore.get().settings.groqApiKey || "").trim();
+  const hasWhisper = !!(alphaStore.get().settings.whisperEndpoint || "").trim();
+  if (pref === "whisper") return hasWhisper ? "whisper" : (hasGroq && online ? "groq" : "whisper");
+  if (pref === "browser") return browserSttSupported() ? "browser" : (hasGroq && online ? "groq" : "whisper");
+  // auto: Web Speech → Groq Whisper (cloud, uses existing key) → local Whisper server
+  if (online && browserSttSupported()) return "browser";
+  if (online && hasGroq) return "groq";
+  return "whisper";
 }
 
-function pickInstance(kind: "browser" | "whisper"): AnyRec {
+function pickInstance(kind: "browser" | "whisper" | "groq"): AnyRec {
+  if (kind === "groq") {
+    if (!_groq) _groq = new GroqWhisperRecognizer();
+    _groq.setHandlers(_handlers);
+    return _groq as unknown as AnyRec;
+  }
   if (kind === "whisper") {
     if (!_whisper) _whisper = new WhisperRecognizer();
     _whisper.setHandlers(_handlers);
@@ -503,20 +515,22 @@ export const recognizer = {
   setHandlers(h: RecHandlers) { _handlers = h; if (_current) _current.setHandlers(h); },
   start() {
     const kind = pickBackend();
-    // Friendly diagnostics: if the runtime has neither Web Speech nor a
-    // reachable Whisper endpoint configured, tell the user what to do
-    // instead of firing a confusing "Whisper unreachable localhost" later.
     if (kind === "whisper") {
       const ep = (alphaStore.get().settings.whisperEndpoint || "").trim();
       const isDefaultLocal = !ep || /^https?:\/\/localhost/i.test(ep) || /^https?:\/\/127\./.test(ep);
-      if (!browserSttSupported() && isDefaultLocal) {
+      const hasGroq = !!(alphaStore.get().settings.groqApiKey || "").trim();
+      if (!browserSttSupported() && isDefaultLocal && !hasGroq) {
         _handlers.onError?.(
-          "Voice input isn't available in this app shell (no Web Speech). Open Alpha in Chrome, or set a Whisper endpoint in Settings → Offline."
+          "Voice input isn't available yet — add your Groq API key in Settings → Online (free STT via Groq Whisper), or point Settings → Offline at a Whisper server."
         );
         return;
       }
     }
-    const needSwap = _current && ((kind === "whisper" && _current !== (_whisper as any)) || (kind === "browser" && _current !== (browserRec as any)));
+    const currentKind: string = _current === (browserRec as any) ? "browser"
+      : _current === (_whisper as any) ? "whisper"
+      : _current === (_groq as any) ? "groq"
+      : "";
+    const needSwap = _current && currentKind !== kind;
     if (needSwap) { try { _current!.stop(); } catch {} _current = null; }
     if (!_current) _current = pickInstance(kind);
     void _current.start();
