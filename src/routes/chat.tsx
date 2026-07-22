@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Mic, MicOff, Send, Sparkles, X, ArrowDown, ArrowUp, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain, Settings as SettingsIcon, Grid3x3, Volume2, Copy, Check, ArrowLeft, Zap } from "lucide-react";
+import { ImagePlus, Mic, MicOff, Send, Sparkles, X, ArrowDown, ArrowUp, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain, Settings as SettingsIcon, Grid3x3, Volume2, Copy, Check, ArrowLeft, Zap, Camera } from "lucide-react";
 import { alphaStore, uid, useAlpha } from "../lib/alpha-store";
 import { sendChat, type TaskType } from "../lib/alpha.functions";
 import { MessageContent } from "../components/MessageContent";
@@ -216,6 +216,10 @@ function ChatRoute() {
           <label className="cursor-pointer p-2 rounded-lg glass">
             <ImagePlus className="w-5 h-5 text-primary" />
             <input type="file" accept="image/*" multiple hidden onChange={e => pickImages(e.target.files)} />
+          </label>
+          <label className="cursor-pointer p-2 rounded-lg glass" aria-label="Camera">
+            <Camera className="w-5 h-5 text-primary" />
+            <input type="file" accept="image/*" capture="environment" hidden onChange={e => pickImages(e.target.files)} />
           </label>
           <textarea
             value={text}
