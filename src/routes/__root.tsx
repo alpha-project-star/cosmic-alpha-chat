@@ -17,6 +17,7 @@ import alphaEye from "../assets/alpha-eye.png.asset.json";
 import { GlobalDock } from "../components/GlobalDock";
 import { registerAlphaPWA } from "../lib/pwa";
 import { startAlarmEngine } from "../lib/alarm-engine";
+import { startProactive } from "../lib/proactive";
 
 function NotFoundComponent() {
   return (
@@ -133,6 +134,7 @@ function RootComponent() {
   useEffect(() => {
     registerAlphaPWA();
     startAlarmEngine();
+    startProactive();
   }, []);
 
   return (
