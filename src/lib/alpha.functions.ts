@@ -35,10 +35,22 @@ function rerankContext(query: string): string {
   const mems = rank(s.memories, m => `${m.topic} ${m.detail}`);
   const notes = rank(s.notes, n => `${n.title} ${n.body}`);
   const remrs = rank(s.reminders, r => `${r.title} ${r.notes} ${r.when}`);
+  // Long-term chat recall: skim ALL prior turns (bounded), pull the top
+  // 4 that lexically overlap with this query. This gives Alpha memory
+  // that survives the 100-message context window and the compactor.
+  const olderChat = s.chat.slice(0, Math.max(0, s.chat.length - 20));
+  const chatHits = olderChat
+    .map(m => ({ m, s: score(q, m.text || "") }))
+    .filter(o => o.s >= 2)
+    .sort((a, b) => b.s - a.s)
+    .slice(0, 4)
+    .map(o => o.m);
   const out: string[] = [];
   if (mems.length) out.push("Relevant memories:\n" + mems.map(m => `• ${m.topic}: ${m.detail}`).join("\n"));
   if (notes.length) out.push("Relevant notes:\n" + notes.map(n => `• ${n.title}: ${(n.body||"").slice(0,120)}`).join("\n"));
   if (remrs.length) out.push("Relevant reminders:\n" + remrs.map(r => `• ${r.title} @ ${r.when}`).join("\n"));
+  if (chatHits.length) out.push("Earlier conversation excerpts (long-term recall):\n" +
+    chatHits.map(m => `• [${m.role} · ${new Date(m.ts).toLocaleDateString()}] ${(m.text || "").slice(0, 180)}`).join("\n"));
   return out.join("\n\n");
 }
 
