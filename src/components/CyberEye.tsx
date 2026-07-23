@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { subscribeActive as subEyeActive, subscribeBrightness as subEyeBright } from "../lib/vision-stream";
 
 /**
  * Live "cyber-lens" eye — heavy brushed-silver camera bezel, black inner
@@ -25,6 +26,14 @@ export function CyberEye({
   const [tilt, setTilt] = useState({ x: 0, y: 0, r: 0 });
   const [blink, setBlink] = useState(0);
   const [pulse, setPulse] = useState(0);
+  const [eyeOn, setEyeOn] = useState(false);
+  const [gaze, setGaze] = useState({ x: 0, y: 0, luma: 0, motion: 0 });
+
+  useEffect(() => subEyeActive(setEyeOn), []);
+  useEffect(() => {
+    if (!eyeOn) { setGaze({ x: 0, y: 0, luma: 0, motion: 0 }); return; }
+    return subEyeBright((s) => setGaze({ x: -s.cx, y: s.cy, luma: s.luma, motion: s.motion }));
+  }, [eyeOn]);
 
   useEffect(() => {
     if (!analyser || !active) { setLevel(0); return; }
@@ -81,8 +90,10 @@ export function CyberEye({
 
   const hot = active || speaking;
   const bezelDur = hot ? "24s" : "60s";
-  const pupilGlow = 0.32 + (active ? level * 0.5 : 0) + (speaking ? beat * 0.28 : 0) + pulse * 0.18;
+  const pupilGlow = 0.32 + (active ? level * 0.5 : 0) + (speaking ? beat * 0.28 : 0) + pulse * 0.18 + (eyeOn ? gaze.luma * 0.28 + gaze.motion * 0.35 : 0);
   const liveOpacity = hot ? 0.34 + level * 0.24 + beat * 0.12 : 0.18;
+  const gazeDx = eyeOn ? gaze.x * 3.2 : 0;
+  const gazeDy = eyeOn ? gaze.y * 2.4 : 0;
 
   const rPupil = 9.4;
 
@@ -378,10 +389,10 @@ export function CyberEye({
         </g>
 
         {/* Radial burst gradient disc behind pupil (soft bloom). */}
-        <circle cx="50" cy="50" r={rPupil + 10 + pupilGlow * 2.4} fill="url(#burstGrad)" opacity={0.3 + pupilGlow * 0.12} />
+        <circle cx={50 + gazeDx * 0.4} cy={50 + gazeDy * 0.4} r={rPupil + 10 + pupilGlow * 2.4} fill="url(#burstGrad)" opacity={0.3 + pupilGlow * 0.12} />
 
         {/* Living core — bright pulsing navy-neon center (the ONLY pupil now). */}
-        <g style={{ transformOrigin: "50px 50px", transformBox: "fill-box", animation: "cyber-pupil-pulse 1.6s ease-in-out infinite" }}>
+        <g style={{ transformOrigin: "50px 50px", transformBox: "fill-box", animation: "cyber-pupil-pulse 1.6s ease-in-out infinite", transform: `translate(${gazeDx}px, ${gazeDy}px)`, transition: "transform .18s ease-out" }}>
           <circle cx="50" cy="50" r={rPupil * 0.85 + pupilGlow * 1.2} fill="oklch(0.08 0.18 258)" opacity="0.85" />
           <circle cx="50" cy="50" r={rPupil * 0.65 + pupilGlow * 1.0} fill="oklch(0.42 0.28 254)" opacity="0.7"
             style={{ filter: "drop-shadow(0 0 6px oklch(0.75 0.32 254))" }} />
