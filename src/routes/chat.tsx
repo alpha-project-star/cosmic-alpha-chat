@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Mic, MicOff, Send, Sparkles, X, ArrowDown, ArrowUp, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain, Settings as SettingsIcon, Grid3x3, Volume2, Copy, Check, ArrowLeft, Zap, Camera } from "lucide-react";
+import { ImagePlus, Mic, MicOff, Send, Sparkles, X, ArrowDown, ArrowUp, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain, Settings as SettingsIcon, Grid3x3, Volume2, Copy, Check, ArrowLeft, Zap, Camera, Eye, EyeOff } from "lucide-react";
 import { alphaStore, uid, useAlpha } from "../lib/alpha-store";
 import { sendChat, type TaskType } from "../lib/alpha.functions";
 import { MessageContent } from "../components/MessageContent";
@@ -11,6 +11,8 @@ import { DesktopShell } from "../components/desktop/DesktopShell";
 import { DesktopChatPanel } from "../components/desktop/DesktopChatPanel";
 import { KittScanner } from "../components/KittScanner";
 import { LiveClock } from "../components/LiveClock";
+import { startEye, stopEye, subscribeActive as subEyeActive } from "../lib/vision-stream";
+import { captureLiveFrame, isVisionCommand } from "../lib/vision-command";
 
 export const Route = createFileRoute("/chat")({
   head: () => ({ meta: [{ title: "Alpha — Chat" }, { name: "description", content: "Talk with Alpha." }] }),
@@ -39,6 +41,17 @@ function ChatRoute() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [task, setTask] = useState<TaskType>("auto");
+  const [eyeOn, setEyeOn] = useState(false);
+  const [eyeError, setEyeError] = useState("");
+
+  useEffect(() => subEyeActive(setEyeOn), []);
+  useEffect(() => () => { stopEye(); }, []);
+
+  async function toggleEye() {
+    setEyeError("");
+    if (eyeOn) { stopEye(); return; }
+    try { await startEye(); } catch (e: any) { setEyeError(e?.message || "Camera unavailable."); }
+  }
 
   function scrollToBottom(smooth = true) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: smooth ? "smooth" : "auto" });
@@ -59,11 +72,16 @@ function ChatRoute() {
     const t = (overrideText ?? text).trim();
     if (!t && images.length === 0) return;
     prepareUtterance();
-    alphaStore.appendChat({ id: uid(), role: "user", text: t, images: images.length ? images : undefined, ts: Date.now() });
+    let outImages = images;
+    if (t && isVisionCommand(t)) {
+      const frame = await captureLiveFrame();
+      if (frame) outImages = [...outImages, frame].slice(0, 4);
+    }
+    alphaStore.appendChat({ id: uid(), role: "user", text: t, images: outImages.length ? outImages : undefined, ts: Date.now() });
     setText(""); setImages([]); setBusy(true);
     try {
-      // Local intents first (add reminder / note / memory / delete X / ...) — no API call
-      const local = t ? tryLocalIntent(t) : null;
+      // Local intents first — but skip when the user is asking Alpha to LOOK.
+      const local = t && !isVisionCommand(t) ? tryLocalIntent(t) : null;
       const reply = local ?? await sendChat(alphaStore.get().chat, { task });
       alphaStore.appendChat({ id: uid(), role: "model", text: reply, ts: Date.now() });
       speakWith(reply);
