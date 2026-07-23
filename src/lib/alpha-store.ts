@@ -44,6 +44,9 @@ export interface Settings {
   backgroundEnabled: boolean;
   // Persistent build/spec record — Alpha reads this so he knows himself.
   buildRecord: string;
+  // ---- Vision (Cyber-Eye camera) ----
+  visionAmbientEnabled: boolean;
+  visionAmbientIntervalSec: number;
   // Task -> "provider:model" e.g. "groq:llama-3.1-8b-instant" | "gemini:gemini-2.5-pro" | "openai:gpt-4o-mini"
   taskModels: { fast: string; thinking: string; coding: string };
 }
@@ -103,6 +106,8 @@ web-search block before the model call. Images use Pollinations (no key).
 STT: browser Web Speech or local Whisper. TTS: Kokoro or browser. Alarms
 fire from an on-device engine with WebAudio chime, system notification, and
 voice announcement. Alpha recognises the user as Alex.`,
+  visionAmbientEnabled: false,
+  visionAmbientIntervalSec: 30,
   taskModels: {
     // Free-tier stack (Gemini removed — all providers key-based & web-grounded):
     //  • fast     → Groq Llama 3.3 70B versatile (blazing chat)
