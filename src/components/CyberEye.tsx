@@ -395,6 +395,27 @@ export function CyberEye({
         </g>
       </svg>
 
+      {eyeOn && (
+        <div
+          aria-hidden="true"
+          className="absolute z-40 pointer-events-none flex items-center gap-1 rounded-full px-1.5 py-0.5"
+          style={{
+            top: "6%", left: "50%", transform: "translateX(-50%)",
+            background: "oklch(0.15 0.08 20 / 0.55)",
+            border: "1px solid oklch(0.65 0.28 25 / 0.7)",
+            boxShadow: "0 0 8px oklch(0.7 0.3 25 / 0.6)",
+          }}
+        >
+          <span style={{
+            width: 6, height: 6, borderRadius: 9999,
+            background: "oklch(0.7 0.32 25)",
+            boxShadow: "0 0 6px oklch(0.8 0.3 25)",
+            animation: "cyber-pupil-pulse 1s ease-in-out infinite",
+          }} />
+          <span style={{ fontFamily: "Orbitron, sans-serif", fontSize: 8, letterSpacing: 1, color: "oklch(0.92 0.15 25)" }}>LIVE</span>
+        </div>
+      )}
+
       {/* Blink shutter — thin band closes across the lens. */}
       <div
         className="absolute inset-[10%] z-30 rounded-full overflow-hidden pointer-events-none"
