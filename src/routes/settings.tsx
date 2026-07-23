@@ -248,6 +248,21 @@ function SettingsRoute() {
           hint="Persona, voice preferences, and who Alpha is."
           open={openGroup === "data"} onToggle={() => setOpenGroup(openGroup === "data" ? null : "data")}>
 
+          <Section title="Vision (Cyber-Eye)">
+            <div className="text-xs text-muted-foreground mb-2">
+              Uses the front camera. Turn on Alpha's eye from the home screen or chat. Nothing is saved unless you ask.
+            </div>
+            <label className="flex items-center gap-2 text-sm mb-2">
+              <input type="checkbox" checked={s.visionAmbientEnabled}
+                onChange={e => alphaStore.setSettings({ visionAmbientEnabled: e.target.checked })} />
+              Ambient watching (Alpha comments only when the scene changes)
+            </label>
+            <label className="block text-xs mb-1">Ambient check interval: {s.visionAmbientIntervalSec}s</label>
+            <input type="range" min={15} max={120} step={5} value={s.visionAmbientIntervalSec}
+              onChange={e => alphaStore.setSettings({ visionAmbientIntervalSec: Number(e.target.value) })}
+              className="w-full" />
+          </Section>
+
           <Section title="Voice">
             <label className="flex items-center gap-2 text-sm mb-2">
               <input type="checkbox" checked={s.voiceEnabled} onChange={e => alphaStore.setSettings({ voiceEnabled: e.target.checked })} />

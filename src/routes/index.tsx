@@ -7,7 +7,10 @@ import { parseIntent } from "../lib/voice-router";
 import { sendChat } from "../lib/alpha.functions";
 import { tryLocalIntent } from "../lib/local-intents";
 import { alphaStore, uid, useAlpha } from "../lib/alpha-store";
-import { Settings as SettingsIcon, MessageSquare, ChevronDown, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain } from "lucide-react";
+import { Settings as SettingsIcon, MessageSquare, ChevronDown, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain, Eye, EyeOff } from "lucide-react";
+import { startEye, stopEye, subscribeActive as subEyeActive } from "../lib/vision-stream";
+import { captureLiveFrame, isVisionCommand } from "../lib/vision-command";
+import { startVisionAmbient, stopVisionAmbient } from "../lib/vision-ambient";
 import { DesktopShell } from "../components/desktop/DesktopShell";
 import { DesktopHomePanel } from "../components/desktop/DesktopHomePanel";
 import { KittScanner } from "../components/KittScanner";
@@ -41,9 +44,23 @@ function OrbHome() {
   const [speaking, setSpeaking] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [eyeOn, setEyeOn] = useState(false);
+  const [eyeError, setEyeError] = useState("");
+  const ambient = useAlpha(s => s.settings.visionAmbientEnabled);
 
   useEffect(() => speakingState.sub(setSpeaking), []);
-  useEffect(() => () => { recognizer.dispose(); stopSpeaking(); }, []);
+  useEffect(() => () => { recognizer.dispose(); stopSpeaking(); stopEye(); }, []);
+  useEffect(() => subEyeActive(setEyeOn), []);
+  useEffect(() => {
+    if (eyeOn && ambient) startVisionAmbient(); else stopVisionAmbient();
+    return () => stopVisionAmbient();
+  }, [eyeOn, ambient]);
+
+  async function toggleEye() {
+    setEyeError("");
+    if (eyeOn) { stopEye(); return; }
+    try { await startEye(); } catch (e: any) { setEyeError(e?.message || "Camera unavailable."); }
+  }
 
   async function handleFinal(text: string) {
     if (thinkingRef.current) return;
@@ -55,8 +72,8 @@ function OrbHome() {
     }
     if (intent.kind === "stop") { recognizer.stop(); setActive(false); setStatus("Paused"); return; }
 
-    // Local CRUD intents (add reminder / note / memory etc) — no API call
-    const local = tryLocalIntent(text);
+    // Local CRUD intents — skip when the user is asking Alpha to LOOK.
+    const local = !isVisionCommand(text) ? tryLocalIntent(text) : null;
     if (local) {
       alphaStore.appendChat({ id: uid(), role: "user", text, ts: Date.now() });
       alphaStore.appendChat({ id: uid(), role: "model", text: local, ts: Date.now() });
@@ -72,9 +89,14 @@ function OrbHome() {
     // Suspend mic while thinking so Alpha doesn't hear ambient noise / its own pre-speech
     const wasListening = recognizer.isWanted;
     if (wasListening) recognizer.suspend();
-    alphaStore.appendChat({ id: uid(), role: "user", text, ts: Date.now() });
+    let outImages: string[] | undefined;
+    if (isVisionCommand(text)) {
+      const frame = await captureLiveFrame();
+      if (frame) outImages = [frame];
+    }
+    alphaStore.appendChat({ id: uid(), role: "user", text, images: outImages, ts: Date.now() });
     try {
-      const reply = await sendChat(alphaStore.get().chat, { task: "fast" });
+      const reply = await sendChat(alphaStore.get().chat, { task: outImages ? "auto" : "fast" });
       alphaStore.appendChat({ id: uid(), role: "model", text: reply, ts: Date.now() });
       setStatus("Speaking…");
       await speakWith(reply);
@@ -129,6 +151,12 @@ function OrbHome() {
           </>
         )}
       </div>
+      <div className="absolute top-4 right-16 z-10">
+        <button onClick={toggleEye} aria-label={eyeOn ? "Stop Eye" : "Enable Eye"}
+          className={`glass rounded-full p-1.5 inline-flex ${eyeOn ? "border border-destructive/60" : "neon-border"}`}>
+          {eyeOn ? <EyeOff className="w-4 h-4 text-destructive" /> : <Eye className="w-4 h-4 text-primary" />}
+        </button>
+      </div>
       <div className="absolute top-4 left-4 z-10">
         <button onClick={() => setToolsOpen(v => !v)} aria-label="Tools" className="glass rounded-full p-1.5 inline-flex neon-border">
           <ChevronDown className="w-4 h-4 text-primary" />
@@ -170,6 +198,8 @@ function OrbHome() {
 
       <LiveTranscript interim={interim} status={speaking ? "Speaking…" : status} />
       {micError && <div className="mt-2 text-xs text-destructive">{micError}</div>}
+      {eyeError && <div className="mt-2 text-xs text-destructive">{eyeError}</div>}
+      {eyeOn && <div className="mt-1 text-[10px] text-primary/70">Eye online — try "Alpha, what do you see?"</div>}
 
       <div className="flex items-center justify-center mt-6">
         <Link to="/chat" aria-label="Open chat" className="glass rounded-full p-4 neon-border inline-flex">
