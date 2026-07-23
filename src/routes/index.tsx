@@ -151,6 +151,12 @@ function OrbHome() {
           </>
         )}
       </div>
+      <div className="absolute top-4 right-16 z-10">
+        <button onClick={toggleEye} aria-label={eyeOn ? "Stop Eye" : "Enable Eye"}
+          className={`glass rounded-full p-1.5 inline-flex ${eyeOn ? "border border-destructive/60" : "neon-border"}`}>
+          {eyeOn ? <EyeOff className="w-4 h-4 text-destructive" /> : <Eye className="w-4 h-4 text-primary" />}
+        </button>
+      </div>
       <div className="absolute top-4 left-4 z-10">
         <button onClick={() => setToolsOpen(v => !v)} aria-label="Tools" className="glass rounded-full p-1.5 inline-flex neon-border">
           <ChevronDown className="w-4 h-4 text-primary" />
@@ -192,6 +198,8 @@ function OrbHome() {
 
       <LiveTranscript interim={interim} status={speaking ? "Speaking…" : status} />
       {micError && <div className="mt-2 text-xs text-destructive">{micError}</div>}
+      {eyeError && <div className="mt-2 text-xs text-destructive">{eyeError}</div>}
+      {eyeOn && <div className="mt-1 text-[10px] text-primary/70">Eye online — try "Alpha, what do you see?"</div>}
 
       <div className="flex items-center justify-center mt-6">
         <Link to="/chat" aria-label="Open chat" className="glass rounded-full p-4 neon-border inline-flex">
