@@ -1,61 +1,49 @@
-## Alpha "Cyber-Lens" Redesign
+## Give the Cyber-Eye real sight
 
-Transform Alpha's entire visual identity around the uploaded cyber-lens eye: brushed silver bezel, deep black core, electric neon blue circuitry, animated iris. This replaces the anime portrait orb everywhere and shifts the whole app theme to a live "advanced robot" circuit-board aesthetic.
+Yes — we can wire the front camera into the orb so Alpha actually sees what's in front of the screen, not just uploaded photos. Here's the plan.
 
-### 1. New Orb = Cyber Eye (replaces `AlphaOrb.tsx` visual)
+### What you'll get
 
-Build a pure CSS/SVG stacked "eye" — no static image — so it feels alive and reacts to voice level + speaking state:
+- A new **"Eye" mode** you can toggle from the voice-first home (long-press or tap the orb, plus a small camera icon on the HUD).
+- When active, the front camera streams into a hidden `<video>` element. The Cyber-Eye's pupil subtly reflects motion/brightness from the feed (living mirror effect), and a faint "REC" ring appears on the bezel so you always know it's watching.
+- Alpha can then **look on demand** ("Alpha, what do you see?", "who's in front of me?", "read this label") — a frame is grabbed, sent to the vision model, and spoken back.
+- Optional **ambient awareness**: every N seconds (default 20s, configurable, off by default), Alpha snapshots a low-res frame and only speaks if something meaningful changes (new face, new object, text appears). This is opt-in because it burns vision API calls.
+- Full privacy controls: OFF by default, explicit permission prompt, visible indicator whenever the camera is live, one-tap kill switch, nothing stored to disk unless you ask Alpha to "remember this."
 
-- **Outer bezel** — brushed-silver conic gradient ring that rotates constantly (slow when idle, ~5s when active), with fine tick marks and small "CYBER-LENS 0.1nm RES" micro-text curved around it (SVG textPath).
-- **Mid ring** — dark metallic groove with animated segmented dashes (the diagonal blade slits from the reference).
-- **HUD ring** — neon-blue circuit lattice: concentric arcs, radial spokes, tiny data glyphs, drawn in SVG so we can animate stroke-dashoffset for a "scanning" feel.
-- **Iris** — animated aperture blades (6–8 SVG polygons) that subtly breathe open/closed with audio level; blades rotate opposite the bezel.
-- **Pupil core** — bright blue radial glow with a cross-hair reticle and a pulsing center that beats with `speakingState` / analyser level (reuses existing hooks in `AlphaOrb`).
-- **Overlay** — faint horizontal + vertical scan lines crossing the whole eye (matches the reference cross-hair).
+### How it works
 
-All layers respond to the existing `analyser` + `speakingState` the current orb already consumes, so behavior stays intact.
+1. **Camera service** — new `src/lib/vision-stream.ts`:
+  - `startEye()` requests `getUserMedia({ video: { facingMode: 'user' } })`, keeps a singleton `MediaStream` + hidden `<video>`.
+  - `captureFrame()` draws the current video frame to an offscreen canvas → base64 JPEG (downscaled, ~512px, quality 0.7 to keep payloads small).
+  - `stopEye()` stops all tracks and clears the singleton.
+  - Exposes a lightweight `subscribeBrightness(cb)` that samples average luma every ~200ms for the pupil-reactivity effect (no network, purely local).
+2. **Cyber-Eye reactivity** — `src/components/CyberEye.tsx`:
+  - When Eye mode is on, subscribe to `subscribeBrightness`. Map luma + motion delta to pupil scale/glow so the core visibly reacts to what's in front of the camera. Falls back to existing idle animation when off.
+  - Add a small "LIVE" micro-indicator on the bezel while streaming.
+3. **Voice/agent hooks** — `src/lib/alpha.functions.ts` + `src/lib/local-intents.ts`:
+  - New intents: "what do you see", "look at me", "describe what's in front of you", "read this", "who is this". These call `captureFrame()` then route the base64 image through the existing `VISION_FALLBACKS` chain (Qwen 2.5 VL etc.), then TTS the reply.
+  - Same pipeline chat already uses — no new API keys required.
+4. **Ambient mode (opt-in)** — `src/lib/vision-ambient.ts`:
+  - Setinterval loop, cheap local diff (compare downscaled luma histogram between frames). Only when diff crosses threshold does it call the vision model with the prompt "In one short sentence, what changed?" Debounced, capped to N calls/hour, silent if nothing notable.
+5. **UI entry points**:
+  - `AlphaOrb` / voice-first: tap-and-hold or a new small "eye" toggle to enter Eye mode.
+  - `chat.tsx`: existing camera button stays for one-shot photos; a new "Live Eye" toggle mirrors the same stream.
+  - `AlphaSettings` → new **Vision** group (under Online or its own section): master toggle, ambient on/off, ambient interval, capture resolution, "camera indicator always visible".
+6. **Permissions & safety**:
+  - First activation shows a clear consent sheet ("Alpha will use your front camera. Nothing is saved unless you ask.").
+  - Persistent on-screen indicator (bezel LIVE dot) whenever the stream is open.
+  - Auto-stop on route change away from home/chat, on tab hidden (`visibilitychange`), and on lock (`AlphaLock`).
+  - No frames written to `localStorage` or IndexedDB by default; "remember this" explicitly stores a single base64 into Memories.
 
-### 2. `MiniOrb` (chat header)
+### Known limits
 
-Rebuild as a scaled-down version of the same eye (bezel + iris + pupil only, no micro-text) so the chat header matches. Same component API, no other file changes needed.
+- Requires HTTPS (already satisfied on your Lovable domain and PWA install).
+- On Android WebView inside some wrappers, `getUserMedia` needs the host app to grant camera permission — if you're running Alpha as an installed PWA via Chrome this works out of the box.
+- Vision calls still cost OpenRouter credits; ambient mode is off by default for that reason.
 
-### 3. Theme tokens — silver / black / neon blue
+### Files touched
 
-Rewrite the color layer in `src/styles.css`:
+- New: `src/lib/vision-stream.ts`, `src/lib/vision-ambient.ts`
+- Edit: `src/components/CyberEye.tsx`, `src/components/AlphaOrb.tsx`, `src/routes/index.tsx` (voice-first), `src/routes/chat.tsx`, `src/lib/alpha.functions.ts`, `src/lib/local-intents.ts`, `src/components/AlphaSettings.tsx`, `src/lib/alpha-store.ts` (settings fields)
 
-- `--background`: pure black `oklch(0 0 0)` (already is)
-- `--foreground`: cool silver `oklch(0.92 0.02 240)`
-- `--primary` / `--accent` / `--ring`: electric cyber-blue `oklch(0.75 0.24 245)` with a brighter `--neon-glow oklch(0.9 0.2 235)`
-- `--hud-cyan`: shift to true neon blue (currently more cyan) to match the eye
-- New `--silver` / `--silver-dark` tokens for bezel + panel edges
-- New `--gradient-brushed`: repeating linear-gradient simulating brushed metal for bezels and HUD frame borders
-- `--gradient-nebula`: deep-blue radial, less purple
-- `--shadow-glow` / `--shadow-hud`: retuned to the new neon blue
-
-### 4. "Live circuit" ambient theme
-
-Global circuit-board feel, everywhere (not just the orb):
-
-- **Starfield → CircuitGrid**: replace `.starfield` background on `DesktopShell` and mobile shell with a layered SVG/CSS "PCB" background — thin blue traces, junction dots, faint hex/grid pattern, animated pulses traveling along traces (CSS `stroke-dashoffset` animation on a fixed full-viewport SVG).
-- **HUD frames** (`hud-frame`, `hud-frame-corners`): swap border to brushed-silver gradient with brighter neon-blue corner ticks and a subtle inner circuit trace line.
-- **KITT scanner**: recolor bars/arc to the new neon-blue palette so it reads as part of the same system.
-- **Wordmark "ALPHA"**: keep Orbitron, recolor to neon blue with a subtle silver stroke.
-
-### 5. Assets
-
-Keep `alpha-eye.png` as the installed PWA app icon and favicon (already set). Stop using `alpha-icon.png` inside the running UI — the in-app orb becomes the live CSS/SVG eye. No new binary assets needed.
-
-### Files to touch
-
-- `src/components/AlphaOrb.tsx` — replace image core with layered SVG/CSS eye
-- `src/components/MiniOrb.tsx` — mirror the new eye at small size
-- `src/styles.css` — theme tokens, `.starfield` → circuit background, `hud-frame*`, `wordmark`, `kitt-*` recolor, new `@keyframes` for bezel spin / iris breathe / trace pulse
-- `src/components/desktop/OrbStage.tsx` — minor tweaks so nebula tint matches new blue (no structural change)
-
-### Out of scope
-
-No changes to voice pipeline, model routing, CRUD/agent logic, alarms, or settings behavior. Purely visual + theme.
-
-### Answer to "is this possible"
-
-Yes — fully doable with CSS + inline SVG, no extra libraries, no image generation. The eye stays crisp at any size, animates smoothly, and reacts to the existing audio analyser.
+Want me to also make the pupil literally track your face position (left/right/up/down) using a tiny on-device face-detector, or keep it to brightness/motion only for now?(USER SAID YES)
