@@ -218,6 +218,8 @@ function ChatRoute() {
           </>
         )}
         {micError && <div className="mb-2 text-xs text-destructive">{micError}</div>}
+        {eyeError && <div className="mb-2 text-xs text-destructive">{eyeError}</div>}
+        {eyeOn && <div className="mb-2 text-[10px] text-primary/80">Live Eye on — ask "what do you see?"</div>}
         <div className="mb-2 flex items-center gap-1.5 overflow-x-auto">
           <Zap className="w-3.5 h-3.5 text-primary shrink-0" />
           {(["auto","fast","thinking","coding"] as const).map(t => (
@@ -239,6 +241,9 @@ function ChatRoute() {
             <Camera className="w-5 h-5 text-primary" />
             <input type="file" accept="image/*" capture="environment" hidden onChange={e => pickImages(e.target.files)} />
           </label>
+          <button onClick={toggleEye} className={`p-2 rounded-lg glass ${eyeOn ? "neon-border" : ""}`} aria-label={eyeOn ? "Stop Live Eye" : "Live Eye"}>
+            {eyeOn ? <EyeOff className="w-5 h-5 text-destructive" /> : <Eye className="w-5 h-5 text-primary" />}
+          </button>
           <textarea
             value={text}
             onChange={e => setText(e.target.value)}
