@@ -61,6 +61,7 @@ export class GroqWhisperRecognizer {
     if (typeof window === "undefined") return;
     if (!keyOk()) {
       this.handlers.onError?.("Add your Groq API key in Settings → Online to enable voice input.");
+      this.handlers.onStop?.();
       return;
     }
     this.wantOn = true;
@@ -71,6 +72,7 @@ export class GroqWhisperRecognizer {
     } catch (e: any) {
       this.wantOn = false;
       this.handlers.onError?.(e?.message || "Microphone permission denied");
+      this.handlers.onStop?.();
       return;
     }
     this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
