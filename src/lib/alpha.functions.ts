@@ -309,7 +309,10 @@ async function fetchLiveWebContext(query: string): Promise<string> {
       ? `${query} ${new Date().getFullYear()}`
       : query;
     const ddgUrl = `https://duckduckgo.com/html/?q=${encodeURIComponent(freshQuery)}&kl=wt-wt&df=d`;
-    const readableUrl = `https://r.jina.ai/http://r.jina.ai/http://${ddgUrl.replace(/^https?:\/\//, "")}`;
+    // Single Jina reader wrap — the previous double-wrap
+    // (`https://r.jina.ai/http://r.jina.ai/http://…`) proxied through Jina
+    // twice, doubling latency and failure rate.
+    const readableUrl = `https://r.jina.ai/${ddgUrl}`;
     const html = await fetch(readableUrl, { headers: { "X-No-Cache": "true" } }).then(r => r.ok ? r.text() : "").catch(() => "");
     const lines = html.split("\n").map(l => l.trim()).filter(Boolean);
     for (let i = 0; i < lines.length && rows.length < 8; i++) {
@@ -393,7 +396,11 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
           "HTTP-Referer": typeof window !== "undefined" ? window.location.origin : "https://alpha.local",
           "X-Title": "Alpha",
         };
-        const orExtraBody = shouldFetchWeb(lastUserMsg?.text || "") ? { plugins: [{ id: "web" }] } : undefined;
+        // NOTE: we deliberately do NOT enable OpenRouter's paid `web` plugin
+        // here — every online turn already receives a free DuckDuckGo/Jina
+        // grounding block via fetchLiveWebContext. Enabling the plugin would
+        // charge extra per request for the same signal.
+        const orExtraBody: Record<string, unknown> | undefined = undefined;
         // Vision: if the chosen model 404s / is unavailable, walk the fallback chain.
         const candidates = hasImages
           ? Array.from(new Set([model, ...VISION_FALLBACKS]))

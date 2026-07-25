@@ -64,6 +64,7 @@ export class WhisperRecognizer {
     } catch (e: any) {
       this.wantOn = false;
       this.handlers.onError?.(e?.message || "Microphone permission denied");
+      this.handlers.onStop?.();
       return;
     }
     this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
