@@ -245,6 +245,15 @@ const VISION_FALLBACKS = [
   "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
 ];
 
+// Free text models to walk when the configured OpenRouter slug has been pulled
+// from the free tier (404 / "available on paid only").
+const TEXT_FALLBACKS = [
+  "nvidia/nemotron-3-super-120b-a12b:free",
+  "nvidia/nemotron-3-nano-30b-a3b:free",
+  "openai/gpt-oss-20b:free",
+  "inclusionai/ling-3.0-flash:free",
+];
+
 function shouldFetchWeb(query: string) {
   return /\b(who|what|when|where|how|why|latest|current|today|yesterday|tomorrow|this week|news|price|score|release|version|weather|web|search|look up|find|source|citation|cite|date|202\d)\b/i.test(query);
 }
@@ -405,7 +414,7 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
         // Vision: if the chosen model 404s / is unavailable, walk the fallback chain.
         const candidates = hasImages
           ? Array.from(new Set([model, ...VISION_FALLBACKS]))
-          : [model];
+          : Array.from(new Set([model, ...TEXT_FALLBACKS]));
         let lastErr: any = null;
         for (const m of candidates) {
           try {
@@ -421,8 +430,9 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
           } catch (err: any) {
             lastErr = err;
             const st = err?.status;
-            const isRetryable = st === 404 || /\b(404|unavailable|not\s+found|no\s+endpoints)\b/i.test(String(err?.message || ""));
-            if (!hasImages || !isRetryable) throw err;
+            const isRetryable = st === 404 || st === 429
+              || /\b(404|429|unavailable|not\s+found|no\s+endpoints|paid)\b/i.test(String(err?.message || ""));
+            if (!isRetryable) throw err;
           }
         }
         if (lastErr) throw lastErr;
