@@ -236,22 +236,22 @@ function pickRoute(task: TaskType, hasImages: boolean): { prov: ProviderId; mode
 
 // Ordered list of free OpenRouter vision models to try. Providers rotate what
 // they offer for free constantly, so we try several before giving up.
-// Verified against the live OpenRouter catalogue (`/api/v1/models`) — every
-// entry ends in `:free` AND declares `image` in its input modalities.
+// Verified with real image requests against OpenRouter (2026-08-01): each of
+// these answered a test image correctly. Ordered fastest-first.
 const VISION_FALLBACKS = [
-  "google/gemma-4-31b-it:free",
-  "google/gemma-4-26b-a4b-it:free",
   "nvidia/nemotron-nano-12b-v2-vl:free",
+  "google/gemma-4-26b-a4b-it:free",
   "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+  "google/gemma-4-31b-it:free",
 ];
 
-// Free text models to walk when the configured OpenRouter slug has been pulled
-// from the free tier (404 / "available on paid only").
+// Free text models verified live (real completion returned), fastest-first.
+// Walked when the configured OpenRouter slug is pulled or rate-limited.
 const TEXT_FALLBACKS = [
   "nvidia/nemotron-3-super-120b-a12b:free",
-  "nvidia/nemotron-3-nano-30b-a3b:free",
-  "openai/gpt-oss-20b:free",
+  "poolside/laguna-s-2.1:free",
   "inclusionai/ling-3.0-flash:free",
+  "nvidia/nemotron-3-nano-30b-a3b:free",
 ];
 
 function shouldFetchWeb(query: string) {
