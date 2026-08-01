@@ -240,9 +240,8 @@ function pickRoute(task: TaskType, hasImages: boolean): { prov: ProviderId; mode
 // these answered a test image correctly. Ordered fastest-first.
 const VISION_FALLBACKS = [
   "nvidia/nemotron-nano-12b-v2-vl:free",
-  "google/gemma-4-26b-a4b-it:free",
   "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
-  "google/gemma-4-31b-it:free",
+  "google/gemma-4-26b-a4b-it:free",
 ];
 
 // Free text models verified live (real completion returned), fastest-first.
