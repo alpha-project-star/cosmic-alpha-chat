@@ -75,7 +75,16 @@ export async function sendChatOpenAICompat(
     throw err;
   }
   const j: any = await res.json();
-  const text = j?.choices?.[0]?.message?.content?.trim() || "";
+  const msg = j?.choices?.[0]?.message;
+  let text = (typeof msg?.content === "string" ? msg.content : "").trim();
+  // Some reasoning models (Nemotron Nano, Poolside Laguna XS on OpenRouter)
+  // return their answer in `reasoning` / `reasoning_content` and leave
+  // `content` empty. Use it rather than failing the whole turn.
+  if (!text) {
+    const reasoning = (typeof msg?.reasoning === "string" ? msg.reasoning : "")
+      || (typeof msg?.reasoning_content === "string" ? msg.reasoning_content : "");
+    text = reasoning.trim();
+  }
   if (!text) throw new Error("Empty response from model.");
   return text;
 }
