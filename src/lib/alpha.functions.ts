@@ -236,12 +236,13 @@ function pickRoute(task: TaskType, hasImages: boolean): { prov: ProviderId; mode
 
 // Ordered list of free OpenRouter vision models to try. Providers rotate what
 // they offer for free constantly, so we try several before giving up.
+// Verified against the live OpenRouter catalogue (`/api/v1/models`) — every
+// entry ends in `:free` AND declares `image` in its input modalities.
 const VISION_FALLBACKS = [
-  "qwen/qwen2.5-vl-72b-instruct:free",
-  "qwen/qwen2.5-vl-32b-instruct:free",
-  "meta-llama/llama-3.2-11b-vision-instruct",
-  "google/gemini-2.0-flash-exp:free",
-  "mistralai/mistral-small-3.2-24b-instruct:free",
+  "google/gemma-4-31b-it:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "nvidia/nemotron-nano-12b-v2-vl:free",
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
 ];
 
 function shouldFetchWeb(query: string) {
@@ -413,6 +414,7 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
               apiKey: openRouterKey, model: m,
               extraHeaders: orHeaders,
               extraBody: orExtraBody,
+              allowImages: hasImages,
             });
             lastErr = null;
             break;
