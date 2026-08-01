@@ -109,13 +109,14 @@ voice announcement. Alpha recognises the user as Alex.`,
   visionAmbientEnabled: false,
   visionAmbientIntervalSec: 30,
   taskModels: {
-    // Free-tier stack (Gemini removed — all providers key-based & web-grounded):
+    // Free-tier stack, verified live against Groq's model list and
+    // OpenRouter's /api/v1/models catalogue (only `:free` slugs):
     //  • fast     → Groq Llama 3.3 70B versatile (blazing chat)
-    //  • thinking → OpenRouter DeepSeek R1 free (chain-of-thought reasoning)
-    //  • coding   → OpenRouter Qwen3 Coder free (long-context coding)
+    //  • thinking → OpenRouter Nemotron 3 Super 120B free (reasoning)
+    //  • coding   → OpenRouter Cohere North Mini Code free (coding)
     fast: "groq:llama-3.3-70b-versatile",
-    thinking: "openrouter:deepseek/deepseek-r1:free",
-    coding: "openrouter:qwen/qwen3-coder:free",
+    thinking: "openrouter:nvidia/nemotron-3-super-120b-a12b:free",
+    coding: "openrouter:cohere/north-mini-code:free",
   },
 };
 
@@ -150,6 +151,15 @@ let state: AlphaState = {
     "groq:llama-3.1-8b-instant",
     "gemini:gemini-2.5-pro",
     "openrouter:poolside/laguna-m.1:free",
+    // Slugs OpenRouter has since pulled from the free tier (404 / "paid only"):
+    "openrouter:deepseek/deepseek-r1:free",
+    "openrouter:deepseek/deepseek-chat-v3.1:free",
+    "openrouter:qwen/qwen3-coder:free",
+    "openrouter:qwen/qwq-32b:free",
+    "openrouter:qwen/qwen2.5-vl-72b-instruct:free",
+    "openrouter:mistralai/mistral-small-3.2-24b-instruct:free",
+    "openrouter:meta-llama/llama-3.3-70b-instruct:free",
+    "openrouter:google/gemini-2.0-flash-exp:free",
   ]);
   const t = state.settings.taskModels;
   const migrated = {
