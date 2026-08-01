@@ -109,14 +109,13 @@ voice announcement. Alpha recognises the user as Alex.`,
   visionAmbientEnabled: false,
   visionAmbientIntervalSec: 30,
   taskModels: {
-    // Free-tier stack, verified live against Groq's model list and
-    // OpenRouter's /api/v1/models catalogue (only `:free` slugs):
-    //  • fast     → Groq Llama 3.3 70B versatile (blazing chat)
-    //  • thinking → OpenRouter Nemotron 3 Super 120B free (reasoning)
-    //  • coding   → OpenRouter Cohere North Mini Code free (coding)
+    // Free-tier stack, each verified with a real live completion (2026-08-01):
+    //  • fast     → Groq Llama 3.3 70B versatile (~0.1s)
+    //  • thinking → OpenRouter Nemotron 3 Super 120B free (~0.7s)
+    //  • coding   → OpenRouter Poolside Laguna S 2.1 free (~0.7s, 262k ctx)
     fast: "groq:llama-3.3-70b-versatile",
     thinking: "openrouter:nvidia/nemotron-3-super-120b-a12b:free",
-    coding: "openrouter:cohere/north-mini-code:free",
+    coding: "openrouter:poolside/laguna-s-2.1:free",
   },
 };
 
@@ -160,6 +159,11 @@ let state: AlphaState = {
     "openrouter:mistralai/mistral-small-3.2-24b-instruct:free",
     "openrouter:meta-llama/llama-3.3-70b-instruct:free",
     "openrouter:google/gemini-2.0-flash-exp:free",
+    // Verified dead / answer-less on 2026-08-01:
+    "openrouter:openai/gpt-oss-20b:free",
+    "openrouter:poolside/laguna-xs-2.1:free",
+    "openrouter:nvidia/nemotron-nano-9b-v2:free",
+    "openrouter:cohere/north-mini-code:free",
   ]);
   const t = state.settings.taskModels;
   const migrated = {
