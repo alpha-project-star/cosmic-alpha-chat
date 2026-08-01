@@ -162,13 +162,13 @@ function SettingsRoute() {
           <Section title="Task Routing" hint="Which model runs each job. Format: provider:model (providers: groq, openai, openrouter). Auto uses Fast first when its key is available; the chat composer can switch task per message. Images route to OpenRouter vision automatically.">
             <TaskRow label="⚡ Fast (chat, quick)" value={s.taskModels.fast}
               onChange={v => alphaStore.setSettings({ taskModels: { ...s.taskModels, fast: v } })}
-              examples={["groq:llama-3.3-70b-versatile","groq:llama-3.1-8b-instant","openrouter:meta-llama/llama-3.3-70b-instruct:free"]} />
+              examples={["groq:llama-3.3-70b-versatile","groq:llama-3.1-8b-instant","openrouter:nvidia/nemotron-3-nano-30b-a3b:free"]} />
             <TaskRow label="🧠 Deep thinking" value={s.taskModels.thinking}
               onChange={v => alphaStore.setSettings({ taskModels: { ...s.taskModels, thinking: v } })}
-              examples={["openrouter:deepseek/deepseek-r1:free","openrouter:deepseek/deepseek-chat-v3.1:free","openrouter:qwen/qwq-32b:free"]} />
+              examples={["openrouter:nvidia/nemotron-3-super-120b-a12b:free","openrouter:nvidia/nemotron-3-ultra-550b-a55b:free","openrouter:openai/gpt-oss-20b:free"]} />
             <TaskRow label="🛠 Coding & debug" value={s.taskModels.coding}
               onChange={v => alphaStore.setSettings({ taskModels: { ...s.taskModels, coding: v } })}
-              examples={["openrouter:qwen/qwen3-coder:free","openrouter:deepseek/deepseek-r1:free","openrouter:meta-llama/llama-3.3-70b-instruct:free"]} />
+              examples={["openrouter:cohere/north-mini-code:free","openrouter:poolside/laguna-s-2.1:free","openrouter:inclusionai/ling-3.0-flash:free"]} />
           </Section>
 
           <Section title="Kokoro TTS (preferred male voice)" hint="OpenAI-compatible Kokoro endpoint. Empty = browser voice fallback.">

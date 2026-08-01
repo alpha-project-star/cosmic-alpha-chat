@@ -7,7 +7,17 @@ import type { ChatMessage } from "./alpha-store";
 export async function sendChatOpenAICompat(
   history: ChatMessage[],
   systemPrompt: string,
-  opts: { baseUrl: string; apiKey: string; model: string; extraHeaders?: Record<string, string>; extraBody?: Record<string, unknown> },
+  opts: {
+    baseUrl: string;
+    apiKey: string;
+    model: string;
+    extraHeaders?: Record<string, string>;
+    extraBody?: Record<string, unknown>;
+    /** Only true for vision-capable lanes. Text-only providers (Groq Llama)
+     * hard-400 with `messages[n].content must be a string` when handed an
+     * OpenAI content array, so images are flattened to text by default. */
+    allowImages?: boolean;
+  },
 ): Promise<string> {
   const apiKey = (opts.apiKey || "").replace(/[\s\r\n\t]+/g, "").replace(/^Bearer/i, "");
   if (!apiKey) {
@@ -25,11 +35,14 @@ export async function sendChatOpenAICompat(
   const messages: any[] = [{ role: "system", content: systemPrompt }];
   for (const m of history.filter(m => m.role !== "system").slice(-40)) {
     const role = m.role === "user" ? "user" : "assistant";
-    if (role === "user" && m.images?.length) {
+    if (role === "user" && m.images?.length && opts.allowImages) {
       const parts: any[] = [];
       if (m.text) parts.push({ type: "text", text: m.text });
       for (const img of m.images) parts.push({ type: "image_url", image_url: { url: img } });
       messages.push({ role, content: parts });
+    } else if (role === "user" && m.images?.length) {
+      const note = `[user attached ${m.images.length} image${m.images.length > 1 ? "s" : ""} — not visible to this text-only model]`;
+      messages.push({ role, content: m.text ? `${m.text}\n\n${note}` : note });
     } else {
       messages.push({ role, content: m.text || "" });
     }
