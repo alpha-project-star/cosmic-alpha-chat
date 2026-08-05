@@ -12,7 +12,8 @@ import { DesktopChatPanel } from "../components/desktop/DesktopChatPanel";
 import { KittScanner } from "../components/KittScanner";
 import { LiveClock } from "../components/LiveClock";
 import { startEye, stopEye, subscribeActive as subEyeActive } from "../lib/vision-stream";
-import { captureLiveFrame, isVisionCommand } from "../lib/vision-command";
+import { captureLiveFrame, isVisionCommand, shouldCaptureFrame } from "../lib/vision-command";
+import { fileToShrunkDataUrl } from "../lib/image-utils";
 
 export const Route = createFileRoute("/chat")({
   head: () => ({ meta: [{ title: "Alpha — Chat" }, { name: "description", content: "Talk with Alpha." }] }),
@@ -43,6 +44,15 @@ function ChatRoute() {
   const [task, setTask] = useState<TaskType>("auto");
   const [eyeOn, setEyeOn] = useState(false);
   const [eyeError, setEyeError] = useState("");
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  function autoGrow() {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 176) + "px";
+  }
+  useEffect(() => { autoGrow(); }, [text]);
 
   useEffect(() => subEyeActive(setEyeOn), []);
   useEffect(() => () => { stopEye(); }, []);
@@ -73,7 +83,7 @@ function ChatRoute() {
     if (!t && images.length === 0) return;
     prepareUtterance();
     let outImages = images;
-    if (t && isVisionCommand(t)) {
+    if (t && shouldCaptureFrame(t, eyeOn)) {
       const frame = await captureLiveFrame();
       if (frame) outImages = [...outImages, frame].slice(0, 4);
     }
