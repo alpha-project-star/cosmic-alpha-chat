@@ -18,16 +18,16 @@ export function MessageContent({ text }: { text: string }) {
     <div
       className="prose prose-invert prose-base max-w-full w-full min-w-0 overflow-hidden break-words [overflow-wrap:anywhere] [word-break:break-word]
         prose-headings:text-foreground prose-headings:font-bold prose-headings:tracking-tight
-        prose-h1:text-2xl prose-h1:mt-8 prose-h1:mb-4 prose-h1:leading-tight
-        prose-h2:text-xl prose-h2:mt-7 prose-h2:mb-3 prose-h2:leading-tight
-        prose-h3:text-lg prose-h3:mt-6 prose-h3:mb-2
-        prose-p:my-4 prose-p:leading-7 prose-p:break-words
-        prose-li:my-2 prose-li:leading-7 prose-li:marker:text-primary/70
-        prose-ul:my-4 prose-ol:my-4 prose-ul:pl-6 prose-ol:pl-6
-        prose-hr:my-6 prose-hr:border-primary/20
+        prose-h1:text-2xl prose-h1:mt-10 prose-h1:mb-5 prose-h1:leading-snug
+        prose-h2:text-xl prose-h2:mt-9 prose-h2:mb-4 prose-h2:leading-snug
+        prose-h3:text-lg prose-h3:mt-7 prose-h3:mb-3 prose-h3:leading-snug
+        prose-p:my-5 prose-p:leading-[1.85] prose-p:break-words
+        prose-li:my-2.5 prose-li:leading-[1.8] prose-li:marker:text-primary/70
+        prose-ul:my-5 prose-ol:my-5 prose-ul:pl-6 prose-ol:pl-6 prose-ul:space-y-1 prose-ol:space-y-1
+        prose-hr:my-8 prose-hr:border-primary/20
         prose-strong:text-foreground prose-strong:font-semibold
         prose-a:text-primary prose-a:underline prose-a:break-all
-        prose-blockquote:border-l-primary/40 prose-blockquote:text-muted-foreground prose-blockquote:my-4
+        prose-blockquote:border-l-primary/40 prose-blockquote:text-muted-foreground prose-blockquote:my-6 prose-blockquote:py-1
         prose-code:text-accent-foreground prose-code:bg-black/40 prose-code:px-1 prose-code:rounded
         prose-pre:bg-black/60 prose-pre:border prose-pre:border-primary/30 prose-pre:overflow-x-auto prose-pre:max-w-full prose-pre:whitespace-pre-wrap
         prose-th:border prose-th:border-primary/30 prose-th:px-2 prose-th:py-1
@@ -52,12 +52,12 @@ export function MessageContent({ text }: { text: string }) {
             );
           },
           table: ({ children }) => (
-            <div className="my-2 max-w-full overflow-x-auto rounded-lg border border-primary/20">
+            <div className="my-6 max-w-full overflow-x-auto rounded-lg border border-primary/20">
               <table className="w-full text-xs">{children}</table>
             </div>
           ),
           pre: ({ children }) => (
-            <pre className="my-2 max-w-full overflow-x-auto rounded-lg bg-black/60 border border-primary/30 p-2 text-xs whitespace-pre">
+            <pre className="my-6 max-w-full overflow-x-auto rounded-lg bg-black/60 border border-primary/30 p-3 text-xs leading-6 whitespace-pre">
               {children}
             </pre>
           ),
