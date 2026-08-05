@@ -378,8 +378,10 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
     }
     const recall = lastUserMsg?.text ? rerankContext(lastUserMsg.text) : "";
     const rolling = conversationSummary.get();
-    // Every online provider gets the same live web-search evidence block.
-    const webContext = await fetchLiveWebContext(lastUserMsg?.text || "");
+    // Every online provider gets the same live web-search evidence block —
+    // except vision turns, where the image IS the evidence and the extra
+    // round-trips only delay (or stall) the answer.
+    const webContext = hasImages ? "" : await fetchLiveWebContext(lastUserMsg?.text || "");
     const sys = DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling) + (webContext ? `\n\n${webContext}` : "");
 
     try {
