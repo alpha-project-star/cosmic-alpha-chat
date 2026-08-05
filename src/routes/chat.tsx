@@ -103,9 +103,7 @@ function ChatRoute() {
   async function pickImages(files: FileList | null) {
     if (!files) return;
     const arr = Array.from(files).slice(0, 4 - images.length);
-    const datas = await Promise.all(arr.map(f => new Promise<string>((res, rej) => {
-      const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(f);
-    })));
+    const datas = await Promise.all(arr.map(f => fileToShrunkDataUrl(f)));
     setImages(prev => [...prev, ...datas].slice(0, 4));
   }
 
@@ -229,7 +227,7 @@ function ChatRoute() {
         )}
         {micError && <div className="mb-2 text-xs text-destructive">{micError}</div>}
         {eyeError && <div className="mb-2 text-xs text-destructive">{eyeError}</div>}
-        {eyeOn && <div className="mb-2 text-[10px] text-primary/80">Live Eye on — ask "what do you see?"</div>}
+        {eyeOn && <div className="mb-2 text-[10px] text-primary/80">Live Eye on — just point and ask ("what's on my head?")</div>}
         <div className="mb-2 flex items-center gap-1.5 overflow-x-auto">
           <Zap className="w-3.5 h-3.5 text-primary shrink-0" />
           {(["auto","fast","thinking","coding"] as const).map(t => (
@@ -239,33 +237,40 @@ function ChatRoute() {
             </button>
           ))}
         </div>
-        <div className="flex items-end gap-2">
-          <button onClick={() => setToolsOpen(v => !v)} className="p-2 rounded-lg glass" aria-label="Tools">
-            <Grid3x3 className="w-5 h-5 text-primary" />
-          </button>
-          <label className="cursor-pointer p-2 rounded-lg glass">
-            <ImagePlus className="w-5 h-5 text-primary" />
-            <input type="file" accept="image/*" multiple hidden onChange={e => pickImages(e.target.files)} />
-          </label>
-          <label className="cursor-pointer p-2 rounded-lg glass" aria-label="Camera">
-            <Camera className="w-5 h-5 text-primary" />
-            <input type="file" accept="image/*" capture="environment" hidden onChange={e => pickImages(e.target.files)} />
-          </label>
-          <button onClick={toggleEye} className={`p-2 rounded-lg glass ${eyeOn ? "neon-border" : ""}`} aria-label={eyeOn ? "Stop Live Eye" : "Live Eye"}>
-            {eyeOn ? <EyeOff className="w-5 h-5 text-destructive" /> : <Eye className="w-5 h-5 text-primary" />}
-          </button>
+        {/* Composer: full-width growing textarea, all controls docked on the left row below */}
+        <div className="flex flex-col gap-2">
           <textarea
+            ref={taRef}
             value={text}
             onChange={e => setText(e.target.value)}
+            onInput={autoGrow}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder="Message Alpha…" rows={1}
-            className="flex-1 bg-input rounded-xl px-3 py-2 border border-border outline-none focus:border-primary resize-none max-h-32" />
-          <button onClick={toggleMic} className="p-2 rounded-lg glass">
-            {listening ? <MicOff className="w-5 h-5 text-destructive" /> : <Mic className="w-5 h-5 text-primary" />}
-          </button>
-          <button onClick={() => send()} disabled={busy} className="p-2 rounded-lg bg-primary text-primary-foreground neon-border disabled:opacity-50">
-            <Send className="w-5 h-5" />
-          </button>
+            placeholder="Message Alpha…" rows={2}
+            className="w-full min-w-0 bg-input rounded-2xl px-4 py-3 border border-border outline-none focus:border-primary resize-none min-h-[56px] max-h-44 overflow-y-auto text-base leading-6 break-words [overflow-wrap:anywhere]" />
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => setToolsOpen(v => !v)} className="p-2 rounded-lg glass shrink-0" aria-label="Tools">
+              <Grid3x3 className="w-5 h-5 text-primary" />
+            </button>
+            <label className="cursor-pointer p-2 rounded-lg glass shrink-0" aria-label="Upload image">
+              <ImagePlus className="w-5 h-5 text-primary" />
+              <input type="file" accept="image/*" multiple hidden onChange={e => pickImages(e.target.files)} />
+            </label>
+            <label className="cursor-pointer p-2 rounded-lg glass shrink-0" aria-label="Camera">
+              <Camera className="w-5 h-5 text-primary" />
+              <input type="file" accept="image/*" capture="environment" hidden onChange={e => pickImages(e.target.files)} />
+            </label>
+            <button onClick={toggleEye} className={`p-2 rounded-lg glass shrink-0 ${eyeOn ? "neon-border" : ""}`} aria-label={eyeOn ? "Stop Live Eye" : "Live Eye"}>
+              {eyeOn ? <EyeOff className="w-5 h-5 text-destructive" /> : <Eye className="w-5 h-5 text-primary" />}
+            </button>
+            <div className="ml-auto flex items-center gap-1.5 shrink-0">
+              <button onClick={toggleMic} className="p-2 rounded-lg glass" aria-label="Microphone">
+                {listening ? <MicOff className="w-5 h-5 text-destructive" /> : <Mic className="w-5 h-5 text-primary" />}
+              </button>
+              <button onClick={() => send()} disabled={busy} className="p-2.5 rounded-xl bg-primary text-primary-foreground neon-border disabled:opacity-50" aria-label="Send">
+                <Send className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
