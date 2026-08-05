@@ -33,22 +33,42 @@ export async function sendChatOpenAICompat(
   // they don't support vision — callers should route image turns to a
   // vision-capable model.
   const messages: any[] = [{ role: "system", content: systemPrompt }];
-  for (const m of history.filter(m => m.role !== "system").slice(-40)) {
+  const turns = history.filter(m => m.role !== "system").slice(-40);
+  // Only the newest user turn keeps its images. Re-sending every historical
+  // base64 image balloons the payload into megabytes and makes vision
+  // providers stall out mid-request.
+  const lastImageIdx = (() => {
+    for (let i = turns.length - 1; i >= 0; i--) if (turns[i].role === "user" && turns[i].images?.length) return i;
+    return -1;
+  })();
+  for (let idx = 0; idx < turns.length; idx++) {
+    const m = turns[idx];
     const role = m.role === "user" ? "user" : "assistant";
-    if (role === "user" && m.images?.length && opts.allowImages) {
+    const keepImages = idx === lastImageIdx;
+    if (role === "user" && m.images?.length && opts.allowImages && keepImages) {
       const parts: any[] = [];
       if (m.text) parts.push({ type: "text", text: m.text });
       for (const img of m.images) parts.push({ type: "image_url", image_url: { url: img } });
       messages.push({ role, content: parts });
-    } else if (role === "user" && m.images?.length) {
+    } else if (role === "user" && m.images?.length && keepImages) {
       const note = `[user attached ${m.images.length} image${m.images.length > 1 ? "s" : ""} — not visible to this text-only model]`;
       messages.push({ role, content: m.text ? `${m.text}\n\n${note}` : note });
+    } else if (role === "user" && m.images?.length) {
+      messages.push({ role, content: m.text || "[image]" });
     } else {
       messages.push({ role, content: m.text || "" });
     }
   }
-  const res = await fetch(url, {
+  // Hard timeout so a stalled provider surfaces an error instead of leaving
+  // the UI stuck on "Alpha is thinking…".
+  const ctrl = new AbortController();
+  const timeoutMs = opts.allowImages ? 90_000 : 60_000;
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(url, {
     method: "POST",
+    signal: ctrl.signal,
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
@@ -61,7 +81,15 @@ export async function sendChatOpenAICompat(
       stream: false,
       ...(opts.extraBody || {}),
     }),
-  });
+    });
+  } catch (e: any) {
+    if (e?.name === "AbortError") {
+      throw new Error(`${opts.model} timed out after ${Math.round(timeoutMs / 1000)}s. Try a smaller image or another model.`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) {
     const t = await res.text().catch(() => "");
     let hint = "";
