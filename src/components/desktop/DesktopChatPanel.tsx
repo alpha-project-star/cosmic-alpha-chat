@@ -5,6 +5,9 @@ import { sendChat, type TaskType } from "../../lib/alpha.functions";
 import { MessageContent } from "../MessageContent";
 import { prepareUtterance, speakWith } from "../../lib/voice";
 import { tryLocalIntent } from "../../lib/local-intents";
+import { fileToShrunkDataUrl } from "../../lib/image-utils";
+import { captureLiveFrame, isVisionCommand, shouldCaptureFrame } from "../../lib/vision-command";
+import { isActive as eyeIsActive } from "../../lib/vision-stream";
 import { HudPanel } from "./HudPanel";
 import { HudBubble } from "./HudBubble";
 import { LiveClock } from "../LiveClock";
@@ -18,6 +21,15 @@ export function DesktopChatPanel() {
   const [showJump, setShowJump] = useState(false);
   const [task, setTask] = useState<TaskType>("auto");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  function autoGrow() {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 176) + "px";
+  }
+  useEffect(() => { autoGrow(); }, [text]);
 
   function scrollToBottom(smooth = true) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: smooth ? "smooth" : "auto" });
@@ -35,10 +47,15 @@ export function DesktopChatPanel() {
     const t = (overrideText ?? text).trim();
     if (!t && images.length === 0) return;
     prepareUtterance();
-    alphaStore.appendChat({ id: uid(), role: "user", text: t, images: images.length ? images : undefined, ts: Date.now() });
+    let outImages = images;
+    if (t && shouldCaptureFrame(t, eyeIsActive())) {
+      const frame = await captureLiveFrame();
+      if (frame) outImages = [...outImages, frame].slice(0, 4);
+    }
+    alphaStore.appendChat({ id: uid(), role: "user", text: t, images: outImages.length ? outImages : undefined, ts: Date.now() });
     setText(""); setImages([]); setBusy(true);
     try {
-      const local = t ? tryLocalIntent(t) : null;
+      const local = t && !isVisionCommand(t) ? tryLocalIntent(t) : null;
       const reply = local ?? await sendChat(alphaStore.get().chat, { task });
       alphaStore.appendChat({ id: uid(), role: "model", text: reply, ts: Date.now() });
       speakWith(reply);
@@ -50,9 +67,7 @@ export function DesktopChatPanel() {
   async function pickImages(files: FileList | null) {
     if (!files) return;
     const arr = Array.from(files).slice(0, 4 - images.length);
-    const datas = await Promise.all(arr.map(f => new Promise<string>((res, rej) => {
-      const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(f);
-    })));
+    const datas = await Promise.all(arr.map(f => fileToShrunkDataUrl(f)));
     setImages(prev => [...prev, ...datas].slice(0, 4));
   }
 
@@ -126,20 +141,24 @@ export function DesktopChatPanel() {
           </button>
         ))}
       </div>
-      <div className="pt-2 flex items-end gap-2">
-        <label className="cursor-pointer p-2 rounded-lg hud-bubble">
-          <ImagePlus className="w-5 h-5 text-primary" />
-          <input type="file" accept="image/*" multiple hidden onChange={e => pickImages(e.target.files)} />
-        </label>
+      <div className="pt-2 flex flex-col gap-2">
         <textarea
+          ref={taRef}
           value={text}
           onChange={e => setText(e.target.value)}
+          onInput={autoGrow}
           onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder="Message Alpha…" rows={1}
-          className="flex-1 bg-input/60 rounded-xl px-3 py-2 border border-primary/40 outline-none focus:border-primary resize-none max-h-32 text-sm" />
-        <button onClick={() => send()} disabled={busy} className="p-2 rounded-lg bg-primary text-primary-foreground neon-border disabled:opacity-50">
-          <Send className="w-5 h-5" />
-        </button>
+          placeholder="Message Alpha…" rows={2}
+          className="w-full min-w-0 bg-input/60 rounded-2xl px-4 py-3 border border-primary/40 outline-none focus:border-primary resize-none min-h-[56px] max-h-44 overflow-y-auto text-sm leading-6 break-words [overflow-wrap:anywhere]" />
+        <div className="flex items-center gap-1.5">
+          <label className="cursor-pointer p-2 rounded-lg hud-bubble shrink-0" aria-label="Upload image">
+            <ImagePlus className="w-5 h-5 text-primary" />
+            <input type="file" accept="image/*" multiple hidden onChange={e => pickImages(e.target.files)} />
+          </label>
+          <button onClick={() => send()} disabled={busy} className="ml-auto p-2.5 rounded-xl bg-primary text-primary-foreground neon-border disabled:opacity-50 shrink-0" aria-label="Send">
+            <Send className="w-5 h-5" />
+          </button>
+        </div>
       </div>
     </HudPanel>
   );
