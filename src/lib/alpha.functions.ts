@@ -412,6 +412,10 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
 
   const route = online ? pickRoute(task, hasImages) : null;
 
+  if (hasImages && online && !route) {
+    throw new Error("No OpenRouter API key set — Alpha needs one to see images. Add it in Settings → Online.");
+  }
+
   if (route && online) {
     const { prov, model } = route;
     const lastUserMsg = [...history].reverse().find(m => m.role === "user");
