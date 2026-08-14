@@ -73,6 +73,35 @@ function SettingsRoute() {
     }
   }
 
+  async function handleExport() {
+    setDataStatus("Exporting…");
+    try {
+      const data = await exportAlphaData();
+      downloadAlphaData(data);
+      setDataStatus(`✅ Exported ${data.exportedAt.slice(0, 10)}. ${data.music.length} music track(s).`);
+    } catch (e: any) {
+      setDataStatus(`❌ Export failed: ${e?.message || "unknown"}`);
+    }
+  }
+
+  async function handleImport(file: File | null) {
+    if (!file) return;
+    setDataStatus("Importing…");
+    try {
+      const { restored } = await importAlphaData(file);
+      toast.success(`Restored ${restored.length} data bucket(s). Reloading…`);
+    } catch (e: any) {
+      setDataStatus(`❌ Import failed: ${e?.message || "unknown"}`);
+      toast.error(`Import failed: ${e?.message || "unknown"}`);
+    }
+  }
+
+  async function handleWipe() {
+    if (!confirm("This permanently deletes all Alpha data — chat, notes, reminders, memories, settings, and music. This cannot be undone. Continue?")) return;
+    setDataStatus("Wiping…");
+    await wipeAlphaData();
+  }
+
   useEffect(() => {
     const update = () => setVoices(listVoices());
     update();
