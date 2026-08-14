@@ -1,12 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { ArrowLeft, Check, ChevronDown, ChevronRight, Music, Trash2, Wifi, WifiOff } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, Download, Music, Trash2, Upload, Wifi, WifiOff } from "lucide-react";
 import { alphaStore, useAlpha } from "../lib/alpha-store";
 import { listVoices, speakWith } from "../lib/voice";
 import { listOllamaModels } from "../lib/ollama";
 import { testAlarmNow, requestAlarmPermission } from "../lib/alarm-engine";
 import { KittScanner } from "../components/KittScanner";
 import { addMusicFiles, deleteMusicTrack, listMusicTracks, playMusicByName, stopMusic, type MusicTrackMeta } from "../lib/music";
+import { downloadAlphaData, exportAlphaData, importAlphaData, wipeAlphaData } from "../lib/data-portability";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Alpha — Settings" }, { name: "description", content: "Configure Alpha." }] }),
@@ -38,10 +40,12 @@ function SettingsRoute() {
   const [ollamaStatus, setOllamaStatus] = useState<string>("");
   const [whisperStatus, setWhisperStatus] = useState<string>("");
   const [musicStatus, setMusicStatus] = useState<string>("");
+  const [dataStatus, setDataStatus] = useState<string>("");
   const [tracks, setTracks] = useState<MusicTrackMeta[]>([]);
   const [newModel, setNewModel] = useState("");
   const [online, setOnline] = useState<boolean>(typeof navigator !== "undefined" ? navigator.onLine : true);
   const [openGroup, setOpenGroup] = useState<"online" | "offline" | "data" | null>("online");
+  const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const on = () => setOnline(true);
@@ -67,6 +71,35 @@ function SettingsRoute() {
     } catch (e: any) {
       setMusicStatus(e?.message || "Could not save music.");
     }
+  }
+
+  async function handleExport() {
+    setDataStatus("Exporting…");
+    try {
+      const data = await exportAlphaData();
+      downloadAlphaData(data);
+      setDataStatus(`✅ Exported ${data.exportedAt.slice(0, 10)}. ${data.music.length} music track(s).`);
+    } catch (e: any) {
+      setDataStatus(`❌ Export failed: ${e?.message || "unknown"}`);
+    }
+  }
+
+  async function handleImport(file: File | null) {
+    if (!file) return;
+    setDataStatus("Importing…");
+    try {
+      const { restored } = await importAlphaData(file);
+      toast.success(`Restored ${restored.length} data bucket(s). Reloading…`);
+    } catch (e: any) {
+      setDataStatus(`❌ Import failed: ${e?.message || "unknown"}`);
+      toast.error(`Import failed: ${e?.message || "unknown"}`);
+    }
+  }
+
+  async function handleWipe() {
+    if (!confirm("This permanently deletes all Alpha data — chat, notes, reminders, memories, settings, and music. This cannot be undone. Continue?")) return;
+    setDataStatus("Wiping…");
+    await wipeAlphaData();
   }
 
   useEffect(() => {
@@ -317,6 +350,27 @@ function SettingsRoute() {
             </div>
             {tracks.length > 0 && <button type="button" onClick={() => { stopMusic(); setMusicStatus("Music stopped."); }} className="mt-2 px-3 py-1.5 text-sm rounded-md glass neon-border">Stop music</button>}
             {musicStatus && <div className="mt-2 text-xs text-muted-foreground">{musicStatus}</div>}
+          </Section>
+
+          <Section title="Export / Import" hint="Back up or move your entire Alpha state — chat, notes, reminders, memories, settings, and music — as one JSON file.">
+            <div className="flex flex-wrap gap-2 mb-3">
+              <button onClick={handleExport} className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground inline-flex items-center gap-2">
+                <Download className="w-4 h-4" /> Export Alpha data
+              </button>
+              <label className="px-3 py-1.5 text-sm rounded-md glass neon-border inline-flex items-center gap-2 cursor-pointer">
+                <Upload className="w-4 h-4" /> Import Alpha data
+                <input type="file" accept="application/json,.json" hidden ref={importRef} onChange={e => handleImport(e.target.files?.[0] || null)} />
+              </label>
+            </div>
+            {dataStatus && <div className="text-xs text-muted-foreground mb-3">{dataStatus}</div>}
+            <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10">
+              <div className="flex items-center gap-2 text-xs text-destructive-foreground mb-2">
+                <AlertTriangle className="w-4 h-4" /> Danger zone
+              </div>
+              <button onClick={handleWipe} className="px-3 py-1.5 text-sm rounded-md border border-destructive/50 text-destructive-foreground hover:bg-destructive/20">
+                Wipe all Alpha data
+              </button>
+            </div>
           </Section>
 
           <Section title="About You" hint="Alpha uses this to recognise and address you personally.">
