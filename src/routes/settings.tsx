@@ -40,10 +40,12 @@ function SettingsRoute() {
   const [ollamaStatus, setOllamaStatus] = useState<string>("");
   const [whisperStatus, setWhisperStatus] = useState<string>("");
   const [musicStatus, setMusicStatus] = useState<string>("");
+  const [dataStatus, setDataStatus] = useState<string>("");
   const [tracks, setTracks] = useState<MusicTrackMeta[]>([]);
   const [newModel, setNewModel] = useState("");
   const [online, setOnline] = useState<boolean>(typeof navigator !== "undefined" ? navigator.onLine : true);
   const [openGroup, setOpenGroup] = useState<"online" | "offline" | "data" | null>("online");
+  const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const on = () => setOnline(true);
