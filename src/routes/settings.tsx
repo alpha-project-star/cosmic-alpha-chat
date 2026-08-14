@@ -352,6 +352,27 @@ function SettingsRoute() {
             {musicStatus && <div className="mt-2 text-xs text-muted-foreground">{musicStatus}</div>}
           </Section>
 
+          <Section title="Export / Import" hint="Back up or move your entire Alpha state — chat, notes, reminders, memories, settings, and music — as one JSON file.">
+            <div className="flex flex-wrap gap-2 mb-3">
+              <button onClick={handleExport} className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground inline-flex items-center gap-2">
+                <Download className="w-4 h-4" /> Export Alpha data
+              </button>
+              <label className="px-3 py-1.5 text-sm rounded-md glass neon-border inline-flex items-center gap-2 cursor-pointer">
+                <Upload className="w-4 h-4" /> Import Alpha data
+                <input type="file" accept="application/json,.json" hidden ref={importRef} onChange={e => handleImport(e.target.files?.[0] || null)} />
+              </label>
+            </div>
+            {dataStatus && <div className="text-xs text-muted-foreground mb-3">{dataStatus}</div>}
+            <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10">
+              <div className="flex items-center gap-2 text-xs text-destructive-foreground mb-2">
+                <AlertTriangle className="w-4 h-4" /> Danger zone
+              </div>
+              <button onClick={handleWipe} className="px-3 py-1.5 text-sm rounded-md border border-destructive/50 text-destructive-foreground hover:bg-destructive/20">
+                Wipe all Alpha data
+              </button>
+            </div>
+          </Section>
+
           <Section title="About You" hint="Alpha uses this to recognise and address you personally.">
             <input type="text" value={profile.name}
               onChange={e => alphaStore.setProfile({ ...profile, name: e.target.value })}
