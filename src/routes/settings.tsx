@@ -1,12 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { ArrowLeft, Check, ChevronDown, ChevronRight, Music, Trash2, Wifi, WifiOff } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, Download, Music, Trash2, Upload, Wifi, WifiOff } from "lucide-react";
 import { alphaStore, useAlpha } from "../lib/alpha-store";
 import { listVoices, speakWith } from "../lib/voice";
 import { listOllamaModels } from "../lib/ollama";
 import { testAlarmNow, requestAlarmPermission } from "../lib/alarm-engine";
 import { KittScanner } from "../components/KittScanner";
 import { addMusicFiles, deleteMusicTrack, listMusicTracks, playMusicByName, stopMusic, type MusicTrackMeta } from "../lib/music";
+import { downloadAlphaData, exportAlphaData, importAlphaData, wipeAlphaData } from "../lib/data-portability";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Alpha — Settings" }, { name: "description", content: "Configure Alpha." }] }),
