@@ -143,6 +143,7 @@ function RootComponent() {
       <AlphaLock>
         <Outlet />
         <GlobalDock />
+        <Toaster position="top-center" richColors />
       </AlphaLock>
     </QueryClientProvider>
   );
