@@ -20,6 +20,10 @@ export interface Profile { name: string; bio: string }
 export interface Settings {
   voiceEnabled: boolean;
   continuousListen: boolean;
+  /** Speak completed replies automatically. Manual Speak always works. */
+  autoSpeak: boolean;
+  /** Send the final voice transcript automatically instead of waiting for Send. */
+  autoSubmitVoice: boolean;
   preferredVoice: string;
   personaExtra: string;
   kokoroEndpoint: string;
