@@ -218,6 +218,31 @@ export const alphaStore = {
   upsertMemory(m: Memory) { state = { ...state, memories: upsert(state.memories, m) }; writeLS(K.memories, state.memories); emit(); },
   deleteMemory(id: string) { state = { ...state, memories: state.memories.filter(x => x.id !== id) }; writeLS(K.memories, state.memories); emit(); },
   setProfile(p: Profile) { state = { ...state, profile: p }; writeLS(K.profile, p); emit(); },
+  /** Remove one message from persistent chat state. Returns true when it existed. */
+  deleteChatMessage(id: string): boolean {
+    const exists = state.chat.some(m => m.id === id);
+    if (!exists) return false;
+    state = { ...state, chat: state.chat.filter(m => m.id !== id) };
+    writeLS(K.chat, state.chat); emit();
+    return true;
+  },
+  /**
+   * Drop the assistant/system reply that follows a user turn so it can be
+   * regenerated. Returns the user message text, or null when not retryable.
+   */
+  prepareRetry(assistantId: string): { userText: string } | null {
+    const idx = state.chat.findIndex(m => m.id === assistantId);
+    if (idx < 0) return null;
+    // Walk back to the nearest user turn.
+    let userIdx = -1;
+    for (let i = idx - 1; i >= 0; i--) if (state.chat[i].role === "user") { userIdx = i; break; }
+    if (userIdx < 0) return null;
+    // Remove everything after that user turn (the stale reply, and any trailing error).
+    const next = state.chat.slice(0, userIdx + 1);
+    state = { ...state, chat: next };
+    writeLS(K.chat, state.chat); emit();
+    return { userText: state.chat[userIdx].text || "" };
+  },
 };
 
 // ----- Rolling conversation summary (semantic compactor) -----
