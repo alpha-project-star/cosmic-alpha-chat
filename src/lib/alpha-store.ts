@@ -81,6 +81,8 @@ const K = {
 const DEFAULT_SETTINGS: Settings = {
   voiceEnabled: true,
   continuousListen: true,
+  autoSpeak: true,
+  autoSubmitVoice: true,
   preferredVoice: "",
   personaExtra: "",
   kokoroEndpoint: "",
