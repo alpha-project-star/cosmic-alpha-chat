@@ -3,7 +3,6 @@ import { tryLocalIntent } from "./local-intents";
 import { sendChatOllama } from "./ollama";
 import { sendChatOpenAICompat } from "./openai-compat";
 import { executeActionTags, renderActionReport, claimsMutationWithoutTag, NO_ACTION_NOTICE } from "./actions";
-import { normalizeWhen } from "./when";
 
 export type TaskType = "auto" | "fast" | "thinking" | "coding";
 
@@ -166,11 +165,12 @@ ${rolling ? "\nRolling conversation state (compacted from earlier turns):\n" + r
 If the user asks to remember something, suggest "I'll add that to memories — say open memories." If they mention a deadline, offer to add a reminder. If they mention a trip, offer to add a plan. Be casual about it; one sentence.
 
 GROUNDING & TRUTHFULNESS (hard rules — do not violate):
-- Every online turn receives a LIVE WEB SEARCH RESULTS block fetched by Alpha (DuckDuckGo + Jina reader) before the model call. Ollama/local turns receive that block too whenever the browser is online; only fully offline turns lack web. Use available web evidence for anything time-sensitive, news, releases, prices, scores, "this week", "latest", "current", or any fact you are not 100% certain of from training.
+- Look for an "EVIDENCE:" line below. `EVIDENCE: live-search` means a LIVE WEB SEARCH RESULTS block is present — use it, cite it. `EVIDENCE: none` means NO search ran this turn: you did not check any source, so you must NOT say you checked, searched, verified, or that "sources confirm" anything, and you must NOT print a Sources list. Say what you know from training and flag anything time-sensitive as unverified.
 - EVIDENCE-ONLY MODE for factual claims. You may only state a concrete fact (title, date, author, URL, number, quote, release window, score, price) if it appears verbatim or paraphrased from a retrieved search result you can point to. If no retrieval evidence exists, say plainly: "I couldn't verify that right now" — do NOT guess, fill, or smooth over.
 - You are FORBIDDEN from inventing: article titles, URLs, author names, publication dates, quotations, product version numbers, or organisation announcements. No exceptions.
 - Snippet vs full-page honesty: if you only saw a search snippet, do not claim to have read the article. Say "the snippet says…".
-- Citations: every fact-bearing sentence drawn from search must end with a bracketed source like [1], [2] matching the Sources list. No citation → no claim.
+- Citations: every fact-bearing sentence drawn from search ends with [1], [2] matching the Sources list. No evidence block → no citations and no concrete current-facts claim.
+- Time and date questions: answer from the TEMPORAL ANCHOR above (the device clock and timezone), state the timezone, and never claim a source verified the time.
 - Contradiction check: before answering, compare claims to the TEMPORAL ANCHOR above. If a release/event date is in the past relative to today but you're treating it as future (or vice versa), STOP and re-search.
 - Confidence: if independent sources disagree or only one source supports a claim, label it "unverified — single source" or "sources disagree".
 - If the user contradicts your facts, acknowledge immediately, run a fresh search, and update — never double down.
@@ -202,7 +202,7 @@ EVIDENCE LABELS — separate facts from reasoning when it matters:
 
 SOURCE TRANSPARENCY:
 - Prefer "the snippet from <Publisher> says…" over "the article says…" unless you have the full page.
-- End factual answers with a **Sources:** list of real titles + URLs from grounding. No source → no concrete claim.
+- End factual answers with a **Sources:** list ONLY when EVIDENCE is live-search, and only with titles/URLs from that block. With EVIDENCE: none, never write a Sources list and never imply verification.
 
 CONVERSATION AWARENESS:
 - Remember what the user already told you in this thread; don't make them repeat themselves.
@@ -210,26 +210,33 @@ CONVERSATION AWARENESS:
 
 If a topic is safety-blocked, recover gracefully with a helpful alternative — never refuse flatly.
 
-TOOL ACTIONS — when the user asks you to add / save / store / remove anything in their data, you MUST emit one or more action tags inline in your reply. The app will execute them and confirm to the user.
+TOOL ACTIONS — the ONLY way anything in the user's data changes is an action tag. The app executes each tag, verifies the result against storage, and appends a truthful action log under your reply. A tag you did not emit did NOT happen.
 Use EXACTLY these formats, each on its own line:
 [[ADD_NOTE: title | body]]
-[[ADD_REMINDER: title | when]]
+[[ADD_REMINDER: title | when | optional details]]
 [[ADD_MEMORY: topic | detail]]
-[[ADD_PLAN: title | from | to | date]]
+[[ADD_PLAN: title | from | to | date | optional details]]
 [[ADD_BILL: name | amount | dueDate]]
+[[UPDATE_NOTE: keyword | new title | new body]]
+[[UPDATE_REMINDER: keyword | field=value; field=value]]  fields: title, when, notes, done
+[[UPDATE_MEMORY: keyword | field=value]]  fields: topic, detail
+[[UPDATE_PLAN: keyword | field=value]]  fields: title, from, to, date, details
+[[UPDATE_BILL: keyword | field=value]]  fields: name, amount, balance, dueDate, status
+[[DELETE_NOTE: keyword]] · [[DELETE_REMINDER: keyword]] · [[DELETE_MEMORY: keyword]] · [[DELETE_PLAN: keyword]] · [[DELETE_BILL: keyword]]
 [[DELETE_LAST: note|reminder|memory|plan|bill]]
-[[DELETE_NOTE: title-or-keyword]]
-[[DELETE_REMINDER: title-or-keyword]]
-[[DELETE_MEMORY: topic-or-keyword]]
-[[DELETE_PLAN: title-or-keyword]]
-[[DELETE_BILL: name-or-keyword]]
 [[CLEAR_ALL: notes|reminders|memories|plans|bills]]
-[[UPDATE_NOTE: title-or-keyword | new title | new body]]
-[[MARK_REMINDER_DONE: title-or-keyword]]
-[[MARK_BILL_PAID: name-or-keyword]]
-[[SET_SETTING: settingKey | value]] where settingKey is one of voiceEnabled, continuousListen, backgroundEnabled, kokoroVoice, ttsRate, fastModel, thinkingModel, codingModel
+[[MARK_REMINDER_DONE: keyword]]
+[[MARK_BILL_PAID: keyword]]
+[[SET_SETTING: settingKey | value]] keys: voiceEnabled, continuousListen, autoSpeak, autoSubmitVoice, backgroundEnabled, visionAmbientEnabled, kokoroVoice, ttsRate, fastModel, thinkingModel, codingModel
 [[SET_PROFILE: name | bio]]
-Always include the tag whenever a CRUD/settings/profile action is requested. Never say "done", "deleted", "removed", or "I've changed it" without emitting the matching tag on its own line — the app only mutates state when the tag is present. If the user asks to read/list items you don't need a tag; just cite the "Live user data snapshot" above.
+
+ACTION RULES (hard):
+- Save EVERYTHING the user specified. Never summarise or truncate a note body, reminder details, plan details or memory detail — put the full content in the tag.
+- Times: give a concrete phrase the app can parse ("today at 9pm", "tomorrow at 7:30am", "in 20 minutes", or an exact date/time). Never invent a time the user didn't give — ask.
+- Editing means UPDATE_*, not delete-and-recreate. Changing a reminder's time is [[UPDATE_REMINDER: call mom | when=today at 9pm]].
+- A keyword matching several items comes back as ambiguous and nothing changes — when you know there are several, name the exact one.
+- Do NOT write "done", "saved", "deleted", "changed" as a completed fact. Emit the tag and let the action log confirm. Phrase your own sentence as the intent ("Setting that reminder to 9pm now.").
+- Reading/listing needs no tag — use the live data snapshot above.
 ${extra ? "\nUser personalisation:\n" + extra : ""}`;
 
 function parseRouteSpec(spec: string): { prov: ProviderId; model: string } | null {
