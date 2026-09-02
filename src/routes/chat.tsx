@@ -77,7 +77,15 @@ function ChatRoute() {
     setShowJump(el.scrollHeight - el.scrollTop - el.clientHeight > 200);
   }
 
-  async function send(overrideText?: string) {
+  /** Regenerate an assistant reply: drop it, then re-send the user turn. */
+  async function retry(assistantId: string) {
+    if (busy) return;
+    const r = alphaStore.prepareRetry(assistantId);
+    if (!r) return;
+    await send(r.userText, { skipAppend: true });
+  }
+
+  async function send(overrideText?: string, opts?: { skipAppend?: boolean }) {
     if (busy) return;
     const t = (overrideText ?? text).trim();
     if (!t && images.length === 0) return;
@@ -87,14 +95,16 @@ function ChatRoute() {
       const frame = await captureLiveFrame();
       if (frame) outImages = [...outImages, frame].slice(0, 4);
     }
-    alphaStore.appendChat({ id: uid(), role: "user", text: t, images: outImages.length ? outImages : undefined, ts: Date.now() });
+    if (!opts?.skipAppend) {
+      alphaStore.appendChat({ id: uid(), role: "user", text: t, images: outImages.length ? outImages : undefined, ts: Date.now() });
+    }
     setText(""); setImages([]); setBusy(true);
     try {
       // Local intents first — but skip when the user is asking Alpha to LOOK.
       const local = t && !isVisionCommand(t) ? tryLocalIntent(t) : null;
       const reply = local ?? await sendChat(alphaStore.get().chat, { task });
       alphaStore.appendChat({ id: uid(), role: "model", text: reply, ts: Date.now() });
-      speakWith(reply);
+      speakWith(reply, { auto: true });
     } catch (e: any) {
       alphaStore.appendChat({ id: uid(), role: "system", text: e?.message || "Error", ts: Date.now(), error: true });
     } finally { setBusy(false); }
@@ -113,7 +123,17 @@ function ChatRoute() {
     setMicError("");
     recognizer.setHandlers({
       onInterim: t => setText(t),
-      onFinal: t => { setText(t); recognizer.stop(); setListening(false); send(t); },
+      onFinal: t => {
+        const trimmed = t.trim();
+        setText(trimmed);
+        recognizer.stop(); setListening(false);
+        if (!trimmed) return;
+        // Guard against the recogniser emitting the same final twice.
+        if (trimmed === lastFinalRef.current && Date.now() - lastFinalAtRef.current < 4000) return;
+        lastFinalRef.current = trimmed; lastFinalAtRef.current = Date.now();
+        if (alphaStore.get().settings.autoSubmitVoice === false) return;
+        send(trimmed);
+      },
       onStart: () => setListening(true),
       onStop: () => setListening(false),
       onError: e => { setListening(false); setMicError(e); },
@@ -162,6 +182,7 @@ function ChatRoute() {
                 <div className="max-w-[85%] min-w-0 overflow-hidden rounded-2xl px-4 py-2 bg-primary/20 border border-primary/40 break-words [overflow-wrap:anywhere] [word-break:break-word]">
                   {m.images?.map((src, i) => <img key={i} src={src} className="rounded-lg max-h-48 mb-2 max-w-full" alt="" />)}
                   <div className="whitespace-pre-wrap text-sm break-words [overflow-wrap:anywhere]">{m.text}</div>
+                  <MessageActions text={m.text} compact onDelete={() => alphaStore.deleteChatMessage(m.id)} />
                 </div>
               </div>
             );
@@ -170,6 +191,7 @@ function ChatRoute() {
             return (
               <div key={m.id} className="w-full min-w-0 rounded-xl px-3 py-2 bg-destructive/15 border border-destructive/40 text-destructive-foreground text-sm break-words [overflow-wrap:anywhere]">
                 {m.text}
+                <MessageActions text={m.text} compact onDelete={() => alphaStore.deleteChatMessage(m.id)} onRetry={() => retry(m.id)} />
               </div>
             );
           }
@@ -178,7 +200,7 @@ function ChatRoute() {
             <div key={m.id} className="w-full min-w-0 overflow-hidden px-1 py-2 break-words [overflow-wrap:anywhere] [word-break:break-word]">
               {m.images?.map((src, i) => <img key={i} src={src} className="rounded-lg max-h-60 mb-2 max-w-full" alt="" />)}
               <MessageContent text={m.text} />
-              <MessageActions text={m.text} />
+              <MessageActions text={m.text} onDelete={() => alphaStore.deleteChatMessage(m.id)} onRetry={() => retry(m.id)} />
             </div>
           );
         })}
@@ -278,19 +300,33 @@ function ChatRoute() {
   );
 }
 
-function MessageActions({ text }: { text: string }) {
+function MessageActions({
+  text, compact = false, onDelete, onRetry,
+}: { text: string; compact?: boolean; onDelete?: () => void; onRetry?: () => void }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div className="flex items-center gap-2 mt-2 opacity-70">
-      <button onClick={() => { prepareUtterance(); speakWith(text); }}
-        aria-label="Speak again" className="p-1.5 rounded-md hover:bg-primary/10">
-        <Volume2 className="w-4 h-4 text-primary" />
-      </button>
+    <div className={`flex items-center gap-2 ${compact ? "mt-1 justify-end" : "mt-2"} opacity-70`}>
+      {!compact && (
+        <button onClick={() => { prepareUtterance(); speakWith(text); }}
+          aria-label="Speak again" className="p-1.5 rounded-md hover:bg-primary/10">
+          <Volume2 className="w-4 h-4 text-primary" />
+        </button>
+      )}
       <button onClick={async () => {
         try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {}
       }} aria-label="Copy" className="p-1.5 rounded-md hover:bg-primary/10">
         {copied ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4 text-primary" />}
       </button>
+      {onRetry && (
+        <button onClick={onRetry} aria-label="Regenerate" className="p-1.5 rounded-md hover:bg-primary/10">
+          <RotateCcw className="w-4 h-4 text-primary" />
+        </button>
+      )}
+      {onDelete && (
+        <button onClick={onDelete} aria-label="Delete message" className="p-1.5 rounded-md hover:bg-destructive/20">
+          <Trash2 className="w-4 h-4 text-destructive" />
+        </button>
+      )}
     </div>
   );
 }

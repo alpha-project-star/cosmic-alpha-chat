@@ -2,6 +2,7 @@ import { alphaStore, conversationSummary, uid, type ChatMessage } from "./alpha-
 import { tryLocalIntent } from "./local-intents";
 import { sendChatOllama } from "./ollama";
 import { sendChatOpenAICompat } from "./openai-compat";
+import { executeActionTags, renderActionReport, claimsMutationWithoutTag, NO_ACTION_NOTICE } from "./actions";
 
 export type TaskType = "auto" | "fast" | "thinking" | "coding";
 
@@ -164,11 +165,12 @@ ${rolling ? "\nRolling conversation state (compacted from earlier turns):\n" + r
 If the user asks to remember something, suggest "I'll add that to memories — say open memories." If they mention a deadline, offer to add a reminder. If they mention a trip, offer to add a plan. Be casual about it; one sentence.
 
 GROUNDING & TRUTHFULNESS (hard rules — do not violate):
-- Every online turn receives a LIVE WEB SEARCH RESULTS block fetched by Alpha (DuckDuckGo + Jina reader) before the model call. Ollama/local turns receive that block too whenever the browser is online; only fully offline turns lack web. Use available web evidence for anything time-sensitive, news, releases, prices, scores, "this week", "latest", "current", or any fact you are not 100% certain of from training.
+- Look for an "EVIDENCE:" line below. "EVIDENCE: live-search" means a LIVE WEB SEARCH RESULTS block is present — use it, cite it. "EVIDENCE: none" means NO search ran this turn: you did not check any source, so you must NOT say you checked, searched, verified, or that "sources confirm" anything, and you must NOT print a Sources list. Say what you know from training and flag anything time-sensitive as unverified.
 - EVIDENCE-ONLY MODE for factual claims. You may only state a concrete fact (title, date, author, URL, number, quote, release window, score, price) if it appears verbatim or paraphrased from a retrieved search result you can point to. If no retrieval evidence exists, say plainly: "I couldn't verify that right now" — do NOT guess, fill, or smooth over.
 - You are FORBIDDEN from inventing: article titles, URLs, author names, publication dates, quotations, product version numbers, or organisation announcements. No exceptions.
 - Snippet vs full-page honesty: if you only saw a search snippet, do not claim to have read the article. Say "the snippet says…".
-- Citations: every fact-bearing sentence drawn from search must end with a bracketed source like [1], [2] matching the Sources list. No citation → no claim.
+- Citations: every fact-bearing sentence drawn from search ends with [1], [2] matching the Sources list. No evidence block → no citations and no concrete current-facts claim.
+- Time and date questions: answer from the TEMPORAL ANCHOR above (the device clock and timezone), state the timezone, and never claim a source verified the time.
 - Contradiction check: before answering, compare claims to the TEMPORAL ANCHOR above. If a release/event date is in the past relative to today but you're treating it as future (or vice versa), STOP and re-search.
 - Confidence: if independent sources disagree or only one source supports a claim, label it "unverified — single source" or "sources disagree".
 - If the user contradicts your facts, acknowledge immediately, run a fresh search, and update — never double down.
@@ -200,7 +202,7 @@ EVIDENCE LABELS — separate facts from reasoning when it matters:
 
 SOURCE TRANSPARENCY:
 - Prefer "the snippet from <Publisher> says…" over "the article says…" unless you have the full page.
-- End factual answers with a **Sources:** list of real titles + URLs from grounding. No source → no concrete claim.
+- End factual answers with a **Sources:** list ONLY when EVIDENCE is live-search, and only with titles/URLs from that block. With EVIDENCE: none, never write a Sources list and never imply verification.
 
 CONVERSATION AWARENESS:
 - Remember what the user already told you in this thread; don't make them repeat themselves.
@@ -208,26 +210,33 @@ CONVERSATION AWARENESS:
 
 If a topic is safety-blocked, recover gracefully with a helpful alternative — never refuse flatly.
 
-TOOL ACTIONS — when the user asks you to add / save / store / remove anything in their data, you MUST emit one or more action tags inline in your reply. The app will execute them and confirm to the user.
+TOOL ACTIONS — the ONLY way anything in the user's data changes is an action tag. The app executes each tag, verifies the result against storage, and appends a truthful action log under your reply. A tag you did not emit did NOT happen.
 Use EXACTLY these formats, each on its own line:
 [[ADD_NOTE: title | body]]
-[[ADD_REMINDER: title | when]]
+[[ADD_REMINDER: title | when | optional details]]
 [[ADD_MEMORY: topic | detail]]
-[[ADD_PLAN: title | from | to | date]]
+[[ADD_PLAN: title | from | to | date | optional details]]
 [[ADD_BILL: name | amount | dueDate]]
+[[UPDATE_NOTE: keyword | new title | new body]]
+[[UPDATE_REMINDER: keyword | field=value; field=value]]  fields: title, when, notes, done
+[[UPDATE_MEMORY: keyword | field=value]]  fields: topic, detail
+[[UPDATE_PLAN: keyword | field=value]]  fields: title, from, to, date, details
+[[UPDATE_BILL: keyword | field=value]]  fields: name, amount, balance, dueDate, status
+[[DELETE_NOTE: keyword]] · [[DELETE_REMINDER: keyword]] · [[DELETE_MEMORY: keyword]] · [[DELETE_PLAN: keyword]] · [[DELETE_BILL: keyword]]
 [[DELETE_LAST: note|reminder|memory|plan|bill]]
-[[DELETE_NOTE: title-or-keyword]]
-[[DELETE_REMINDER: title-or-keyword]]
-[[DELETE_MEMORY: topic-or-keyword]]
-[[DELETE_PLAN: title-or-keyword]]
-[[DELETE_BILL: name-or-keyword]]
 [[CLEAR_ALL: notes|reminders|memories|plans|bills]]
-[[UPDATE_NOTE: title-or-keyword | new title | new body]]
-[[MARK_REMINDER_DONE: title-or-keyword]]
-[[MARK_BILL_PAID: name-or-keyword]]
-[[SET_SETTING: settingKey | value]] where settingKey is one of voiceEnabled, continuousListen, backgroundEnabled, kokoroVoice, ttsRate, fastModel, thinkingModel, codingModel
+[[MARK_REMINDER_DONE: keyword]]
+[[MARK_BILL_PAID: keyword]]
+[[SET_SETTING: settingKey | value]] keys: voiceEnabled, continuousListen, autoSpeak, autoSubmitVoice, backgroundEnabled, visionAmbientEnabled, kokoroVoice, ttsRate, fastModel, thinkingModel, codingModel
 [[SET_PROFILE: name | bio]]
-Always include the tag whenever a CRUD/settings/profile action is requested. Never say "done", "deleted", "removed", or "I've changed it" without emitting the matching tag on its own line — the app only mutates state when the tag is present. If the user asks to read/list items you don't need a tag; just cite the "Live user data snapshot" above.
+
+ACTION RULES (hard):
+- Save EVERYTHING the user specified. Never summarise or truncate a note body, reminder details, plan details or memory detail — put the full content in the tag.
+- Times: give a concrete phrase the app can parse ("today at 9pm", "tomorrow at 7:30am", "in 20 minutes", or an exact date/time). Never invent a time the user didn't give — ask.
+- Editing means UPDATE_*, not delete-and-recreate. Changing a reminder's time is [[UPDATE_REMINDER: call mom | when=today at 9pm]].
+- A keyword matching several items comes back as ambiguous and nothing changes — when you know there are several, name the exact one.
+- Do NOT write "done", "saved", "deleted", "changed" as a completed fact. Emit the tag and let the action log confirm. Phrase your own sentence as the intent ("Setting that reminder to 9pm now.").
+- Reading/listing needs no tag — use the live data snapshot above.
 ${extra ? "\nUser personalisation:\n" + extra : ""}`;
 
 function parseRouteSpec(spec: string): { prov: ProviderId; model: string } | null {
@@ -298,48 +307,6 @@ const TEXT_FALLBACKS = [
 
 function shouldFetchWeb(query: string) {
   return /\b(who|what|when|where|how|why|latest|current|today|yesterday|tomorrow|this week|news|price|score|release|version|weather|web|search|look up|find|source|citation|cite|date|202\d)\b/i.test(query);
-}
-
-function normalizeReminderWhen(raw: string): string {
-  const s = raw.trim();
-  if (!s) return "";
-  const parsed = Date.parse(s);
-  if (!Number.isNaN(parsed)) return new Date(parsed).toISOString();
-  const now = new Date();
-  let m = s.toLowerCase().match(/^in\s+(\d+)\s*(second|sec|minute|min|hour|hr|day)s?$/);
-  if (m) {
-    const n = Number(m[1]);
-    const unit = m[2];
-    const ms = /second|sec/.test(unit) ? n * 1000
-      : /min/.test(unit) ? n * 60000
-      : /hour|hr/.test(unit) ? n * 3600000
-      : n * 86400000;
-    return new Date(now.getTime() + ms).toISOString();
-  }
-  m = s.toLowerCase().match(/^(?:today\s+)?(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
-  if (m) {
-    let h = Number(m[1]);
-    const minutes = Number(m[2] || 0);
-    const ampm = m[3];
-    if (ampm === "pm" && h < 12) h += 12;
-    if (ampm === "am" && h === 12) h = 0;
-    const due = new Date(now);
-    due.setHours(h, minutes, 0, 0);
-    if (due.getTime() <= now.getTime()) due.setDate(due.getDate() + 1);
-    return due.toISOString();
-  }
-  m = s.toLowerCase().match(/^tomorrow(?:\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?)?$/);
-  if (m) {
-    const due = new Date(now); due.setDate(due.getDate() + 1);
-    let h = m[1] ? Number(m[1]) : 9;
-    const minutes = Number(m[2] || 0);
-    const ampm = m[3];
-    if (ampm === "pm" && h < 12) h += 12;
-    if (ampm === "am" && h === 12) h = 0;
-    due.setHours(h, minutes, 0, 0);
-    return due.toISOString();
-  }
-  return s;
 }
 
 async function fetchLiveWebContext(query: string): Promise<string> {
@@ -429,7 +396,10 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
     // except vision turns, where the image IS the evidence and the extra
     // round-trips only delay (or stall) the answer.
     const webContext = hasImages ? "" : await fetchLiveWebContext(lastUserMsg?.text || "");
-    const sys = DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling) + (webContext ? `\n\n${webContext}` : "");
+    const hasEvidence = /^\[1\]/m.test(webContext);
+    const sys = DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling)
+      + `\n\nEVIDENCE: ${hasEvidence ? "live-search" : "none"}`
+      + (webContext ? `\n\n${webContext}` : "");
 
     try {
       let text = "";
@@ -485,7 +455,7 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
         }
         if (lastErr) throw lastErr;
       }
-      const finalText = executeActionTags(appendSourcesIfWeb(text, webContext));
+      const finalText = finalizeReply(text, webContext);
       void maybeCompactSummary(history, finalText);
       return finalText;
     } catch (e: any) {
@@ -499,7 +469,7 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
             apiKey: cleanApiKey(s.groqApiKey), model: "llama-3.1-8b-instant",
           });
           const why = is429 ? "rate-limited" : "unavailable (auth/model error)";
-          return executeActionTags(appendSourcesIfWeb(text, webContext)) + `\n\n_\u26a0\ufe0f Primary model was ${why} \u2014 answered via Groq fallback._`;
+          return finalizeReply(text, webContext) + `\n\n_\u26a0\ufe0f Primary model was ${why} \u2014 answered via Groq fallback._`;
         } catch { /* fall through */ }
       }
       throw e;
@@ -511,9 +481,25 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
   const recall = lastUserMsg?.text ? rerankContext(lastUserMsg.text) : "";
   const rolling = conversationSummary.get();
   const webContext = online ? await fetchLiveWebContext(lastUserMsg?.text || "") : "";
-  const sys = DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling, { offline: !webContext });
+  const hasEvidence = /^\[1\]/m.test(webContext);
+  const sys = DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling, { offline: !webContext })
+    + `\n\nEVIDENCE: ${hasEvidence ? "live-search" : "none"}`;
   const text = await sendChatOllama(history, sys, webContext);
-  return executeActionTags(appendSourcesIfWeb(text, webContext));
+  return finalizeReply(text, webContext);
+}
+
+
+/**
+ * Post-process a raw model reply: execute action tags, verify them, and make
+ * the execution record (not the model's prose) the source of truth.
+ */
+function finalizeReply(raw: string, webContext: string): string {
+  const { text, results } = executeActionTags(raw);
+  let out = text;
+  const report = renderActionReport(results);
+  if (report) out = (out ? out + "\n\n" : "") + report;
+  else if (claimsMutationWithoutTag(text)) out = (out ? out + "\n\n" : "") + NO_ACTION_NOTICE;
+  return appendSourcesIfWeb(out, webContext);
 }
 
 /** Build a Sources footer from the LIVE WEB SEARCH RESULTS block we fed the
@@ -577,158 +563,6 @@ ${lastAssistant.slice(0, 600)}`;
     const out = j?.choices?.[0]?.message?.content?.trim() || "";
     if (out) conversationSummary.set(out);
   } catch { /* swallow \u2014 background */ }
-}
-
-function executeActionTags(text: string): string {
-  const actions: string[] = [];
-  const apply = (re: RegExp, fn: (m: RegExpExecArray) => string | null) => {
-    text = text.replace(re, (_full, ...args) => {
-      const m = [_full, ...args] as unknown as RegExpExecArray;
-      const note = fn(m);
-      if (note) actions.push(note);
-      return "";
-    });
-  };
-  apply(/\[\[ADD_NOTE:\s*([^|\]]+?)\s*\|\s*([^\]]+?)\s*\]\]/gi, (m) => {
-    alphaStore.upsertNote({ id: uid(), title: m[1].trim().slice(0, 60), body: m[2].trim(), updatedAt: Date.now() });
-    return `📝 Note added: "${m[1].trim()}"`;
-  });
-  apply(/\[\[ADD_REMINDER:\s*([^|\]]+?)\s*\|\s*([^\]]+?)\s*\]\]/gi, (m) => {
-    const when = normalizeReminderWhen(m[2].trim());
-    alphaStore.upsertReminder({ id: uid(), title: m[1].trim(), when, notes: "", done: "no" });
-    return `⏰ Reminder added: "${m[1].trim()}" — ${when}`;
-  });
-  apply(/\[\[ADD_MEMORY:\s*([^|\]]+?)\s*\|\s*([^\]]+?)\s*\]\]/gi, (m) => {
-    alphaStore.upsertMemory({ id: uid(), topic: m[1].trim().slice(0, 60), detail: m[2].trim(), updatedAt: Date.now() });
-    return `🧠 Memory saved: "${m[1].trim()}"`;
-  });
-  apply(/\[\[ADD_PLAN:\s*([^|\]]+?)\s*\|\s*([^|\]]*?)\s*\|\s*([^|\]]*?)\s*\|\s*([^\]]*?)\s*\]\]/gi, (m) => {
-    alphaStore.upsertPlan({ id: uid(), title: m[1].trim(), from: m[2].trim(), to: m[3].trim(), date: m[4].trim(), details: "" });
-    return `🗺 Plan added: "${m[1].trim()}"`;
-  });
-  apply(/\[\[ADD_BILL:\s*([^|\]]+?)\s*\|\s*([^|\]]*?)\s*\|\s*([^\]]*?)\s*\]\]/gi, (m) => {
-    const amt = Number(m[2].trim().replace(/[^\d.]/g, "")) || 0;
-    alphaStore.upsertBill({ id: uid(), name: m[1].trim(), amount: amt, balance: amt, dueDate: m[3].trim(), status: "due" });
-    return `💳 Bill added: "${m[1].trim()}"${amt ? ` — $${amt}` : ""}`;
-  });
-  apply(/\[\[DELETE_LAST:\s*(note|reminder|memory|plan|bill)\s*\]\]/gi, (m) => {
-    const kind = m[1].toLowerCase();
-    const s = alphaStore.get();
-    const map: Record<string, { list: any[]; del: (id: string) => void }> = {
-      note: { list: s.notes, del: alphaStore.deleteNote },
-      reminder: { list: s.reminders, del: alphaStore.deleteReminder },
-      memory: { list: s.memories, del: alphaStore.deleteMemory },
-      plan: { list: s.plans, del: alphaStore.deletePlan },
-      bill: { list: s.bills, del: alphaStore.deleteBill },
-    };
-    const e = map[kind]; if (e?.list[0]) { e.del(e.list[0].id); return `🗑 Deleted last ${kind}.`; }
-    return `No ${kind}s to delete.`;
-  });
-  // ---- Fuzzy delete by name/keyword ---------------------------------------
-  const fuzzyDel = (kind: "note"|"reminder"|"memory"|"plan"|"bill", q: string): string => {
-    const s = alphaStore.get();
-    const lc = q.toLowerCase().trim();
-    if (!lc) return `Need a keyword to delete a ${kind}.`;
-    const pick = <T,>(arr: T[], text: (x: T) => string) =>
-      arr.filter(x => text(x).toLowerCase().includes(lc));
-    if (kind === "note") {
-      const hit = pick(s.notes, n => `${n.title} ${n.body}`);
-      if (!hit.length) return `No note matching "${q}".`;
-      hit.forEach(n => alphaStore.deleteNote(n.id));
-      return `🗑 Deleted ${hit.length} note${hit.length === 1 ? "" : "s"} matching "${q}".`;
-    }
-    if (kind === "reminder") {
-      const hit = pick(s.reminders, r => `${r.title} ${r.notes}`);
-      if (!hit.length) return `No reminder matching "${q}".`;
-      hit.forEach(r => alphaStore.deleteReminder(r.id));
-      return `🗑 Deleted ${hit.length} reminder${hit.length === 1 ? "" : "s"} matching "${q}".`;
-    }
-    if (kind === "memory") {
-      const hit = pick(s.memories, m => `${m.topic} ${m.detail}`);
-      if (!hit.length) return `No memory matching "${q}".`;
-      hit.forEach(m => alphaStore.deleteMemory(m.id));
-      return `🧠 Forgot ${hit.length} memor${hit.length === 1 ? "y" : "ies"} matching "${q}".`;
-    }
-    if (kind === "plan") {
-      const hit = pick(s.plans, p => `${p.title} ${p.from} ${p.to}`);
-      if (!hit.length) return `No plan matching "${q}".`;
-      hit.forEach(p => alphaStore.deletePlan(p.id));
-      return `🗑 Deleted ${hit.length} plan${hit.length === 1 ? "" : "s"} matching "${q}".`;
-    }
-    const hit = pick(s.bills, b => b.name);
-    if (!hit.length) return `No bill matching "${q}".`;
-    hit.forEach(b => alphaStore.deleteBill(b.id));
-    return `🗑 Deleted ${hit.length} bill${hit.length === 1 ? "" : "s"} matching "${q}".`;
-  };
-  apply(/\[\[DELETE_NOTE:\s*([^\]]+?)\s*\]\]/gi, (m) => fuzzyDel("note", m[1]));
-  apply(/\[\[DELETE_REMINDER:\s*([^\]]+?)\s*\]\]/gi, (m) => fuzzyDel("reminder", m[1]));
-  apply(/\[\[DELETE_MEMORY:\s*([^\]]+?)\s*\]\]/gi, (m) => fuzzyDel("memory", m[1]));
-  apply(/\[\[DELETE_PLAN:\s*([^\]]+?)\s*\]\]/gi, (m) => fuzzyDel("plan", m[1]));
-  apply(/\[\[DELETE_BILL:\s*([^\]]+?)\s*\]\]/gi, (m) => fuzzyDel("bill", m[1]));
-  apply(/\[\[CLEAR_ALL:\s*(notes|reminders|memories|plans|bills)\s*\]\]/gi, (m) => {
-    const kind = m[1].toLowerCase();
-    const s = alphaStore.get();
-    const map: Record<string, { list: any[]; del: (id: string) => void }> = {
-      notes: { list: s.notes, del: alphaStore.deleteNote },
-      reminders: { list: s.reminders, del: alphaStore.deleteReminder },
-      memories: { list: s.memories, del: alphaStore.deleteMemory },
-      plans: { list: s.plans, del: alphaStore.deletePlan },
-      bills: { list: s.bills, del: alphaStore.deleteBill },
-    };
-    const e = map[kind]; if (!e) return `Can't clear "${kind}".`;
-    const n = e.list.length;
-    [...e.list].forEach(x => e.del(x.id));
-    return `🗑 Cleared all ${n} ${kind}.`;
-  });
-  apply(/\[\[UPDATE_NOTE:\s*([^|\]]+?)\s*\|\s*([^|\]]*?)\s*\|\s*([^\]]*?)\s*\]\]/gi, (m) => {
-    const q = m[1].toLowerCase().trim();
-    const n = alphaStore.get().notes.find(x => (x.title || "").toLowerCase().includes(q) || (x.body || "").toLowerCase().includes(q));
-    if (!n) return `No note matching "${m[1]}".`;
-    const title = m[2].trim() || n.title;
-    const body = m[3].trim() || n.body;
-    alphaStore.upsertNote({ ...n, title, body, updatedAt: Date.now() });
-    return `📝 Updated note "${title}".`;
-  });
-  apply(/\[\[MARK_REMINDER_DONE:\s*([^\]]+?)\s*\]\]/gi, (m) => {
-    const q = m[1].toLowerCase().trim();
-    const r = alphaStore.get().reminders.find(x => x.title.toLowerCase().includes(q));
-    if (!r) return `No reminder matching "${m[1]}".`;
-    alphaStore.upsertReminder({ ...r, done: "yes" });
-    return `✅ Marked reminder "${r.title}" done.`;
-  });
-  apply(/\[\[MARK_BILL_PAID:\s*([^\]]+?)\s*\]\]/gi, (m) => {
-    const q = m[1].toLowerCase().trim();
-    const b = alphaStore.get().bills.find(x => x.name.toLowerCase().includes(q));
-    if (!b) return `No bill matching "${m[1]}".`;
-    alphaStore.upsertBill({ ...b, status: "paid", balance: 0 });
-    return `💳 Marked bill "${b.name}" paid.`;
-  });
-  apply(/\[\[SET_SETTING:\s*([^|\]]+?)\s*\|\s*([^\]]*?)\s*\]\]/gi, (m) => {
-    const key = m[1].trim();
-    const raw = m[2].trim();
-    const cur = alphaStore.get().settings;
-    const boolVal = /^(true|on|yes|enabled|enable)$/i.test(raw);
-    if (key === "voiceEnabled") { alphaStore.setSettings({ voiceEnabled: boolVal }); return `⚙️ Voice replies ${boolVal ? "enabled" : "disabled"}.`; }
-    if (key === "continuousListen") { alphaStore.setSettings({ continuousListen: boolVal }); return `⚙️ Continuous listening ${boolVal ? "enabled" : "disabled"}.`; }
-    if (key === "backgroundEnabled") { alphaStore.setSettings({ backgroundEnabled: boolVal }); return `⚙️ Background processing ${boolVal ? "enabled" : "disabled"}.`; }
-    if (key === "kokoroVoice") { alphaStore.setSettings({ kokoroVoice: raw }); return `⚙️ Kokoro voice set to ${raw}.`; }
-    if (key === "ttsRate") { const rate = Math.max(0.7, Math.min(1.4, Number(raw) || cur.ttsRate)); alphaStore.setSettings({ ttsRate: rate }); return `⚙️ Speech rate set to ${rate.toFixed(2)}x.`; }
-    if (key === "fastModel") { alphaStore.setSettings({ taskModels: { ...cur.taskModels, fast: raw } }); return `⚙️ Fast model set to ${raw}.`; }
-    if (key === "thinkingModel") { alphaStore.setSettings({ taskModels: { ...cur.taskModels, thinking: raw } }); return `⚙️ Deep model set to ${raw}.`; }
-    if (key === "codingModel") { alphaStore.setSettings({ taskModels: { ...cur.taskModels, coding: raw } }); return `⚙️ Coding model set to ${raw}.`; }
-    return `I can't change setting "${key}" safely.`;
-  });
-  apply(/\[\[SET_PROFILE:\s*([^|\]]*?)\s*\|\s*([^\]]*?)\s*\]\]/gi, (m) => {
-    const profile = alphaStore.get().profile;
-    const name = m[1].trim() || profile.name;
-    const bio = m[2].trim() || profile.bio;
-    alphaStore.setProfile({ name, bio });
-    return `⚙️ Profile updated${name ? ` for ${name}` : ""}.`;
-  });
-  if (actions.length) {
-    text = text.trim() + (text.trim() ? "\n\n" : "") + actions.join("\n");
-  }
-  return text.trim();
 }
 
 export async function generateImage(prompt: string): Promise<{ dataUrl: string; via: "pollinations" }> {

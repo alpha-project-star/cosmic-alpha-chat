@@ -215,8 +215,15 @@ function playAudio(audio: HTMLAudioElement): Promise<boolean> {
   });
 }
 
-export async function speakWith(text: string): Promise<void> {
-  if (!alphaStore.get().settings.voiceEnabled) return;
+/**
+ * Speak text aloud. Pass `{ auto: true }` for automatic reply narration — that
+ * path is additionally gated by the `autoSpeak` setting. Manual Speak buttons
+ * call this without options and always work while voice output is enabled.
+ */
+export async function speakWith(text: string, opts?: { auto?: boolean }): Promise<void> {
+  const s = alphaStore.get().settings;
+  if (!s.voiceEnabled) return;
+  if (opts?.auto && s.autoSpeak === false) return;
   const clean = normalizeForSpeech(text);
   if (!clean) return;
   stopSpeaking();
