@@ -200,6 +200,8 @@ function upsert<T extends { id: string }>(list: T[], item: T): T[] {
 
 export const alphaStore = {
   get: () => state,
+  /** Subscribe to any persisted state change. Returns an unsubscribe fn. */
+  sub: (l: () => void) => subscribe(l),
   setSettings(patch: Partial<Settings>) {
     state = { ...state, settings: { ...state.settings, ...patch } };
     writeLS(K.settings, state.settings); emit();
