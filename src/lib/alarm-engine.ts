@@ -1,6 +1,7 @@
 import { alphaStore } from "./alpha-store";
 import { speakWith, prepareUtterance } from "./voice";
 import { alertBus } from "./alerts";
+import { parseWhen } from "./when";
 
 /**
  * Real background alarm engine.
@@ -16,57 +17,6 @@ let started = false;
 let intervalId: number | null = null;
 let audioCtx: AudioContext | null = null;
 const scheduled = new Map<string, { due: number; timer: number }>();
-
-function parseNaturalWhen(raw: string): number | null {
-  const s = raw.trim().toLowerCase();
-  const now = new Date();
-
-  let m = s.match(/^in\s+(\d+)\s*(second|sec|minute|min|hour|hr|day)s?$/);
-  if (m) {
-    const n = Number(m[1]);
-    const unit = m[2];
-    const ms = /second|sec/.test(unit) ? n * 1000
-      : /min/.test(unit) ? n * 60000
-      : /hour|hr/.test(unit) ? n * 3600000
-      : n * 86400000;
-    return now.getTime() + ms;
-  }
-
-  m = s.match(/^(?:today\s+)?(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
-  if (m) {
-    let h = Number(m[1]);
-    const mm = Number(m[2] || 0);
-    const ampm = m[3];
-    if (ampm === "pm" && h < 12) h += 12;
-    if (ampm === "am" && h === 12) h = 0;
-    const d = new Date(now);
-    d.setHours(h, mm, 0, 0);
-    if (d.getTime() <= now.getTime()) d.setDate(d.getDate() + 1);
-    return d.getTime();
-  }
-
-  m = s.match(/^tomorrow(?:\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?)?$/);
-  if (m) {
-    const d = new Date(now); d.setDate(d.getDate() + 1);
-    let h = m[1] ? Number(m[1]) : 9;
-    const mm = Number(m[2] || 0);
-    const ampm = m[3];
-    if (ampm === "pm" && h < 12) h += 12;
-    if (ampm === "am" && h === 12) h = 0;
-    d.setHours(h, mm, 0, 0);
-    return d.getTime();
-  }
-
-  return null;
-}
-
-function parseWhen(raw: string): number | null {
-  if (!raw) return null;
-  // ISO / RFC first
-  const iso = Date.parse(raw);
-  if (!isNaN(iso)) return iso;
-  return parseNaturalWhen(raw);
-}
 
 function ensureAudioContext() {
   if (typeof window === "undefined") return null;
@@ -189,6 +139,9 @@ export function startAlarmEngine() {
   window.setTimeout(tick, 2000);
   intervalId = window.setInterval(tick, 15000) as unknown as number;
   window.addEventListener("alpha:reminders-changed", () => { clearScheduled(); tick(); });
+  // Any store mutation (including reminders edited from another surface) re-syncs scheduling.
+  alphaStore.sub(() => { clearScheduled(); tick(); });
+  window.addEventListener("focus", tick);
   // Also re-check aggressively when tab becomes visible.
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) tick();
