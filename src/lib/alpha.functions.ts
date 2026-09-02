@@ -579,7 +579,7 @@ ${lastAssistant.slice(0, 600)}`;
   } catch { /* swallow \u2014 background */ }
 }
 
-function executeActionTags(text: string): string {
+function __removedLegacyExecutor(text: string): string {
   const actions: string[] = [];
   const apply = (re: RegExp, fn: (m: RegExpExecArray) => string | null) => {
     text = text.replace(re, (_full, ...args) => {
