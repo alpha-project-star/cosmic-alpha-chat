@@ -2,6 +2,8 @@ import { alphaStore, conversationSummary, uid, type ChatMessage } from "./alpha-
 import { tryLocalIntent } from "./local-intents";
 import { sendChatOllama } from "./ollama";
 import { sendChatOpenAICompat } from "./openai-compat";
+import { executeActionTags, renderActionReport, claimsMutationWithoutTag, NO_ACTION_NOTICE } from "./actions";
+import { normalizeWhen } from "./when";
 
 export type TaskType = "auto" | "fast" | "thinking" | "coding";
 
@@ -300,48 +302,6 @@ function shouldFetchWeb(query: string) {
   return /\b(who|what|when|where|how|why|latest|current|today|yesterday|tomorrow|this week|news|price|score|release|version|weather|web|search|look up|find|source|citation|cite|date|202\d)\b/i.test(query);
 }
 
-function normalizeReminderWhen(raw: string): string {
-  const s = raw.trim();
-  if (!s) return "";
-  const parsed = Date.parse(s);
-  if (!Number.isNaN(parsed)) return new Date(parsed).toISOString();
-  const now = new Date();
-  let m = s.toLowerCase().match(/^in\s+(\d+)\s*(second|sec|minute|min|hour|hr|day)s?$/);
-  if (m) {
-    const n = Number(m[1]);
-    const unit = m[2];
-    const ms = /second|sec/.test(unit) ? n * 1000
-      : /min/.test(unit) ? n * 60000
-      : /hour|hr/.test(unit) ? n * 3600000
-      : n * 86400000;
-    return new Date(now.getTime() + ms).toISOString();
-  }
-  m = s.toLowerCase().match(/^(?:today\s+)?(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
-  if (m) {
-    let h = Number(m[1]);
-    const minutes = Number(m[2] || 0);
-    const ampm = m[3];
-    if (ampm === "pm" && h < 12) h += 12;
-    if (ampm === "am" && h === 12) h = 0;
-    const due = new Date(now);
-    due.setHours(h, minutes, 0, 0);
-    if (due.getTime() <= now.getTime()) due.setDate(due.getDate() + 1);
-    return due.toISOString();
-  }
-  m = s.toLowerCase().match(/^tomorrow(?:\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?)?$/);
-  if (m) {
-    const due = new Date(now); due.setDate(due.getDate() + 1);
-    let h = m[1] ? Number(m[1]) : 9;
-    const minutes = Number(m[2] || 0);
-    const ampm = m[3];
-    if (ampm === "pm" && h < 12) h += 12;
-    if (ampm === "am" && h === 12) h = 0;
-    due.setHours(h, minutes, 0, 0);
-    return due.toISOString();
-  }
-  return s;
-}
-
 async function fetchLiveWebContext(query: string): Promise<string> {
   if (!query || !shouldFetchWeb(query)) return "";
   const rows: Array<{ title: string; url: string; snippet: string; source: string }> = [];
@@ -485,7 +445,7 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
         }
         if (lastErr) throw lastErr;
       }
-      const finalText = executeActionTags(appendSourcesIfWeb(text, webContext));
+      const finalText = finalizeReply(text, webContext);
       void maybeCompactSummary(history, finalText);
       return finalText;
     } catch (e: any) {
@@ -499,7 +459,7 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
             apiKey: cleanApiKey(s.groqApiKey), model: "llama-3.1-8b-instant",
           });
           const why = is429 ? "rate-limited" : "unavailable (auth/model error)";
-          return executeActionTags(appendSourcesIfWeb(text, webContext)) + `\n\n_\u26a0\ufe0f Primary model was ${why} \u2014 answered via Groq fallback._`;
+          return finalizeReply(text, webContext) + `\n\n_\u26a0\ufe0f Primary model was ${why} \u2014 answered via Groq fallback._`;
         } catch { /* fall through */ }
       }
       throw e;
@@ -513,7 +473,21 @@ export async function sendChat(history: ChatMessage[], opts: { task?: TaskType }
   const webContext = online ? await fetchLiveWebContext(lastUserMsg?.text || "") : "";
   const sys = DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling, { offline: !webContext });
   const text = await sendChatOllama(history, sys, webContext);
-  return executeActionTags(appendSourcesIfWeb(text, webContext));
+  return finalizeReply(text, webContext);
+}
+
+
+/**
+ * Post-process a raw model reply: execute action tags, verify them, and make
+ * the execution record (not the model's prose) the source of truth.
+ */
+function finalizeReply(raw: string, webContext: string): string {
+  const { text, results } = executeActionTags(raw);
+  let out = text;
+  const report = renderActionReport(results);
+  if (report) out = (out ? out + "\n\n" : "") + report;
+  else if (claimsMutationWithoutTag(text)) out = (out ? out + "\n\n" : "") + NO_ACTION_NOTICE;
+  return appendSourcesIfWeb(out, webContext);
 }
 
 /** Build a Sources footer from the LIVE WEB SEARCH RESULTS block we fed the
