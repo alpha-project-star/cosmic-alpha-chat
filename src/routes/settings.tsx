@@ -299,7 +299,15 @@ function SettingsRoute() {
           <Section title="Voice">
             <label className="flex items-center gap-2 text-sm mb-2">
               <input type="checkbox" checked={s.voiceEnabled} onChange={e => alphaStore.setSettings({ voiceEnabled: e.target.checked })} />
-              Speak replies aloud
+              Voice output enabled (master switch)
+            </label>
+            <label className="flex items-center gap-2 text-sm mb-2">
+              <input type="checkbox" checked={s.autoSpeak !== false} onChange={e => alphaStore.setSettings({ autoSpeak: e.target.checked })} />
+              Speak replies automatically <span className="text-xs text-muted-foreground">(manual Speak still works when off)</span>
+            </label>
+            <label className="flex items-center gap-2 text-sm mb-2">
+              <input type="checkbox" checked={s.autoSubmitVoice !== false} onChange={e => alphaStore.setSettings({ autoSubmitVoice: e.target.checked })} />
+              Send voice transcript automatically <span className="text-xs text-muted-foreground">(off = review, then tap Send)</span>
             </label>
             <label className="flex items-center gap-2 text-sm mb-2">
               <input type="checkbox" checked={s.continuousListen} onChange={e => alphaStore.setSettings({ continuousListen: e.target.checked })} />
@@ -318,7 +326,7 @@ function SettingsRoute() {
               className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[100px]" />
           </Section>
 
-          <Section title="Alarms" hint="Reminders fire in the background while Alpha is open. Enable browser notifications for pop-ups when the tab is hidden.">
+          <Section title="Alarms" hint="Honest limitation: alarms run inside this app's tab. While Alpha is open (even in the background) reminders chime, speak, and show notifications. If the tab is fully closed or the phone kills it, nothing fires until you open Alpha again — missed reminders then fire on next open.">
             <div className="flex flex-wrap gap-2">
               <button onClick={async () => { const ok = await requestAlarmPermission(); setAlarmStatus(ok ? "✅ Notifications enabled. Alarms will chime, speak, and show pop-ups while Alpha is open." : "⚠️ Notifications blocked. Alarms will still chime and speak while Alpha is open."); }}
                 className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Enable notifications</button>

@@ -58,7 +58,7 @@ export function DesktopChatPanel() {
       const local = t && !isVisionCommand(t) ? tryLocalIntent(t) : null;
       const reply = local ?? await sendChat(alphaStore.get().chat, { task });
       alphaStore.appendChat({ id: uid(), role: "model", text: reply, ts: Date.now() });
-      speakWith(reply);
+      speakWith(reply, { auto: true });
     } catch (e: any) {
       alphaStore.appendChat({ id: uid(), role: "system", text: e?.message || "Error", ts: Date.now(), error: true });
     } finally { setBusy(false); }
