@@ -326,7 +326,7 @@ function SettingsRoute() {
               className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[100px]" />
           </Section>
 
-          <Section title="Alarms" hint="Reminders fire in the background while Alpha is open. Enable browser notifications for pop-ups when the tab is hidden.">
+          <Section title="Alarms" hint="Honest limitation: alarms run inside this app's tab. While Alpha is open (even in the background) reminders chime, speak, and show notifications. If the tab is fully closed or the phone kills it, nothing fires until you open Alpha again — missed reminders then fire on next open.">
             <div className="flex flex-wrap gap-2">
               <button onClick={async () => { const ok = await requestAlarmPermission(); setAlarmStatus(ok ? "✅ Notifications enabled. Alarms will chime, speak, and show pop-ups while Alpha is open." : "⚠️ Notifications blocked. Alarms will still chime and speak while Alpha is open."); }}
                 className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Enable notifications</button>
