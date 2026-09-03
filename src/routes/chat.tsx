@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Mic, MicOff, Send, Sparkles, X, ArrowDown, ArrowUp, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain, Settings as SettingsIcon, Grid3x3, Volume2, Copy, Check, ArrowLeft, Zap, Camera, Eye, EyeOff } from "lucide-react";
+import { ImagePlus, Mic, MicOff, Send, Sparkles, X, ArrowDown, ArrowUp, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain, Settings as SettingsIcon, Grid3x3, Volume2, Copy, Check, ArrowLeft, Zap, Camera, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react";
 import { alphaStore, uid, useAlpha } from "../lib/alpha-store";
 import { sendChat, type TaskType } from "../lib/alpha.functions";
 import { MessageContent } from "../components/MessageContent";
@@ -45,6 +45,8 @@ function ChatRoute() {
   const [eyeOn, setEyeOn] = useState(false);
   const [eyeError, setEyeError] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const lastFinalRef = useRef("");
+  const lastFinalAtRef = useRef(0);
 
   function autoGrow() {
     const el = taRef.current;
