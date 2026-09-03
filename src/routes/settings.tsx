@@ -299,7 +299,15 @@ function SettingsRoute() {
           <Section title="Voice">
             <label className="flex items-center gap-2 text-sm mb-2">
               <input type="checkbox" checked={s.voiceEnabled} onChange={e => alphaStore.setSettings({ voiceEnabled: e.target.checked })} />
-              Speak replies aloud
+              Voice output enabled (master switch)
+            </label>
+            <label className="flex items-center gap-2 text-sm mb-2">
+              <input type="checkbox" checked={s.autoSpeak !== false} onChange={e => alphaStore.setSettings({ autoSpeak: e.target.checked })} />
+              Speak replies automatically <span className="text-xs text-muted-foreground">(manual Speak still works when off)</span>
+            </label>
+            <label className="flex items-center gap-2 text-sm mb-2">
+              <input type="checkbox" checked={s.autoSubmitVoice !== false} onChange={e => alphaStore.setSettings({ autoSubmitVoice: e.target.checked })} />
+              Send voice transcript automatically <span className="text-xs text-muted-foreground">(off = review, then tap Send)</span>
             </label>
             <label className="flex items-center gap-2 text-sm mb-2">
               <input type="checkbox" checked={s.continuousListen} onChange={e => alphaStore.setSettings({ continuousListen: e.target.checked })} />
