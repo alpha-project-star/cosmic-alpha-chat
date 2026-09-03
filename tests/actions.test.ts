@@ -61,7 +61,7 @@ describe("executeActionTags", () => {
   it("keeps an unparseable reminder time as text and says it isn't scheduled", () => {
     const { results } = executeActionTags("[[ADD_REMINDER: someday thing | whenever I get round to it]]");
     expect(results[0].status).toBe("success");
-    expect(renderActionReport(results).toLowerCase()).toContain("not scheduled");
+    expect(renderActionReport(results).toLowerCase()).toContain("no alarm is scheduled");
   });
 
   it("flags unknown tags as invalid rather than succeeding silently", () => {

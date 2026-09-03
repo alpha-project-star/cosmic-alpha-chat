@@ -89,7 +89,7 @@ export function normalizeForSpeech(input: string): string {
   s = s.replace(/÷/g, " divided by ");
   s = s.replace(/(^|[\s(])-(\d)/g, "$1minus $2");           // -5 → minus 5
   s = s.replace(/(\d)\s*[–—]\s*(\d)/g, "$1 to $2");         // ranges
-  s = s.replace(/\$\s?([\d,.]+)/g, "$1 dollars");
+  s = s.replace(/\$\s?(\d[\d,]*(?:\.\d+)?)/g, "$1 dollars");
   s = s.replace(/(\d)\s*°C/gi, "$1 degrees Celsius");
   s = s.replace(/(\d)\s*°F/gi, "$1 degrees Fahrenheit");
 
