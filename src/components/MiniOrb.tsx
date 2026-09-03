@@ -27,14 +27,14 @@ export function MiniOrb({ size = 56 }: { size?: number }) {
     if (local) {
       alphaStore.appendChat({ id: uid(), role: "user", text, ts: Date.now() });
       alphaStore.appendChat({ id: uid(), role: "model", text: local, ts: Date.now() });
-      speakWith(local);
+      speakWith(local, { auto: true });
       return;
     }
     alphaStore.appendChat({ id: uid(), role: "user", text, ts: Date.now() });
     try {
       const reply = await sendChat(alphaStore.get().chat);
       alphaStore.appendChat({ id: uid(), role: "model", text: reply, ts: Date.now() });
-      speakWith(reply);
+      speakWith(reply, { auto: true });
     } catch (e: any) {
       alphaStore.appendChat({ id: uid(), role: "system", text: e?.message || "Error", ts: Date.now(), error: true });
     }
