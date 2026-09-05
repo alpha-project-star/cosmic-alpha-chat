@@ -3,6 +3,7 @@
 Goal: Take the full Alpha project source code and run it locally on your own machine for independent review, editing, and offline testing.
 
 ## What you'll get
+
 - The complete source tree (React + TanStack Start + Tailwind + Vite + PWA).
 - All assets and icons.
 - No locked-in Lovable runtime dependencies.
@@ -14,7 +15,7 @@ Goal: Take the full Alpha project source code and run it locally on your own mac
    - Connect your GitHub account to Lovable via the Plus (+) menu → GitHub.
    - Transfer the project to a GitHub repository.
    - Clone the repo to your local machine with `git clone <repo-url>`.
-   - *(Alternative if you don't want GitHub)*: Use the Code Editor View to copy files, or use a Lovable export option if available.
+   - _(Alternative if you don't want GitHub)_: Use the Code Editor View to copy files, or use a Lovable export option if available.
 
 2. **Install prerequisites**
    - Node.js 20+ (or 22 LTS recommended).
@@ -45,5 +46,6 @@ Goal: Take the full Alpha project source code and run it locally on your own mac
    - If you want to keep your current in-browser notes, reminders, memories, chat history, and settings, I can add a one-click export/import JSON feature to Alpha before you move.
 
 ## Open questions to confirm
+
 - Do you want me to add an in-app "Export / Import my data" feature so you can move your localStorage data too?
 - Do you need help generating a proper `.env.example` file listing every key the app currently uses?

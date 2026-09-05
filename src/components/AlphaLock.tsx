@@ -6,13 +6,17 @@ const UNLOCKED_KEY = "alpha.lock.session.v1";
 async function sha256(text: string) {
   const buf = new TextEncoder().encode(text);
   const out = await crypto.subtle.digest("SHA-256", buf);
-  return Array.from(new Uint8Array(out)).map(b => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(new Uint8Array(out))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 function isStandalone() {
   if (typeof window === "undefined") return false;
-  return window.matchMedia?.("(display-mode: standalone)").matches ||
-    (window.navigator as any).standalone === true;
+  return (
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    (window.navigator as any).standalone === true
+  );
 }
 
 export function AlphaLock({ children }: { children: ReactNode }) {
@@ -26,7 +30,11 @@ export function AlphaLock({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     // Skip lock in non-PWA contexts (dev/preview/desktop browser)
-    if (!isStandalone()) { setUnlocked(true); setReady(true); return; }
+    if (!isStandalone()) {
+      setUnlocked(true);
+      setReady(true);
+      return;
+    }
     const sess = sessionStorage.getItem(UNLOCKED_KEY) === "1";
     setHasPass(!!localStorage.getItem(PASS_KEY));
     setUnlocked(sess);
@@ -40,21 +48,28 @@ export function AlphaLock({ children }: { children: ReactNode }) {
     if (!("credentials" in navigator) || !window.PublicKeyCredential) return;
     try {
       const challenge = crypto.getRandomValues(new Uint8Array(32));
-      await (navigator.credentials as any).get({ publicKey: { challenge, timeout: 30000, userVerification: "required" } });
-      sessionStorage.setItem(UNLOCKED_KEY, "1"); setUnlocked(true);
-    } catch { /* user can still type password */ }
+      await (navigator.credentials as any).get({
+        publicKey: { challenge, timeout: 30000, userVerification: "required" },
+      });
+      sessionStorage.setItem(UNLOCKED_KEY, "1");
+      setUnlocked(true);
+    } catch {
+      /* user can still type password */
+    }
   }
 
   async function setPassword() {
     if (pw.length < 6) return setErr("Use at least 6 characters.");
     if (pw !== confirm) return setErr("Passwords don't match.");
     localStorage.setItem(PASS_KEY, await sha256(pw));
-    sessionStorage.setItem(UNLOCKED_KEY, "1"); setUnlocked(true);
+    sessionStorage.setItem(UNLOCKED_KEY, "1");
+    setUnlocked(true);
   }
   async function checkPassword() {
     const stored = localStorage.getItem(PASS_KEY);
     if (stored && (await sha256(pw)) === stored) {
-      sessionStorage.setItem(UNLOCKED_KEY, "1"); setUnlocked(true);
+      sessionStorage.setItem(UNLOCKED_KEY, "1");
+      setUnlocked(true);
     } else setErr("Incorrect password.");
   }
 
@@ -62,21 +77,41 @@ export function AlphaLock({ children }: { children: ReactNode }) {
     <div className="starfield min-h-screen flex items-center justify-center p-6">
       <div className="glass rounded-2xl p-8 max-w-sm w-full text-center">
         <h1 className="text-3xl font-bold neon-text mb-2">ALPHA</h1>
-        <p className="text-muted-foreground text-sm mb-6">{hasPass ? "Unlock to continue" : "Create a passcode"}</p>
-        <input type="password" autoFocus value={pw} onChange={e => { setPw(e.target.value); setErr(""); }}
+        <p className="text-muted-foreground text-sm mb-6">
+          {hasPass ? "Unlock to continue" : "Create a passcode"}
+        </p>
+        <input
+          type="password"
+          autoFocus
+          value={pw}
+          onChange={(e) => {
+            setPw(e.target.value);
+            setErr("");
+          }}
           placeholder="Passcode"
-          className="w-full bg-input rounded-lg px-4 py-3 mb-3 border border-border outline-none focus:border-primary" />
+          className="w-full bg-input rounded-lg px-4 py-3 mb-3 border border-border outline-none focus:border-primary"
+        />
         {!hasPass && (
-          <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Confirm"
-            className="w-full bg-input rounded-lg px-4 py-3 mb-3 border border-border outline-none focus:border-primary" />
+          <input
+            type="password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            placeholder="Confirm"
+            className="w-full bg-input rounded-lg px-4 py-3 mb-3 border border-border outline-none focus:border-primary"
+          />
         )}
         {err && <div className="text-destructive text-sm mb-2">{err}</div>}
-        <button onClick={hasPass ? checkPassword : setPassword}
-          className="w-full rounded-lg bg-primary text-primary-foreground py-3 font-semibold neon-border">
+        <button
+          onClick={hasPass ? checkPassword : setPassword}
+          className="w-full rounded-lg bg-primary text-primary-foreground py-3 font-semibold neon-border"
+        >
           {hasPass ? "Unlock" : "Set passcode"}
         </button>
         {hasPass && (
-          <button onClick={tryBiometric} className="w-full mt-3 text-sm text-accent-foreground/80 underline">
+          <button
+            onClick={tryBiometric}
+            className="w-full mt-3 text-sm text-accent-foreground/80 underline"
+          >
             Use biometric
           </button>
         )}

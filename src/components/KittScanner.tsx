@@ -33,33 +33,45 @@ export function KittScanner({
   const [talking, setTalking] = useState(false);
   const [alerting, setAlerting] = useState(false);
   useEffect(() => speakingState.sub(setTalking), []);
-  useEffect(() =>
-    alertBus.sub((on) => {
-      setAlerting(on);
-      if (on) setTimeout(() => setAlerting(false), 6000);
-    }),
-  []);
+  useEffect(
+    () =>
+      alertBus.sub((on) => {
+        setAlerting(on);
+        if (on) setTimeout(() => setAlerting(false), 6000);
+      }),
+    [],
+  );
 
   const effective: KittState =
-    state === "off" ? "off"
-    : alerting ? "alert"
-    : talking ? "speaking"
-    : state;
+    state === "off" ? "off" : alerting ? "alert" : talking ? "speaking" : state;
 
   if (curved) {
     const perHalf = Math.max(8, Math.floor(bars / 2));
     const dur =
-      effective === "alert" ? 500 :
-      effective === "speaking" ? 900 :
-      effective === "processing" ? 700 :
-      effective === "scanning" ? 1400 : 2600;
+      effective === "alert"
+        ? 500
+        : effective === "speaking"
+          ? 900
+          : effective === "processing"
+            ? 700
+            : effective === "scanning"
+              ? 1400
+              : 2600;
     // Geometry: circular arc hugging the bottom of the orb. Circle centre is
     // placed above the viewBox so only the lower smile sits inside.
-    const cx = 150, cy = 10, r = 130;
+    const cx = 150,
+      cy = 10,
+      r = 130;
     // Left half sweeps 32°→86°, right half 94°→148°, leaving a centred gap.
-    const startL = 32, endL = 86, startR = 94, endR = 148;
+    const startL = 32,
+      endL = 86,
+      startR = 94,
+      endR = 148;
     const rad = (d: number) => (d * Math.PI) / 180;
-    const pt = (deg: number) => ({ x: cx + r * Math.cos(rad(deg)), y: cy + r * Math.sin(rad(deg)) });
+    const pt = (deg: number) => ({
+      x: cx + r * Math.cos(rad(deg)),
+      y: cy + r * Math.sin(rad(deg)),
+    });
 
     const makeBars = (a0: number, a1: number, side: "L" | "R") =>
       Array.from({ length: perHalf }).map((_, i) => {
@@ -69,8 +81,8 @@ export function KittScanner({
         // Bar sits ON the arc; long axis tangent to circle.
         const tangent = deg + 90;
         // Distance from centre gap → sweep timing. side L: i=perHalf-1 is at gap.
-        const gapT = side === "L" ? 1 - t : t;    // 0 at gap, 1 at outer end
-        const outerT = 1 - gapT;                   // 0 at outer end, 1 at gap
+        const gapT = side === "L" ? 1 - t : t; // 0 at gap, 1 at outer end
+        const outerT = 1 - gapT; // 0 at outer end, 1 at gap
         const delay = effective === "processing" ? gapT * dur : outerT * dur;
         return { x, y, angle: tangent, delay };
       });
@@ -79,8 +91,10 @@ export function KittScanner({
     const barsR = makeBars(startR, endR, "R");
 
     // Rail paths (framed background per half — mirrors chat's kitt-half look)
-    const l0 = pt(startL), l1 = pt(endL);
-    const r0 = pt(startR), r1 = pt(endR);
+    const l0 = pt(startL),
+      l1 = pt(endL);
+    const r0 = pt(startR),
+      r1 = pt(endR);
     const railL = `M ${l0.x} ${l0.y} A ${r} ${r} 0 0 1 ${l1.x} ${l1.y}`;
     const railR = `M ${r0.x} ${r0.y} A ${r} ${r} 0 0 1 ${r1.x} ${r1.y}`;
     // Central gap divider at the very bottom of the orb.
@@ -95,7 +109,11 @@ export function KittScanner({
         width="10"
         height="14"
         rx="2"
-        style={{ animationDelay: `${b.delay}ms`, transformOrigin: `${b.x}px ${b.y}px`, transform: `rotate(${b.angle}deg)` }}
+        style={{
+          animationDelay: `${b.delay}ms`,
+          transformOrigin: `${b.x}px ${b.y}px`,
+          transform: `rotate(${b.angle}deg)`,
+        }}
       />
     );
 
@@ -119,29 +137,47 @@ export function KittScanner({
   }
 
   if (effective === "off") {
-    return <div className={`kitt-split kitt-off ${curved ? "kitt-curved" : ""} ${className}`} style={{ height }} />;
+    return (
+      <div
+        className={`kitt-split kitt-off ${curved ? "kitt-curved" : ""} ${className}`}
+        style={{ height }}
+      />
+    );
   }
 
   const dur =
-    effective === "alert" ? 500 :
-    effective === "speaking" ? 900 :
-    effective === "processing" ? 700 :
-    effective === "scanning" ? 1400 : 2600;
+    effective === "alert"
+      ? 500
+      : effective === "speaking"
+        ? 900
+        : effective === "processing"
+          ? 700
+          : effective === "scanning"
+            ? 1400
+            : 2600;
   const opacityMin =
-    effective === "alert" ? 0.4 :
-    effective === "speaking" ? 0.35 :
-    effective === "scanning" ? 0.25 : 0.15;
+    effective === "alert"
+      ? 0.4
+      : effective === "speaking"
+        ? 0.35
+        : effective === "scanning"
+          ? 0.25
+          : 0.15;
   const opacityMax =
-    effective === "alert" ? 1 :
-    effective === "speaking" ? 1 :
-    effective === "scanning" ? 0.95 : 0.6;
+    effective === "alert"
+      ? 1
+      : effective === "speaking"
+        ? 1
+        : effective === "scanning"
+          ? 0.95
+          : 0.6;
 
   const half = Math.max(4, Math.floor(bars / 2));
   // For "processing", bars fire outward from the center gap — index 0 (nearest
   // gap) starts first. For everything else, sweep from outer edge inward.
   const delayFor = (i: number) =>
     effective === "processing"
-      ? (i / half) * dur          // 0 = center → outward
+      ? (i / half) * dur // 0 = center → outward
       : ((half - i) / half) * dur; // 0 = outer edge → toward center
 
   const halfStyle = {

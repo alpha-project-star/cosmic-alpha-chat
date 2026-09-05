@@ -19,7 +19,14 @@ export interface AlphaDataExport {
   version: 1;
   exportedAt: string;
   localStorage: Record<string, string | null>;
-  music: Array<{ id: string; name: string; size: number; type: string; addedAt: number; dataUrl: string }>;
+  music: Array<{
+    id: string;
+    name: string;
+    size: number;
+    type: string;
+    addedAt: number;
+    dataUrl: string;
+  }>;
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -59,7 +66,11 @@ function dataUrlToBlob(dataUrl: string): Blob {
 export async function exportAlphaData(): Promise<AlphaDataExport> {
   const localStorage: Record<string, string | null> = {};
   for (const key of LS_KEYS) {
-    try { localStorage[key] = window.localStorage.getItem(key); } catch { localStorage[key] = null; }
+    try {
+      localStorage[key] = window.localStorage.getItem(key);
+    } catch {
+      localStorage[key] = null;
+    }
   }
 
   const music: AlphaDataExport["music"] = [];
@@ -132,13 +143,26 @@ export async function importAlphaData(file: File): Promise<{ restored: string[] 
       for (const track of data.music) {
         try {
           const blob = dataUrlToBlob(track.dataUrl);
-          store.put({ id: track.id, name: track.name, size: track.size, type: track.type, addedAt: track.addedAt, blob });
+          store.put({
+            id: track.id,
+            name: track.name,
+            size: track.size,
+            type: track.type,
+            addedAt: track.addedAt,
+            blob,
+          });
         } catch (e) {
           console.warn("Could not restore track:", track.name, e);
         }
       }
-      tx.oncomplete = () => { db.close(); resolve(); };
-      tx.onerror = () => { db.close(); reject(tx.error || new Error("Could not restore music.")); };
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error || new Error("Could not restore music."));
+      };
     });
     restored.push(`music:${data.music.length}`);
   }
@@ -153,7 +177,9 @@ export async function importAlphaData(file: File): Promise<{ restored: string[] 
 
 export async function wipeAlphaData() {
   for (const key of LS_KEYS) {
-    try { window.localStorage.removeItem(key); } catch {}
+    try {
+      window.localStorage.removeItem(key);
+    } catch {}
   }
   try {
     const db = await openDb();

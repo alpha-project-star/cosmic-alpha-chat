@@ -20,7 +20,7 @@ export function DesktopShell({
   onMicToggle: () => void;
   showClock?: boolean;
 }) {
-  const bgEnabled = useAlpha(s => s.settings.backgroundEnabled);
+  const bgEnabled = useAlpha((s) => s.settings.backgroundEnabled);
   const scanState = bgEnabled ? (active ? "scanning" : "idle") : "off";
   return (
     <div className="hidden lg:block starfield fixed inset-0 overflow-hidden">

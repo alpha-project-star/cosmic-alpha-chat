@@ -89,7 +89,12 @@ export function parseRouteSpec(spec: string): { prov: ProviderId; model: string 
 
 /** Human-readable label for a route, for the "answered by" record. */
 export function routeLabel(prov: ProviderId, model: string): string {
-  const short = model.replace(/:free$/, "").split("/").pop() || model;
-  const provName = prov === "openrouter" ? "OpenRouter" : prov === "groq" ? "Groq" : "OpenAI-compatible";
+  const short =
+    model
+      .replace(/:free$/, "")
+      .split("/")
+      .pop() || model;
+  const provName =
+    prov === "openrouter" ? "OpenRouter" : prov === "groq" ? "Groq" : "OpenAI-compatible";
   return `${short} (${provName})`;
 }

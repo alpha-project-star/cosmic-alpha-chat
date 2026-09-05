@@ -10,12 +10,46 @@ export interface ChatMessage {
   error?: boolean;
 }
 
-export interface Note { id: string; title: string; body: string; updatedAt: number }
-export interface Bill { id: string; name: string; amount: number; dueDate: string; balance: number; status: "due" | "paid" | "overdue" }
-export interface Reminder { id: string; title: string; when: string; notes: string; done: "no" | "yes"; firedAt?: number }
-export interface Plan { id: string; title: string; from: string; to: string; date: string; details: string }
-export interface Memory { id: string; topic: string; detail: string; updatedAt: number }
-export interface Profile { name: string; bio: string }
+export interface Note {
+  id: string;
+  title: string;
+  body: string;
+  updatedAt: number;
+}
+export interface Bill {
+  id: string;
+  name: string;
+  amount: number;
+  dueDate: string;
+  balance: number;
+  status: "due" | "paid" | "overdue";
+}
+export interface Reminder {
+  id: string;
+  title: string;
+  when: string;
+  notes: string;
+  done: "no" | "yes";
+  firedAt?: number;
+}
+export interface Plan {
+  id: string;
+  title: string;
+  from: string;
+  to: string;
+  date: string;
+  details: string;
+}
+export interface Memory {
+  id: string;
+  topic: string;
+  detail: string;
+  updatedAt: number;
+}
+export interface Profile {
+  name: string;
+  bio: string;
+}
 
 export interface Settings {
   voiceEnabled: boolean;
@@ -30,17 +64,17 @@ export interface Settings {
   kokoroVoice: string;
   ttsRate: number;
   // ---- Local / offline backends ----
-  ollamaEndpoint: string;                        // e.g. http://localhost:11434
-  ollamaModel: string;                           // active local model tag
-  ollamaModels: string[];                        // custom list the user typed in Settings
-  sttBackend: "browser" | "whisper" | "auto";    // "auto" → whisper when offline
-  whisperEndpoint: string;                       // e.g. http://localhost:8001  (OpenAI-compat)
-  whisperModel: string;                          // model name for the whisper server
+  ollamaEndpoint: string; // e.g. http://localhost:11434
+  ollamaModel: string; // active local model tag
+  ollamaModels: string[]; // custom list the user typed in Settings
+  sttBackend: "browser" | "whisper" | "auto"; // "auto" → whisper when offline
+  whisperEndpoint: string; // e.g. http://localhost:8001  (OpenAI-compat)
+  whisperModel: string; // model name for the whisper server
   // ---- Multi-provider model routing ----
   groqApiKey: string;
   openaiCompatKey: string;
-  openaiCompatBase: string;                      // e.g. https://api.openai.com/v1
-  openRouterKey: string;                         // OpenRouter API key
+  openaiCompatBase: string; // e.g. https://api.openai.com/v1
+  openRouterKey: string; // OpenRouter API key
   // Free-form "watchlist" — comma or newline separated topics Alpha
   // proactively surfaces via the alert bus when a hit lands.
   backgroundData: string;
@@ -121,21 +155,30 @@ voice announcement. Alpha recognises the user as Alex.`,
     //  • coding   → OpenRouter Poolside Laguna S 2.1 free (~0.7s, 262k ctx)
     fast: "groq:llama-3.3-70b-versatile",
     thinking: "openrouter:nvidia/nemotron-3-super-120b-a12b:free",
-    coding: "openrouter:poolside/laguna-s-2.1:free",
+    coding: "openrouter:cohere/north-mini-code:free",
   },
 };
 
 function readLS<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
-  try { const v = localStorage.getItem(key); return v ? (JSON.parse(v) as T) : fallback; } catch { return fallback; }
+  try {
+    const v = localStorage.getItem(key);
+    return v ? (JSON.parse(v) as T) : fallback;
+  } catch {
+    return fallback;
+  }
 }
 function writeLS<T>(key: string, v: T) {
   if (typeof window === "undefined") return;
-  try { localStorage.setItem(key, JSON.stringify(v)); } catch {}
+  try {
+    localStorage.setItem(key, JSON.stringify(v));
+  } catch {}
 }
 function notifyReminderChange() {
   if (typeof window === "undefined") return;
-  try { window.dispatchEvent(new CustomEvent("alpha:reminders-changed")); } catch {}
+  try {
+    window.dispatchEvent(new CustomEvent("alpha:reminders-changed"));
+  } catch {}
 }
 
 let state: AlphaState = {
@@ -165,37 +208,59 @@ let state: AlphaState = {
     "openrouter:mistralai/mistral-small-3.2-24b-instruct:free",
     "openrouter:meta-llama/llama-3.3-70b-instruct:free",
     "openrouter:google/gemini-2.0-flash-exp:free",
-    // Verified dead / answer-less on 2026-08-01:
+    // Verified dead / answer-less / withdrawn:
     "openrouter:openai/gpt-oss-20b:free",
+    "openai/gpt-oss-20b",
+    "groq:openai/gpt-oss-20b",
     "openrouter:poolside/laguna-xs-2.1:free",
+    "openrouter:poolside/laguna-s-2.1:free",
     "openrouter:nvidia/nemotron-nano-9b-v2:free",
-    "openrouter:cohere/north-mini-code:free",
   ]);
   const t = state.settings.taskModels;
   const migrated = {
     // Any route pointing at a gemini:… model must be moved off — Gemini is gone.
-    fast: legacy.has(t.fast) || /^gemini:/i.test(t.fast) ? DEFAULT_SETTINGS.taskModels.fast : t.fast,
-    thinking: legacy.has(t.thinking) || /^gemini:/i.test(t.thinking) ? DEFAULT_SETTINGS.taskModels.thinking : t.thinking,
-    coding: legacy.has(t.coding) || /^gemini:/i.test(t.coding) ? DEFAULT_SETTINGS.taskModels.coding : t.coding,
+    fast:
+      legacy.has(t.fast) || /^gemini:/i.test(t.fast) ? DEFAULT_SETTINGS.taskModels.fast : t.fast,
+    thinking:
+      legacy.has(t.thinking) || /^gemini:/i.test(t.thinking)
+        ? DEFAULT_SETTINGS.taskModels.thinking
+        : t.thinking,
+    coding:
+      legacy.has(t.coding) || /^gemini:/i.test(t.coding)
+        ? DEFAULT_SETTINGS.taskModels.coding
+        : t.coding,
   };
-  if (migrated.fast !== t.fast || migrated.thinking !== t.thinking || migrated.coding !== t.coding) {
+  if (
+    migrated.fast !== t.fast ||
+    migrated.thinking !== t.thinking ||
+    migrated.coding !== t.coding
+  ) {
     state = { ...state, settings: { ...state.settings, taskModels: migrated } };
     writeLS(K.settings, state.settings);
   }
 })();
 
 const listeners = new Set<() => void>();
-function emit() { listeners.forEach(l => l()); }
-function subscribe(l: () => void) { listeners.add(l); return () => listeners.delete(l); }
+function emit() {
+  listeners.forEach((l) => l());
+}
+function subscribe(l: () => void) {
+  listeners.add(l);
+  return () => listeners.delete(l);
+}
 const serverSnap: AlphaState = state;
 
 export function useAlpha<T>(selector: (s: AlphaState) => T): T {
-  return useSyncExternalStore(subscribe, () => selector(state), () => selector(serverSnap));
+  return useSyncExternalStore(
+    subscribe,
+    () => selector(state),
+    () => selector(serverSnap),
+  );
 }
 
 function upsert<T extends { id: string }>(list: T[], item: T): T[] {
-  const i = list.findIndex(x => x.id === item.id);
-  return i >= 0 ? list.map(x => x.id === item.id ? item : x) : [item, ...list];
+  const i = list.findIndex((x) => x.id === item.id);
+  return i >= 0 ? list.map((x) => (x.id === item.id ? item : x)) : [item, ...list];
 }
 
 export const alphaStore = {
@@ -204,34 +269,99 @@ export const alphaStore = {
   sub: (l: () => void) => subscribe(l),
   setSettings(patch: Partial<Settings>) {
     state = { ...state, settings: { ...state.settings, ...patch } };
-    writeLS(K.settings, state.settings); emit();
+    writeLS(K.settings, state.settings);
+    emit();
   },
   appendChat(msg: ChatMessage) {
     state = { ...state, chat: [...state.chat, msg].slice(-200) };
-    writeLS(K.chat, state.chat); emit();
-  },
-  clearChat() {
-    state = { ...state, chat: [] }; writeLS(K.chat, state.chat);
-    try { localStorage.removeItem(K.summary); } catch {}
+    writeLS(K.chat, state.chat);
     emit();
   },
-  upsertNote(n: Note) { state = { ...state, notes: upsert(state.notes, n) }; writeLS(K.notes, state.notes); emit(); },
-  deleteNote(id: string) { state = { ...state, notes: state.notes.filter(x => x.id !== id) }; writeLS(K.notes, state.notes); emit(); },
-  upsertBill(b: Bill) { state = { ...state, bills: upsert(state.bills, b) }; writeLS(K.bills, state.bills); emit(); },
-  deleteBill(id: string) { state = { ...state, bills: state.bills.filter(x => x.id !== id) }; writeLS(K.bills, state.bills); emit(); },
-  upsertReminder(r: Reminder) { state = { ...state, reminders: upsert(state.reminders, r) }; writeLS(K.reminders, state.reminders); emit(); notifyReminderChange(); },
-  deleteReminder(id: string) { state = { ...state, reminders: state.reminders.filter(x => x.id !== id) }; writeLS(K.reminders, state.reminders); emit(); notifyReminderChange(); },
-  upsertPlan(p: Plan) { state = { ...state, plans: upsert(state.plans, p) }; writeLS(K.plans, state.plans); emit(); },
-  deletePlan(id: string) { state = { ...state, plans: state.plans.filter(x => x.id !== id) }; writeLS(K.plans, state.plans); emit(); },
-  upsertMemory(m: Memory) { state = { ...state, memories: upsert(state.memories, m) }; writeLS(K.memories, state.memories); emit(); },
-  deleteMemory(id: string) { state = { ...state, memories: state.memories.filter(x => x.id !== id) }; writeLS(K.memories, state.memories); emit(); },
-  setProfile(p: Profile) { state = { ...state, profile: p }; writeLS(K.profile, p); emit(); },
+  clearChat() {
+    state = { ...state, chat: [] };
+    writeLS(K.chat, state.chat);
+    try {
+      localStorage.removeItem(K.summary);
+    } catch {}
+    emit();
+  },
+  upsertNote(n: Note) {
+    state = { ...state, notes: upsert(state.notes, n) };
+    writeLS(K.notes, state.notes);
+    emit();
+  },
+  deleteNote(id: string) {
+    state = { ...state, notes: state.notes.filter((x) => x.id !== id) };
+    writeLS(K.notes, state.notes);
+    emit();
+  },
+  upsertBill(b: Bill) {
+    state = { ...state, bills: upsert(state.bills, b) };
+    writeLS(K.bills, state.bills);
+    emit();
+  },
+  deleteBill(id: string) {
+    state = { ...state, bills: state.bills.filter((x) => x.id !== id) };
+    writeLS(K.bills, state.bills);
+    emit();
+  },
+  upsertReminder(r: Reminder) {
+    state = { ...state, reminders: upsert(state.reminders, r) };
+    writeLS(K.reminders, state.reminders);
+    emit();
+    notifyReminderChange();
+  },
+  deleteReminder(id: string) {
+    state = { ...state, reminders: state.reminders.filter((x) => x.id !== id) };
+    writeLS(K.reminders, state.reminders);
+    emit();
+    notifyReminderChange();
+  },
+  upsertPlan(p: Plan) {
+    state = { ...state, plans: upsert(state.plans, p) };
+    writeLS(K.plans, state.plans);
+    emit();
+  },
+  deletePlan(id: string) {
+    state = { ...state, plans: state.plans.filter((x) => x.id !== id) };
+    writeLS(K.plans, state.plans);
+    emit();
+  },
+  upsertMemory(m: Memory) {
+    state = { ...state, memories: upsert(state.memories, m) };
+    writeLS(K.memories, state.memories);
+    emit();
+  },
+  deleteMemory(id: string) {
+    state = { ...state, memories: state.memories.filter((x) => x.id !== id) };
+    writeLS(K.memories, state.memories);
+    emit();
+  },
+  setProfile(p: Profile) {
+    state = { ...state, profile: p };
+    writeLS(K.profile, p);
+    emit();
+  },
+  /** Replace or reset parts or all of state (useful for test isolation and data imports). */
+  replaceAll(patch: Partial<AlphaState>) {
+    state = { ...state, ...patch };
+    if (patch.notes !== undefined) writeLS(K.notes, state.notes);
+    if (patch.bills !== undefined) writeLS(K.bills, state.bills);
+    if (patch.reminders !== undefined) writeLS(K.reminders, state.reminders);
+    if (patch.plans !== undefined) writeLS(K.plans, state.plans);
+    if (patch.memories !== undefined) writeLS(K.memories, state.memories);
+    if (patch.chat !== undefined) writeLS(K.chat, state.chat);
+    if (patch.settings !== undefined) writeLS(K.settings, state.settings);
+    if (patch.profile !== undefined) writeLS(K.profile, state.profile);
+    emit();
+  },
   /** Remove one message from persistent chat state. Returns true when it existed. */
   deleteChatMessage(id: string): boolean {
-    const exists = state.chat.some(m => m.id === id);
+    const exists = state.chat.some((m) => m.id === id);
     if (!exists) return false;
-    state = { ...state, chat: state.chat.filter(m => m.id !== id) };
-    writeLS(K.chat, state.chat); emit();
+    state = { ...state, chat: state.chat.filter((m) => m.id !== id) };
+    writeLS(K.chat, state.chat);
+    emit();
     return true;
   },
   /**
@@ -239,16 +369,21 @@ export const alphaStore = {
    * regenerated. Returns the user message text, or null when not retryable.
    */
   prepareRetry(assistantId: string): { userText: string } | null {
-    const idx = state.chat.findIndex(m => m.id === assistantId);
+    const idx = state.chat.findIndex((m) => m.id === assistantId);
     if (idx < 0) return null;
     // Walk back to the nearest user turn.
     let userIdx = -1;
-    for (let i = idx - 1; i >= 0; i--) if (state.chat[i].role === "user") { userIdx = i; break; }
+    for (let i = idx - 1; i >= 0; i--)
+      if (state.chat[i].role === "user") {
+        userIdx = i;
+        break;
+      }
     if (userIdx < 0) return null;
     // Remove everything after that user turn (the stale reply, and any trailing error).
     const next = state.chat.slice(0, userIdx + 1);
     state = { ...state, chat: next };
-    writeLS(K.chat, state.chat); emit();
+    writeLS(K.chat, state.chat);
+    emit();
     return { userText: state.chat[userIdx].text || "" };
   },
 };
@@ -257,16 +392,26 @@ export const alphaStore = {
 export const conversationSummary = {
   get(): string {
     if (typeof window === "undefined") return "";
-    try { return localStorage.getItem(K.summary) || ""; } catch { return ""; }
+    try {
+      return localStorage.getItem(K.summary) || "";
+    } catch {
+      return "";
+    }
   },
   set(s: string) {
     if (typeof window === "undefined") return;
-    try { localStorage.setItem(K.summary, s.slice(0, 4000)); } catch {}
+    try {
+      localStorage.setItem(K.summary, s.slice(0, 4000));
+    } catch {}
   },
   clear() {
     if (typeof window === "undefined") return;
-    try { localStorage.removeItem(K.summary); } catch {}
+    try {
+      localStorage.removeItem(K.summary);
+    } catch {}
   },
 };
 
-export function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+export function uid() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}

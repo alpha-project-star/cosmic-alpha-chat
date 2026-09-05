@@ -23,7 +23,9 @@ export function MicDock({ active, onToggle }: { active: boolean; onToggle: () =>
         style={{
           borderColor: "var(--hud-cyan)",
           background: hot ? "oklch(0.7 0.22 235 / 0.25)" : "oklch(0.1 0.06 260 / 0.6)",
-          boxShadow: hot ? "0 0 18px oklch(0.7 0.22 235 / 0.75)" : "0 0 8px oklch(0.7 0.22 235 / 0.35)",
+          boxShadow: hot
+            ? "0 0 18px oklch(0.7 0.22 235 / 0.75)"
+            : "0 0 8px oklch(0.7 0.22 235 / 0.35)",
         }}
       >
         {active ? (

@@ -8,7 +8,7 @@ import { MiniOrb } from "./MiniOrb";
  * its own mini-orb in the sticky header).
  */
 export function GlobalDock() {
-  const path = useRouterState({ select: s => s.location.pathname });
+  const path = useRouterState({ select: (s) => s.location.pathname });
   if (path === "/" || path === "/chat") return null;
   return (
     <div className="fixed top-3 right-3 z-40 flex items-center gap-2 glass neon-border rounded-full px-2 py-1.5 shadow-xl">

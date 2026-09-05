@@ -20,7 +20,7 @@ export interface CompatOpts {
   onStatus?: (s: "waiting" | "retrying") => void;
 }
 
-const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Retry-After may be seconds or an HTTP date; also parse "try again in 4.5s". */
 function retryAfterMs(res: Response, body: string): number | null {
@@ -51,7 +51,9 @@ export function stripLeakedThinking(text: string): string {
   t = t.replace(/^<(think|thinking|reasoning)>[\s\S]*$/i, "").trim();
   // "Here's a thinking process:" / "Thinking Process:" / "Let me think:" blocks
   // that end at a clear answer marker.
-  const marker = t.match(/^(?:here'?s\s+(?:a|my)\s+)?(?:thinking process|reasoning|thought process|internal monologue)\s*:?[\s\S]*?(?:\n\s*(?:final answer|answer|response)\s*:?\s*)/i);
+  const marker = t.match(
+    /^(?:here'?s\s+(?:a|my)\s+)?(?:thinking process|reasoning|thought process|internal monologue)\s*:?[\s\S]*?(?:\n\s*(?:final answer|answer|response)\s*:?\s*)/i,
+  );
   if (marker) t = t.slice(marker[0].length).trim();
   return t || text.trim();
 }
@@ -73,11 +75,12 @@ export async function sendChatOpenAICompat(
   }
   const url = opts.baseUrl.replace(/\/+$/, "") + "/chat/completions";
   const messages: any[] = [{ role: "system", content: systemPrompt }];
-  const turns = history.filter(m => m.role !== "system").slice(-(opts.historyTurns ?? 20));
+  const turns = history.filter((m) => m.role !== "system").slice(-(opts.historyTurns ?? 20));
   // Only the newest user turn keeps its images — resending historical base64
   // images balloons the payload and stalls vision providers.
   const lastImageIdx = (() => {
-    for (let i = turns.length - 1; i >= 0; i--) if (turns[i].role === "user" && turns[i].images?.length) return i;
+    for (let i = turns.length - 1; i >= 0; i--)
+      if (turns[i].role === "user" && turns[i].images?.length) return i;
     return -1;
   })();
   for (let idx = 0; idx < turns.length; idx++) {
@@ -131,13 +134,18 @@ export async function sendChatOpenAICompat(
     } catch (e: any) {
       clearTimeout(timer);
       if (e?.name === "AbortError") {
-        const err: any = new Error(`${opts.model} timed out after ${Math.round(timeoutMs / 1000)}s.`);
+        const err: any = new Error(
+          `${opts.model} timed out after ${Math.round(timeoutMs / 1000)}s.`,
+        );
         err.status = 504;
         throw err;
       }
       // Network blip — one bounded retry with backoff.
       lastErr = e;
-      if (attempt < maxAttempts) { await sleep(500 * attempt); continue; }
+      if (attempt < maxAttempts) {
+        await sleep(500 * attempt);
+        continue;
+      }
       throw e;
     }
     clearTimeout(timer);
@@ -156,7 +164,10 @@ export async function sendChatOpenAICompat(
         // Skip waiting altogether when the provider asks for longer than we
         // are willing to block — the caller falls back to another model.
         const backoff = wait ?? Math.min(8000, 700 * 2 ** (attempt - 1)) + Math.random() * 250;
-        if (backoff > 12_000) { err.longWaitMs = backoff; throw err; }
+        if (backoff > 12_000) {
+          err.longWaitMs = backoff;
+          throw err;
+        }
         lastErr = err;
         await sleep(backoff);
         continue;
@@ -169,8 +180,9 @@ export async function sendChatOpenAICompat(
     let text = (typeof msg?.content === "string" ? msg.content : "").trim();
     if (!text) {
       // Some reasoning models return the answer in reasoning fields.
-      const reasoning = (typeof msg?.reasoning === "string" ? msg.reasoning : "")
-        || (typeof msg?.reasoning_content === "string" ? msg.reasoning_content : "");
+      const reasoning =
+        (typeof msg?.reasoning === "string" ? msg.reasoning : "") ||
+        (typeof msg?.reasoning_content === "string" ? msg.reasoning_content : "");
       text = reasoning.trim();
     }
     text = stripLeakedThinking(text);

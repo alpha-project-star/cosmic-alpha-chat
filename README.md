@@ -33,10 +33,10 @@ Copy `.env.example` to `.env` if you need to set anything:
 cp .env.example .env
 ```
 
-| Variable | Purpose |
-|----------|---------|
-| `NODE_ENV` | `development` or `production` |
-| `VITE_*` | Any public value you want to expose to the browser (not used by Alpha by default) |
+| Variable   | Purpose                                                                           |
+| ---------- | --------------------------------------------------------------------------------- |
+| `NODE_ENV` | `development` or `production`                                                     |
+| `VITE_*`   | Any public value you want to expose to the browser (not used by Alpha by default) |
 
 ## API keys you need
 

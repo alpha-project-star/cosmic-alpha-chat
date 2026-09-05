@@ -6,6 +6,8 @@
  * sees always corresponds to the operation actually running.
  */
 
+import { useEffect, useState } from "react";
+
 export type ActivityKind =
   | "idle"
   | "listening"
@@ -89,7 +91,7 @@ export const activity = {
   set(kind: ActivityKind, detail?: string) {
     if (current.kind === kind && current.detail === detail) return;
     current = { kind, detail };
-    listeners.forEach(l => l(current));
+    listeners.forEach((l) => l(current));
   },
   clear() {
     activity.set("idle");
@@ -97,7 +99,9 @@ export const activity = {
   sub(l: (a: Activity) => void) {
     listeners.add(l);
     l(current);
-    return () => { listeners.delete(l); };
+    return () => {
+      listeners.delete(l);
+    };
   },
   isBusy(): boolean {
     return current.kind !== "idle" && current.kind !== "listening";
@@ -107,11 +111,18 @@ export const activity = {
 /** Map an action tag name to the status shown while it executes. */
 export function actionActivity(tag: string): ActivityKind {
   const t = tag.toUpperCase();
-  if (t.includes("NOTE")) return t.startsWith("ADD") || t.startsWith("UPDATE") ? "writing_note" : "executing_action";
+  if (t.includes("NOTE"))
+    return t.startsWith("ADD") || t.startsWith("UPDATE") ? "writing_note" : "executing_action";
   if (t.includes("REMINDER")) return "writing_reminder";
   if (t.includes("BILL")) return "writing_bill";
   if (t.includes("MEMORY")) return "writing_memory";
   if (t.includes("PLAN")) return "updating_plan";
   if (t.includes("SETTING") || t.includes("PROFILE")) return "editing_settings";
   return "executing_action";
+}
+
+export function useActivity(): Activity {
+  const [act, setAct] = useState<Activity>(activity.get());
+  useEffect(() => activity.sub(setAct), []);
+  return act;
 }

@@ -15,7 +15,9 @@ export function HudBubble({
     <div className={`flex w-full gap-2 ${isUser ? "justify-end" : "justify-start"}`}>
       <div className="relative max-w-[85%] min-w-0">
         {label && (
-          <div className={`text-[10px] wordmark opacity-80 mb-1 ${isUser ? "text-right" : "text-left"}`}>
+          <div
+            className={`text-[10px] wordmark opacity-80 mb-1 ${isUser ? "text-right" : "text-left"}`}
+          >
             {label}
           </div>
         )}

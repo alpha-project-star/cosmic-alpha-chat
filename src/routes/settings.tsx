@@ -1,17 +1,43 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, Download, Music, Trash2, Upload, Wifi, WifiOff } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Download,
+  Music,
+  Trash2,
+  Upload,
+  Wifi,
+  WifiOff,
+} from "lucide-react";
 import { alphaStore, useAlpha } from "../lib/alpha-store";
-import { listVoices, speakWith } from "../lib/voice";
+import { listVoices, speakWith, testKokoroTTS } from "../lib/voice";
 import { listOllamaModels } from "../lib/ollama";
 import { testAlarmNow, requestAlarmPermission } from "../lib/alarm-engine";
 import { KittScanner } from "../components/KittScanner";
-import { addMusicFiles, deleteMusicTrack, listMusicTracks, playMusicByName, stopMusic, type MusicTrackMeta } from "../lib/music";
-import { downloadAlphaData, exportAlphaData, importAlphaData, wipeAlphaData } from "../lib/data-portability";
+import {
+  addMusicFiles,
+  deleteMusicTrack,
+  listMusicTracks,
+  playMusicByName,
+  stopMusic,
+  type MusicTrackMeta,
+} from "../lib/music";
+import {
+  downloadAlphaData,
+  exportAlphaData,
+  importAlphaData,
+  wipeAlphaData,
+} from "../lib/data-portability";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/settings")({
-  head: () => ({ meta: [{ title: "Alpha — Settings" }, { name: "description", content: "Configure Alpha." }] }),
+  head: () => ({
+    meta: [{ title: "Alpha — Settings" }, { name: "description", content: "Configure Alpha." }],
+  }),
   component: SettingsRoute,
 });
 
@@ -31,8 +57,8 @@ const KOKORO_VOICES = [
 ];
 
 function SettingsRoute() {
-  const s = useAlpha(x => x.settings);
-  const profile = useAlpha(x => x.profile);
+  const s = useAlpha((x) => x.settings);
+  const profile = useAlpha((x) => x.profile);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [saved, setSaved] = useState(false);
   const [kokoroStatus, setKokoroStatus] = useState<string>("");
@@ -43,7 +69,9 @@ function SettingsRoute() {
   const [dataStatus, setDataStatus] = useState<string>("");
   const [tracks, setTracks] = useState<MusicTrackMeta[]>([]);
   const [newModel, setNewModel] = useState("");
-  const [online, setOnline] = useState<boolean>(typeof navigator !== "undefined" ? navigator.onLine : true);
+  const [online, setOnline] = useState<boolean>(
+    typeof navigator !== "undefined" ? navigator.onLine : true,
+  );
   const [openGroup, setOpenGroup] = useState<"online" | "offline" | "data" | null>("online");
   const importRef = useRef<HTMLInputElement>(null);
 
@@ -52,13 +80,22 @@ function SettingsRoute() {
     const off = () => setOnline(false);
     window.addEventListener("online", on);
     window.addEventListener("offline", off);
-    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
   }, []);
 
-  useEffect(() => { void refreshTracks(); }, []);
+  useEffect(() => {
+    void refreshTracks();
+  }, []);
 
   async function refreshTracks() {
-    try { setTracks(await listMusicTracks()); } catch { setTracks([]); }
+    try {
+      setTracks(await listMusicTracks());
+    } catch {
+      setTracks([]);
+    }
   }
 
   async function uploadMusic(files: FileList | null) {
@@ -67,7 +104,11 @@ function SettingsRoute() {
     try {
       const saved = await addMusicFiles(files);
       await refreshTracks();
-      setMusicStatus(saved.length ? `Saved ${saved.length} track${saved.length === 1 ? "" : "s"}.` : "No audio files selected.");
+      setMusicStatus(
+        saved.length
+          ? `Saved ${saved.length} track${saved.length === 1 ? "" : "s"}.`
+          : "No audio files selected.",
+      );
     } catch (e: any) {
       setMusicStatus(e?.message || "Could not save music.");
     }
@@ -78,7 +119,9 @@ function SettingsRoute() {
     try {
       const data = await exportAlphaData();
       downloadAlphaData(data);
-      setDataStatus(`✅ Exported ${data.exportedAt.slice(0, 10)}. ${data.music.length} music track(s).`);
+      setDataStatus(
+        `✅ Exported ${data.exportedAt.slice(0, 10)}. ${data.music.length} music track(s).`,
+      );
     } catch (e: any) {
       setDataStatus(`❌ Export failed: ${e?.message || "unknown"}`);
     }
@@ -97,7 +140,12 @@ function SettingsRoute() {
   }
 
   async function handleWipe() {
-    if (!confirm("This permanently deletes all Alpha data — chat, notes, reminders, memories, settings, and music. This cannot be undone. Continue?")) return;
+    if (
+      !confirm(
+        "This permanently deletes all Alpha data — chat, notes, reminders, memories, settings, and music. This cannot be undone. Continue?",
+      )
+    )
+      return;
     setDataStatus("Wiping…");
     await wipeAlphaData();
   }
@@ -113,21 +161,39 @@ function SettingsRoute() {
   async function testKokoro() {
     setKokoroStatus("Testing…");
     const url = s.kokoroEndpoint.trim();
-    if (!url) { setKokoroStatus("⚠️ No endpoint set."); return; }
+    if (!url) {
+      setKokoroStatus("⚠️ No endpoint set.");
+      return;
+    }
     try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: "Hello, this is Alpha.", text: "Hello, this is Alpha.", model: "kokoro", voice: s.kokoroVoice, response_format: "mp3", speed: s.ttsRate }),
+      const res = await testKokoroTTS("Mm — hi. This is Alpha. Voice check, one two.", {
+        endpoint: url,
+        voice: s.kokoroVoice,
+        speed: s.ttsRate,
       });
-      if (!res.ok) { setKokoroStatus(`❌ HTTP ${res.status}. Check the URL & CORS on your Kokoro server.`); return; }
-      const blob = await res.blob();
-      if (!blob.size) { setKokoroStatus("❌ Empty audio returned."); return; }
-      const audio = new Audio(URL.createObjectURL(blob));
-      audio.play().catch(() => {});
-      setKokoroStatus(`✅ Kokoro is working (${(blob.size / 1024).toFixed(1)} KB).`);
+
+      if (!res.ok) {
+        setKokoroStatus(`❌ Failed to connect to Kokoro: ${res.error}. Check URL & CORS on your Kokoro server.`);
+        return;
+      }
+
+      if (res.audio) {
+        res.audio.play().catch(() => {});
+      }
+
+      const sizeKb = ((res.blobSize || 0) / 1024).toFixed(1);
+      if (res.wasFallback && res.workingUrl) {
+        alphaStore.setSettings({ kokoroEndpoint: res.workingUrl });
+        setKokoroStatus(
+          `✅ Kokoro is working (${sizeKb} KB) via ${res.workingUrl}! Updated endpoint from /v1/audio/speech to /tts to eliminate 404 retry latency.`,
+        );
+      } else {
+        setKokoroStatus(`✅ Kokoro is working (${sizeKb} KB).`);
+      }
     } catch (e: any) {
-      setKokoroStatus(`❌ ${e?.message || "Fetch failed"}. Most likely CORS — your Kokoro server must allow this origin.`);
+      setKokoroStatus(
+        `❌ ${e?.message || "Fetch failed"}. Most likely CORS — your Kokoro server must allow this origin.`,
+      );
     }
   }
 
@@ -135,11 +201,16 @@ function SettingsRoute() {
     setOllamaStatus("Testing…");
     try {
       const models = await listOllamaModels(s.ollamaEndpoint);
-      if (!models.length) { setOllamaStatus("⚠️ Reached Ollama, but no models installed. Run: ollama pull llama3.2:3b"); return; }
+      if (!models.length) {
+        setOllamaStatus("⚠️ Reached Ollama, but no models installed. Run: ollama pull llama3.2:3b");
+        return;
+      }
       alphaStore.setSettings({ ollamaModels: models });
       setOllamaStatus(`✅ Connected. ${models.length} model(s): ${models.join(", ")}`);
     } catch (e: any) {
-      setOllamaStatus(`❌ ${e?.message || "Could not reach Ollama"}. Make sure Ollama is running with OLLAMA_ORIGINS='*'.`);
+      setOllamaStatus(
+        `❌ ${e?.message || "Could not reach Ollama"}. Make sure Ollama is running with OLLAMA_ORIGINS='*'.`,
+      );
     }
   }
 
@@ -148,10 +219,15 @@ function SettingsRoute() {
     try {
       const url = (s.whisperEndpoint || "").replace(/\/+$/, "") + "/v1/models";
       const res = await fetch(url);
-      if (!res.ok) { setWhisperStatus(`❌ HTTP ${res.status} @ ${url}. Is faster-whisper-server running?`); return; }
+      if (!res.ok) {
+        setWhisperStatus(`❌ HTTP ${res.status} @ ${url}. Is faster-whisper-server running?`);
+        return;
+      }
       setWhisperStatus(`✅ Whisper reachable.`);
     } catch (e: any) {
-      setWhisperStatus(`❌ ${e?.message || "Fetch failed"}. Whisper server unreachable — check URL & CORS.`);
+      setWhisperStatus(
+        `❌ ${e?.message || "Fetch failed"}. Whisper server unreachable — check URL & CORS.`,
+      );
     }
   }
 
@@ -160,214 +236,485 @@ function SettingsRoute() {
   return (
     <div className="starfield min-h-screen pb-8">
       <header className="p-3 flex items-center gap-3 glass border-b border-primary/20">
-        <Link to="/" aria-label="Back" className="p-1.5 rounded-full glass neon-border"><ArrowLeft className="w-4 h-4 text-primary" /></Link>
+        <Link to="/" aria-label="Back" className="p-1.5 rounded-full glass neon-border">
+          <ArrowLeft className="w-4 h-4 text-primary" />
+        </Link>
         <span className="text-xs tracking-[0.4em] text-muted-foreground">SETTINGS</span>
-        <span className={`ml-auto inline-flex items-center gap-1 text-[10px] tracking-wider px-2 py-0.5 rounded-full border ${online ? "border-emerald-400/40 text-emerald-300" : "border-amber-400/40 text-amber-300"}`}>
+        <span
+          className={`ml-auto inline-flex items-center gap-1 text-[10px] tracking-wider px-2 py-0.5 rounded-full border ${online ? "border-emerald-400/40 text-emerald-300" : "border-amber-400/40 text-amber-300"}`}
+        >
           {online ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
           {online ? "ONLINE" : "OFFLINE"}
         </span>
       </header>
-      <div className="px-3 pt-2"><KittScanner bars={22} height={8} /></div>
+      <div className="px-3 pt-2">
+        <KittScanner bars={22} height={8} />
+      </div>
 
       <div className="p-4 max-w-xl mx-auto space-y-4">
         {/* ONLINE ================================================== */}
-        <Group id="online" title="Online Settings"
+        <Group
+          id="online"
+          title="Online Settings"
           hint="Cloud APIs Alpha uses when you have internet."
-          open={openGroup === "online"} onToggle={() => setOpenGroup(openGroup === "online" ? null : "online")}>
-
-          <Section title="Groq API Key" hint="Fast text models (Llama, Mixtral). Free tier at console.groq.com.">
-            <input type="password" value={s.groqApiKey} onChange={e => alphaStore.setSettings({ groqApiKey: e.target.value })}
-              placeholder="gsk_..." className="w-full bg-input rounded-md px-3 py-2 border border-border" />
+          open={openGroup === "online"}
+          onToggle={() => setOpenGroup(openGroup === "online" ? null : "online")}
+        >
+          <Section
+            title="Groq API Key"
+            hint="Fast text models (Llama, Mixtral). Free tier at console.groq.com."
+          >
+            <input
+              type="password"
+              value={s.groqApiKey}
+              onChange={(e) => alphaStore.setSettings({ groqApiKey: e.target.value })}
+              placeholder="gsk_..."
+              className="w-full bg-input rounded-md px-3 py-2 border border-border"
+            />
           </Section>
 
-          <Section title="OpenAI-compatible provider" hint="For OpenAI, DeepSeek, Together, xAI Grok, or any /v1/chat/completions endpoint.">
-            <input type="text" value={s.openaiCompatBase} onChange={e => alphaStore.setSettings({ openaiCompatBase: e.target.value })}
-              placeholder="https://api.openai.com/v1" className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2" />
-            <input type="password" value={s.openaiCompatKey} onChange={e => alphaStore.setSettings({ openaiCompatKey: e.target.value })}
-              placeholder="sk-..." className="w-full bg-input rounded-md px-3 py-2 border border-border" />
+          <Section
+            title="OpenAI-compatible provider"
+            hint="For OpenAI, DeepSeek, Together, xAI Grok, or any /v1/chat/completions endpoint."
+          >
+            <input
+              type="text"
+              value={s.openaiCompatBase}
+              onChange={(e) => alphaStore.setSettings({ openaiCompatBase: e.target.value })}
+              placeholder="https://api.openai.com/v1"
+              className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2"
+            />
+            <input
+              type="password"
+              value={s.openaiCompatKey}
+              onChange={(e) => alphaStore.setSettings({ openaiCompatKey: e.target.value })}
+              placeholder="sk-..."
+              className="w-full bg-input rounded-md px-3 py-2 border border-border"
+            />
           </Section>
 
-          <Section title="OpenRouter API Key" hint="Used by Code mode and OpenRouter-hosted models such as Qwen Coder.">
-            <input type="password" value={s.openRouterKey} onChange={e => alphaStore.setSettings({ openRouterKey: e.target.value })}
-              placeholder="sk-or-..." className="w-full bg-input rounded-md px-3 py-2 border border-border" />
+          <Section
+            title="OpenRouter API Key"
+            hint="Used by Code mode and OpenRouter-hosted models such as Qwen Coder."
+          >
+            <input
+              type="password"
+              value={s.openRouterKey}
+              onChange={(e) => alphaStore.setSettings({ openRouterKey: e.target.value })}
+              placeholder="sk-or-..."
+              className="w-full bg-input rounded-md px-3 py-2 border border-border"
+            />
           </Section>
 
-          <Section title="Task Routing" hint="Which model runs each job. Format: provider:model (providers: groq, openai, openrouter). Auto uses Fast first when its key is available; the chat composer can switch task per message. Images route to OpenRouter vision automatically.">
-            <TaskRow label="⚡ Fast (chat, quick)" value={s.taskModels.fast}
-              onChange={v => alphaStore.setSettings({ taskModels: { ...s.taskModels, fast: v } })}
-              examples={["groq:llama-3.3-70b-versatile","groq:llama-3.1-8b-instant","groq:openai/gpt-oss-20b"]} />
-            <TaskRow label="🧠 Deep thinking" value={s.taskModels.thinking}
-              onChange={v => alphaStore.setSettings({ taskModels: { ...s.taskModels, thinking: v } })}
-              examples={["openrouter:nvidia/nemotron-3-super-120b-a12b:free","openrouter:nvidia/nemotron-3-ultra-550b-a55b:free","openrouter:inclusionai/ling-3.0-flash:free"]} />
-            <TaskRow label="🛠 Coding & debug" value={s.taskModels.coding}
-              onChange={v => alphaStore.setSettings({ taskModels: { ...s.taskModels, coding: v } })}
-              examples={["openrouter:poolside/laguna-s-2.1:free","openrouter:inclusionai/ling-3.0-flash:free","openrouter:nvidia/nemotron-3-nano-30b-a3b:free"]} />
+          <Section
+            title="Task Routing"
+            hint="Which model runs each job. Format: provider:model (providers: groq, openai, openrouter). Auto uses Fast first when its key is available; the chat composer can switch task per message. Images route to OpenRouter vision automatically."
+          >
+            <TaskRow
+              label="⚡ Fast (chat, quick)"
+              value={s.taskModels.fast}
+              onChange={(v) => alphaStore.setSettings({ taskModels: { ...s.taskModels, fast: v } })}
+              examples={[
+                "groq:llama-3.3-70b-versatile",
+                "groq:llama-3.1-8b-instant",
+                "openrouter:nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+              ]}
+            />
+            <TaskRow
+              label="🧠 Deep thinking"
+              value={s.taskModels.thinking}
+              onChange={(v) =>
+                alphaStore.setSettings({ taskModels: { ...s.taskModels, thinking: v } })
+              }
+              examples={[
+                "openrouter:nvidia/nemotron-3-super-120b-a12b:free",
+                "openrouter:nvidia/nemotron-3-ultra-550b-a55b:free",
+                "openrouter:minimax/minimax-m3:free",
+              ]}
+            />
+            <TaskRow
+              label="🛠 Coding & debug"
+              value={s.taskModels.coding}
+              onChange={(v) =>
+                alphaStore.setSettings({ taskModels: { ...s.taskModels, coding: v } })
+              }
+              examples={[
+                "openrouter:cohere/north-mini-code:free",
+                "openrouter:minimax/minimax-m3:free",
+                "openrouter:nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+              ]}
+            />
           </Section>
 
-          <Section title="Kokoro TTS (preferred male voice)" hint="OpenAI-compatible Kokoro endpoint. Empty = browser voice fallback.">
-            <input type="text" value={s.kokoroEndpoint} onChange={e => alphaStore.setSettings({ kokoroEndpoint: e.target.value })}
-              placeholder="https://your-kokoro-host/v1/audio/speech"
-              className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2" />
+          <Section
+            title="Kokoro TTS (preferred male voice)"
+            hint="FastAPI (/tts) or OpenAI-compatible (/v1/audio/speech) endpoint. Empty = browser voice fallback."
+          >
+            <input
+              type="text"
+              value={s.kokoroEndpoint}
+              onChange={(e) => alphaStore.setSettings({ kokoroEndpoint: e.target.value })}
+              placeholder="https://your-kokoro-host/tts or .../v1/audio/speech"
+              className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2"
+            />
             <div className="text-xs text-muted-foreground mb-1">Kokoro voice</div>
-            <select value={s.kokoroVoice} onChange={e => alphaStore.setSettings({ kokoroVoice: e.target.value })}
-              className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2">
-              {KOKORO_VOICES.map(v => <option key={v.id} value={v.id}>{v.id} — {v.label}</option>)}
+            <select
+              value={s.kokoroVoice}
+              onChange={(e) => alphaStore.setSettings({ kokoroVoice: e.target.value })}
+              className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2"
+            >
+              {KOKORO_VOICES.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.id} — {v.label}
+                </option>
+              ))}
             </select>
             <div className="text-xs text-muted-foreground mb-1">Rate ({s.ttsRate.toFixed(2)}x)</div>
-            <input type="range" min={0.7} max={1.4} step={0.05} value={s.ttsRate}
-              onChange={e => alphaStore.setSettings({ ttsRate: Number(e.target.value) })} className="w-full" />
+            <input
+              type="range"
+              min={0.7}
+              max={1.4}
+              step={0.05}
+              value={s.ttsRate}
+              onChange={(e) => alphaStore.setSettings({ ttsRate: Number(e.target.value) })}
+              className="w-full"
+            />
             <div className="mt-2 flex gap-2 flex-wrap">
-              <button onClick={() => speakWith("Mm — hi. This is Alpha. Voice check, one two.")}
-                className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Test voice</button>
-              <button onClick={testKokoro}
-                className="px-3 py-1.5 text-sm rounded-md glass neon-border">Diagnose Kokoro</button>
+              <button
+                onClick={() => speakWith("Mm — hi. This is Alpha. Voice check, one two.")}
+                className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground"
+              >
+                Test voice
+              </button>
+              <button
+                onClick={testKokoro}
+                className="px-3 py-1.5 text-sm rounded-md glass neon-border"
+              >
+                Diagnose Kokoro
+              </button>
             </div>
             {kokoroStatus && <div className="mt-2 text-xs break-words">{kokoroStatus}</div>}
           </Section>
         </Group>
 
         {/* OFFLINE ================================================== */}
-        <Group id="offline" title="Offline Settings"
+        <Group
+          id="offline"
+          title="Offline Settings"
           hint="Local servers Alpha uses with no internet."
-          open={openGroup === "offline"} onToggle={() => setOpenGroup(openGroup === "offline" ? null : "offline")}>
-
+          open={openGroup === "offline"}
+          onToggle={() => setOpenGroup(openGroup === "offline" ? null : "offline")}
+        >
           <Section title="Ollama (local LLM)" hint="Start with: OLLAMA_ORIGINS='*' ollama serve">
-            <input type="text" value={s.ollamaEndpoint} onChange={e => alphaStore.setSettings({ ollamaEndpoint: e.target.value })}
+            <input
+              type="text"
+              value={s.ollamaEndpoint}
+              onChange={(e) => alphaStore.setSettings({ ollamaEndpoint: e.target.value })}
               placeholder="http://localhost:11434"
-              className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2" />
+              className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2"
+            />
             <div className="text-xs text-muted-foreground mb-1">Active local model</div>
-            <select value={s.ollamaModel} onChange={e => alphaStore.setSettings({ ollamaModel: e.target.value })}
-              className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2">
-              {allOllamaModels.map(m => <option key={m} value={m}>{m}</option>)}
-              {!allOllamaModels.includes("llama3.2:3b") && <option value="llama3.2:3b">llama3.2:3b</option>}
+            <select
+              value={s.ollamaModel}
+              onChange={(e) => alphaStore.setSettings({ ollamaModel: e.target.value })}
+              className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2"
+            >
+              {allOllamaModels.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+              {!allOllamaModels.includes("llama3.2:3b") && (
+                <option value="llama3.2:3b">llama3.2:3b</option>
+              )}
             </select>
             <div className="flex gap-2 mb-2">
-              <input value={newModel} onChange={e => setNewModel(e.target.value)}
+              <input
+                value={newModel}
+                onChange={(e) => setNewModel(e.target.value)}
                 placeholder="add another model tag e.g. qwen2.5:7b"
-                className="flex-1 bg-input rounded-md px-3 py-2 border border-border text-sm" />
-              <button onClick={() => {
-                const t = newModel.trim(); if (!t) return;
-                const list = Array.from(new Set([...(s.ollamaModels || []), t]));
-                alphaStore.setSettings({ ollamaModels: list, ollamaModel: t });
-                setNewModel("");
-              }} className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Add</button>
+                className="flex-1 bg-input rounded-md px-3 py-2 border border-border text-sm"
+              />
+              <button
+                onClick={() => {
+                  const t = newModel.trim();
+                  if (!t) return;
+                  const list = Array.from(new Set([...(s.ollamaModels || []), t]));
+                  alphaStore.setSettings({ ollamaModels: list, ollamaModel: t });
+                  setNewModel("");
+                }}
+                className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground"
+              >
+                Add
+              </button>
             </div>
-            <button onClick={testOllama} className="px-3 py-1.5 text-sm rounded-md glass neon-border">Detect installed models</button>
+            <button
+              onClick={testOllama}
+              className="px-3 py-1.5 text-sm rounded-md glass neon-border"
+            >
+              Detect installed models
+            </button>
             {ollamaStatus && <div className="mt-2 text-xs break-words">{ollamaStatus}</div>}
           </Section>
 
-          <Section title="Speech-to-Text Backend" hint="Auto = browser when online, Whisper when offline.">
+          <Section
+            title="Speech-to-Text Backend"
+            hint="Auto = browser when online, Whisper when offline."
+          >
             <div className="grid grid-cols-3 gap-2 mb-3">
-              {(["auto","browser","whisper"] as const).map(v => (
-                <button key={v} onClick={() => alphaStore.setSettings({ sttBackend: v })}
-                  className={`px-3 py-2 rounded-md text-sm border ${s.sttBackend === v ? "bg-primary text-primary-foreground border-primary" : "glass neon-border"}`}>
+              {(["auto", "browser", "whisper"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => alphaStore.setSettings({ sttBackend: v })}
+                  className={`px-3 py-2 rounded-md text-sm border ${s.sttBackend === v ? "bg-primary text-primary-foreground border-primary" : "glass neon-border"}`}
+                >
                   {v === "auto" ? "Auto" : v === "browser" ? "Browser" : "Whisper (local)"}
                 </button>
               ))}
             </div>
-            <input type="text" value={s.whisperEndpoint} onChange={e => alphaStore.setSettings({ whisperEndpoint: e.target.value })}
+            <input
+              type="text"
+              value={s.whisperEndpoint}
+              onChange={(e) => alphaStore.setSettings({ whisperEndpoint: e.target.value })}
               placeholder="http://localhost:8001"
-              className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2" />
-            <input type="text" value={s.whisperModel} onChange={e => alphaStore.setSettings({ whisperModel: e.target.value })}
+              className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2"
+            />
+            <input
+              type="text"
+              value={s.whisperModel}
+              onChange={(e) => alphaStore.setSettings({ whisperModel: e.target.value })}
               placeholder="Systran/faster-whisper-small"
-              className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2" />
-            <button onClick={testWhisper} className="px-3 py-1.5 text-sm rounded-md glass neon-border">Test Whisper</button>
+              className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2"
+            />
+            <button
+              onClick={testWhisper}
+              className="px-3 py-1.5 text-sm rounded-md glass neon-border"
+            >
+              Test Whisper
+            </button>
             {whisperStatus && <div className="mt-2 text-xs break-words">{whisperStatus}</div>}
           </Section>
         </Group>
 
         {/* ALPHA DATA ================================================== */}
-        <Group id="data" title="Alpha Data"
+        <Group
+          id="data"
+          title="Alpha Data"
           hint="Persona, voice preferences, and who Alpha is."
-          open={openGroup === "data"} onToggle={() => setOpenGroup(openGroup === "data" ? null : "data")}>
-
+          open={openGroup === "data"}
+          onToggle={() => setOpenGroup(openGroup === "data" ? null : "data")}
+        >
           <Section title="Vision (Cyber-Eye)">
             <div className="text-xs text-muted-foreground mb-2">
-              Uses the front camera. Turn on Alpha's eye from the home screen or chat. Nothing is saved unless you ask.
+              Uses the front camera. Turn on Alpha's eye from the home screen or chat. Nothing is
+              saved unless you ask.
             </div>
             <label className="flex items-center gap-2 text-sm mb-2">
-              <input type="checkbox" checked={s.visionAmbientEnabled}
-                onChange={e => alphaStore.setSettings({ visionAmbientEnabled: e.target.checked })} />
+              <input
+                type="checkbox"
+                checked={s.visionAmbientEnabled}
+                onChange={(e) => alphaStore.setSettings({ visionAmbientEnabled: e.target.checked })}
+              />
               Ambient watching (Alpha comments only when the scene changes)
             </label>
-            <label className="block text-xs mb-1">Ambient check interval: {s.visionAmbientIntervalSec}s</label>
-            <input type="range" min={15} max={120} step={5} value={s.visionAmbientIntervalSec}
-              onChange={e => alphaStore.setSettings({ visionAmbientIntervalSec: Number(e.target.value) })}
-              className="w-full" />
+            <label className="block text-xs mb-1">
+              Ambient check interval: {s.visionAmbientIntervalSec}s
+            </label>
+            <input
+              type="range"
+              min={15}
+              max={120}
+              step={5}
+              value={s.visionAmbientIntervalSec}
+              onChange={(e) =>
+                alphaStore.setSettings({ visionAmbientIntervalSec: Number(e.target.value) })
+              }
+              className="w-full"
+            />
           </Section>
 
           <Section title="Voice">
             <label className="flex items-center gap-2 text-sm mb-2">
-              <input type="checkbox" checked={s.voiceEnabled} onChange={e => alphaStore.setSettings({ voiceEnabled: e.target.checked })} />
+              <input
+                type="checkbox"
+                checked={s.voiceEnabled}
+                onChange={(e) => alphaStore.setSettings({ voiceEnabled: e.target.checked })}
+              />
               Voice output enabled (master switch)
             </label>
             <label className="flex items-center gap-2 text-sm mb-2">
-              <input type="checkbox" checked={s.autoSpeak !== false} onChange={e => alphaStore.setSettings({ autoSpeak: e.target.checked })} />
-              Speak replies automatically <span className="text-xs text-muted-foreground">(manual Speak still works when off)</span>
+              <input
+                type="checkbox"
+                checked={s.autoSpeak !== false}
+                onChange={(e) => alphaStore.setSettings({ autoSpeak: e.target.checked })}
+              />
+              Speak replies automatically{" "}
+              <span className="text-xs text-muted-foreground">
+                (manual Speak still works when off)
+              </span>
             </label>
             <label className="flex items-center gap-2 text-sm mb-2">
-              <input type="checkbox" checked={s.autoSubmitVoice !== false} onChange={e => alphaStore.setSettings({ autoSubmitVoice: e.target.checked })} />
-              Send voice transcript automatically <span className="text-xs text-muted-foreground">(off = review, then tap Send)</span>
+              <input
+                type="checkbox"
+                checked={s.autoSubmitVoice !== false}
+                onChange={(e) => alphaStore.setSettings({ autoSubmitVoice: e.target.checked })}
+              />
+              Send voice transcript automatically{" "}
+              <span className="text-xs text-muted-foreground">(off = review, then tap Send)</span>
             </label>
             <label className="flex items-center gap-2 text-sm mb-2">
-              <input type="checkbox" checked={s.continuousListen} onChange={e => alphaStore.setSettings({ continuousListen: e.target.checked })} />
+              <input
+                type="checkbox"
+                checked={s.continuousListen}
+                onChange={(e) => alphaStore.setSettings({ continuousListen: e.target.checked })}
+              />
               Continuous listening on the Orb
             </label>
-            <div className="text-xs text-muted-foreground mb-1">Browser voice fallback (used if Kokoro is unset/unreachable)</div>
-            <select value={s.preferredVoice} onChange={e => alphaStore.setSettings({ preferredVoice: e.target.value })}
-              className="w-full bg-input rounded-md px-3 py-2 border border-border">
+            <div className="text-xs text-muted-foreground mb-1">
+              Browser voice fallback (used if Kokoro is unset/unreachable)
+            </div>
+            <select
+              value={s.preferredVoice}
+              onChange={(e) => alphaStore.setSettings({ preferredVoice: e.target.value })}
+              className="w-full bg-input rounded-md px-3 py-2 border border-border"
+            >
               <option value="">Auto (prefers male)</option>
-              {voices.map(v => <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>)}
+              {voices.map((v) => (
+                <option key={v.name} value={v.name}>
+                  {v.name} ({v.lang})
+                </option>
+              ))}
             </select>
           </Section>
 
           <Section title="Persona Extras" hint="Personal context Alpha keeps each call.">
-            <textarea value={s.personaExtra} onChange={e => alphaStore.setSettings({ personaExtra: e.target.value })}
-              className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[100px]" />
+            <textarea
+              value={s.personaExtra}
+              onChange={(e) => alphaStore.setSettings({ personaExtra: e.target.value })}
+              className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[100px]"
+            />
           </Section>
 
-          <Section title="Alarms" hint="Honest limitation: alarms run inside this app's tab. While Alpha is open (even in the background) reminders chime, speak, and show notifications. If the tab is fully closed or the phone kills it, nothing fires until you open Alpha again — missed reminders then fire on next open.">
+          <Section
+            title="Alarms"
+            hint="Honest limitation: alarms run inside this app's tab. While Alpha is open (even in the background) reminders chime, speak, and show notifications. If the tab is fully closed or the phone kills it, nothing fires until you open Alpha again — missed reminders then fire on next open."
+          >
             <div className="flex flex-wrap gap-2">
-              <button onClick={async () => { const ok = await requestAlarmPermission(); setAlarmStatus(ok ? "✅ Notifications enabled. Alarms will chime, speak, and show pop-ups while Alpha is open." : "⚠️ Notifications blocked. Alarms will still chime and speak while Alpha is open."); }}
-                className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Enable notifications</button>
-              <button onClick={() => { testAlarmNow(); setAlarmStatus("✅ Test alarm fired — scanner alert, chime, and voice were triggered."); }}
-                className="px-3 py-1.5 text-sm rounded-md glass neon-border">Test alarm now</button>
+              <button
+                onClick={async () => {
+                  const ok = await requestAlarmPermission();
+                  setAlarmStatus(
+                    ok
+                      ? "✅ Notifications enabled. Alarms will chime, speak, and show pop-ups while Alpha is open."
+                      : "⚠️ Notifications blocked. Alarms will still chime and speak while Alpha is open.",
+                  );
+                }}
+                className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground"
+              >
+                Enable notifications
+              </button>
+              <button
+                onClick={() => {
+                  testAlarmNow();
+                  setAlarmStatus(
+                    "✅ Test alarm fired — scanner alert, chime, and voice were triggered.",
+                  );
+                }}
+                className="px-3 py-1.5 text-sm rounded-md glass neon-border"
+              >
+                Test alarm now
+              </button>
             </div>
             {alarmStatus && <div className="mt-2 text-xs text-muted-foreground">{alarmStatus}</div>}
           </Section>
 
-          <Section title="Music Library" hint="Store MP3/audio locally in this browser. Then ask Alpha: 'play my music', 'play [track name]', or 'stop music'.">
+          <Section
+            title="Music Library"
+            hint="Store MP3/audio locally in this browser. Then ask Alpha: 'play my music', 'play [track name]', or 'stop music'."
+          >
             <label className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm cursor-pointer">
               <Music className="w-4 h-4" /> Upload MP3/audio
-              <input type="file" accept="audio/*,.mp3" multiple hidden onChange={e => uploadMusic(e.target.files)} />
+              <input
+                type="file"
+                accept="audio/*,.mp3"
+                multiple
+                hidden
+                onChange={(e) => uploadMusic(e.target.files)}
+              />
             </label>
             <div className="mt-3 space-y-2">
-              {tracks.length === 0 && <div className="text-xs text-muted-foreground">No tracks saved yet.</div>}
-              {tracks.map(track => (
-                <div key={track.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-primary/20 bg-background/30 px-3 py-2">
-                  <button type="button" onClick={async () => { try { setMusicStatus(await playMusicByName(track.name)); } catch (e: any) { setMusicStatus(e?.message || "Playback failed."); } }}
-                    className="min-w-0 text-left text-sm truncate text-primary hover:text-primary/80">
+              {tracks.length === 0 && (
+                <div className="text-xs text-muted-foreground">No tracks saved yet.</div>
+              )}
+              {tracks.map((track) => (
+                <div
+                  key={track.id}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-primary/20 bg-background/30 px-3 py-2"
+                >
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        setMusicStatus(await playMusicByName(track.name));
+                      } catch (e: any) {
+                        setMusicStatus(e?.message || "Playback failed.");
+                      }
+                    }}
+                    className="min-w-0 text-left text-sm truncate text-primary hover:text-primary/80"
+                  >
                     {track.name}
                   </button>
-                  <button type="button" aria-label={`Delete ${track.name}`} onClick={async () => { await deleteMusicTrack(track.id); stopMusic(); await refreshTracks(); setMusicStatus(`Deleted ${track.name}.`); }}
-                    className="shrink-0 rounded-md p-1.5 glass neon-border">
+                  <button
+                    type="button"
+                    aria-label={`Delete ${track.name}`}
+                    onClick={async () => {
+                      await deleteMusicTrack(track.id);
+                      stopMusic();
+                      await refreshTracks();
+                      setMusicStatus(`Deleted ${track.name}.`);
+                    }}
+                    className="shrink-0 rounded-md p-1.5 glass neon-border"
+                  >
                     <Trash2 className="w-4 h-4 text-destructive" />
                   </button>
                 </div>
               ))}
             </div>
-            {tracks.length > 0 && <button type="button" onClick={() => { stopMusic(); setMusicStatus("Music stopped."); }} className="mt-2 px-3 py-1.5 text-sm rounded-md glass neon-border">Stop music</button>}
+            {tracks.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  stopMusic();
+                  setMusicStatus("Music stopped.");
+                }}
+                className="mt-2 px-3 py-1.5 text-sm rounded-md glass neon-border"
+              >
+                Stop music
+              </button>
+            )}
             {musicStatus && <div className="mt-2 text-xs text-muted-foreground">{musicStatus}</div>}
           </Section>
 
-          <Section title="Export / Import" hint="Back up or move your entire Alpha state — chat, notes, reminders, memories, settings, and music — as one JSON file.">
+          <Section
+            title="Export / Import"
+            hint="Back up or move your entire Alpha state — chat, notes, reminders, memories, settings, and music — as one JSON file."
+          >
             <div className="flex flex-wrap gap-2 mb-3">
-              <button onClick={handleExport} className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground inline-flex items-center gap-2">
+              <button
+                onClick={handleExport}
+                className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground inline-flex items-center gap-2"
+              >
                 <Download className="w-4 h-4" /> Export Alpha data
               </button>
               <label className="px-3 py-1.5 text-sm rounded-md glass neon-border inline-flex items-center gap-2 cursor-pointer">
                 <Upload className="w-4 h-4" /> Import Alpha data
-                <input type="file" accept="application/json,.json" hidden ref={importRef} onChange={e => handleImport(e.target.files?.[0] || null)} />
+                <input
+                  type="file"
+                  accept="application/json,.json"
+                  hidden
+                  ref={importRef}
+                  onChange={(e) => handleImport(e.target.files?.[0] || null)}
+                />
               </label>
             </div>
             {dataStatus && <div className="text-xs text-muted-foreground mb-3">{dataStatus}</div>}
@@ -375,39 +722,63 @@ function SettingsRoute() {
               <div className="flex items-center gap-2 text-xs text-destructive-foreground mb-2">
                 <AlertTriangle className="w-4 h-4" /> Danger zone
               </div>
-              <button onClick={handleWipe} className="px-3 py-1.5 text-sm rounded-md border border-destructive/50 text-destructive-foreground hover:bg-destructive/20">
+              <button
+                onClick={handleWipe}
+                className="px-3 py-1.5 text-sm rounded-md border border-destructive/50 text-destructive-foreground hover:bg-destructive/20"
+              >
                 Wipe all Alpha data
               </button>
             </div>
           </Section>
 
-          <Section title="About You" hint="Alpha uses this to recognise and address you personally.">
-            <input type="text" value={profile.name}
-              onChange={e => alphaStore.setProfile({ ...profile, name: e.target.value })}
+          <Section
+            title="About You"
+            hint="Alpha uses this to recognise and address you personally."
+          >
+            <input
+              type="text"
+              value={profile.name}
+              onChange={(e) => alphaStore.setProfile({ ...profile, name: e.target.value })}
               placeholder="Your name (e.g. Alex)"
-              className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2" />
-            <textarea value={profile.bio}
-              onChange={e => alphaStore.setProfile({ ...profile, bio: e.target.value })}
+              className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2"
+            />
+            <textarea
+              value={profile.bio}
+              onChange={(e) => alphaStore.setProfile({ ...profile, bio: e.target.value })}
               placeholder="Tell Alpha about yourself — role, interests, tone you prefer, anything you want him to remember about you."
-              className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[100px]" />
+              className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[100px]"
+            />
           </Section>
 
-          <Section title="Background Data (Watchlist)" hint="Topics or reminders Alpha keeps an eye on and surfaces proactively. One per line — e.g. 'Latest AI news', 'Alarm 5:00', 'Kimetsu no Yaiba release'.">
-            <textarea value={s.backgroundData}
-              onChange={e => alphaStore.setSettings({ backgroundData: e.target.value })}
+          <Section
+            title="Background Data (Watchlist)"
+            hint="Topics or reminders Alpha keeps an eye on and surfaces proactively. One per line — e.g. 'Latest AI news', 'Alarm 5:00', 'Kimetsu no Yaiba release'."
+          >
+            <textarea
+              value={s.backgroundData}
+              onChange={(e) => alphaStore.setSettings({ backgroundData: e.target.value })}
               placeholder="Latest AI news\nDelta intake update\n8:30 am Saturday reminder"
-              className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[100px] font-mono text-xs" />
+              className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[100px] font-mono text-xs"
+            />
             <label className="flex items-center gap-2 text-sm mt-2">
-              <input type="checkbox" checked={s.backgroundEnabled}
-                onChange={e => alphaStore.setSettings({ backgroundEnabled: e.target.checked })} />
+              <input
+                type="checkbox"
+                checked={s.backgroundEnabled}
+                onChange={(e) => alphaStore.setSettings({ backgroundEnabled: e.target.checked })}
+              />
               Background processing enabled (scanner lights on)
             </label>
           </Section>
 
-          <Section title="Alpha Build Record" hint="Alpha's own spec sheet — he reads this so he knows himself. Edit to update his self-knowledge.">
-            <textarea value={s.buildRecord}
-              onChange={e => alphaStore.setSettings({ buildRecord: e.target.value })}
-              className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[160px] font-mono text-xs" />
+          <Section
+            title="Alpha Build Record"
+            hint="Alpha's own spec sheet — he reads this so he knows himself. Edit to update his self-knowledge."
+          >
+            <textarea
+              value={s.buildRecord}
+              onChange={(e) => alphaStore.setSettings({ buildRecord: e.target.value })}
+              className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[160px] font-mono text-xs"
+            />
           </Section>
         </Group>
 
@@ -415,9 +786,19 @@ function SettingsRoute() {
         <div className="glass border border-primary/30 rounded-xl p-3 flex items-center justify-between mt-4">
           <span className="text-xs text-muted-foreground">Changes save automatically.</span>
           <button
-            onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 1500); }}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold inline-flex items-center gap-2">
-            {saved ? <><Check className="w-4 h-4" /> Saved</> : "Save"}
+            onClick={() => {
+              setSaved(true);
+              setTimeout(() => setSaved(false), 1500);
+            }}
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold inline-flex items-center gap-2"
+          >
+            {saved ? (
+              <>
+                <Check className="w-4 h-4" /> Saved
+              </>
+            ) : (
+              "Save"
+            )}
           </button>
         </div>
       </div>
@@ -425,7 +806,15 @@ function SettingsRoute() {
   );
 }
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+function Section({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="glass rounded-xl p-4">
       <div className="text-sm font-semibold mb-1">{title}</div>
@@ -436,8 +825,20 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
 }
 
 function Group({
-  id, title, hint, open, onToggle, children,
-}: { id: string; title: string; hint?: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  id,
+  title,
+  hint,
+  open,
+  onToggle,
+  children,
+}: {
+  id: string;
+  title: string;
+  hint?: string;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <div className="rounded-2xl border border-primary/30 overflow-hidden">
       <button
@@ -445,8 +846,13 @@ function Group({
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={`group-${id}`}
-        className="w-full flex items-center gap-2 px-4 py-3 bg-primary/10 hover:bg-primary/15 transition text-left">
-        {open ? <ChevronDown className="w-4 h-4 text-primary shrink-0" /> : <ChevronRight className="w-4 h-4 text-primary shrink-0" />}
+        className="w-full flex items-center gap-2 px-4 py-3 bg-primary/10 hover:bg-primary/15 transition text-left"
+      >
+        {open ? (
+          <ChevronDown className="w-4 h-4 text-primary shrink-0" />
+        ) : (
+          <ChevronRight className="w-4 h-4 text-primary shrink-0" />
+        )}
         <div className="flex-1">
           <div className="text-sm font-semibold tracking-wide">{title}</div>
           {hint && <div className="text-[11px] text-muted-foreground">{hint}</div>}
@@ -461,19 +867,35 @@ function Group({
   );
 }
 
-function TaskRow({ label, value, onChange, examples }: {
-  label: string; value: string; onChange: (v: string) => void; examples: string[];
+function TaskRow({
+  label,
+  value,
+  onChange,
+  examples,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  examples: string[];
 }) {
   return (
     <div className="mb-3 last:mb-0">
       <div className="text-xs text-muted-foreground mb-1">{label}</div>
-      <input type="text" value={value} onChange={e => onChange(e.target.value)}
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
         placeholder="provider:model"
-        className="w-full bg-input rounded-md px-3 py-2 border border-border text-sm font-mono" />
+        className="w-full bg-input rounded-md px-3 py-2 border border-border text-sm font-mono"
+      />
       <div className="mt-1 flex flex-wrap gap-1">
-        {examples.map(ex => (
-          <button key={ex} type="button" onClick={() => onChange(ex)}
-            className="text-[10px] px-2 py-0.5 rounded-full glass neon-border text-muted-foreground hover:text-primary">
+        {examples.map((ex) => (
+          <button
+            key={ex}
+            type="button"
+            onClick={() => onChange(ex)}
+            className="text-[10px] px-2 py-0.5 rounded-full glass neon-border text-muted-foreground hover:text-primary"
+          >
             {ex}
           </button>
         ))}

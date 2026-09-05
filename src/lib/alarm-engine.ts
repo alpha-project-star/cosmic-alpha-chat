@@ -20,8 +20,7 @@ const scheduled = new Map<string, { due: number; timer: number }>();
 
 function ensureAudioContext() {
   if (typeof window === "undefined") return null;
-  const Ctx =
-    (window as any).AudioContext || (window as any).webkitAudioContext;
+  const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
   if (!Ctx) return null;
   if (!audioCtx) audioCtx = new Ctx();
   return audioCtx;
@@ -82,14 +81,18 @@ export async function requestAlarmPermission(): Promise<boolean> {
     if (Notification.permission === "denied") return false;
     const p = await Notification.requestPermission();
     return p === "granted";
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 export function fireAlarm(title: string, notes = "") {
   prepareUtterance();
   playChime();
   notify(title, notes || "Reminder from Alpha");
-  try { alertBus.pulse(); } catch {}
+  try {
+    alertBus.pulse();
+  } catch {}
   const line = notes
     ? `Excuse me — reminder: ${title}. ${notes}`
     : `Excuse me — reminder: ${title}.`;
@@ -116,13 +119,16 @@ function tick() {
       // Precise near-term scheduling so sub-minute alarms don't drift with the 15s tick.
       const existing = scheduled.get(r.id);
       if (existing) window.clearTimeout(existing.timer);
-      const timer = window.setTimeout(() => {
-        scheduled.delete(r.id);
-        const cur = alphaStore.get().reminders.find(x => x.id === r.id);
-        if (!cur || cur.done === "yes" || cur.firedAt) return;
-        alphaStore.upsertReminder({ ...cur, firedAt: Date.now() });
-        fireAlarm(cur.title || "Untitled reminder", cur.notes || "");
-      }, Math.max(0, t - now));
+      const timer = window.setTimeout(
+        () => {
+          scheduled.delete(r.id);
+          const cur = alphaStore.get().reminders.find((x) => x.id === r.id);
+          if (!cur || cur.done === "yes" || cur.firedAt) return;
+          alphaStore.upsertReminder({ ...cur, firedAt: Date.now() });
+          fireAlarm(cur.title || "Untitled reminder", cur.notes || "");
+        },
+        Math.max(0, t - now),
+      );
       scheduled.set(r.id, { due: t, timer });
     }
   }
@@ -138,9 +144,15 @@ export function startAlarmEngine() {
   window.setTimeout(tick, 250);
   window.setTimeout(tick, 2000);
   intervalId = window.setInterval(tick, 15000) as unknown as number;
-  window.addEventListener("alpha:reminders-changed", () => { clearScheduled(); tick(); });
+  window.addEventListener("alpha:reminders-changed", () => {
+    clearScheduled();
+    tick();
+  });
   // Any store mutation (including reminders edited from another surface) re-syncs scheduling.
-  alphaStore.sub(() => { clearScheduled(); tick(); });
+  alphaStore.sub(() => {
+    clearScheduled();
+    tick();
+  });
   window.addEventListener("focus", tick);
   // Also re-check aggressively when tab becomes visible.
   document.addEventListener("visibilitychange", () => {
@@ -150,7 +162,10 @@ export function startAlarmEngine() {
 
 export function stopAlarmEngine() {
   started = false;
-  if (intervalId != null) { clearInterval(intervalId); intervalId = null; }
+  if (intervalId != null) {
+    clearInterval(intervalId);
+    intervalId = null;
+  }
   clearScheduled();
 }
 

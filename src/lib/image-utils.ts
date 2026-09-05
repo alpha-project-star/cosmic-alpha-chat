@@ -20,7 +20,11 @@ export function fileToDataUrl(file: File): Promise<string> {
 }
 
 /** Downscale a data URL to <=MAX_SIDE on its longest edge, re-encoded as JPEG. */
-export async function shrinkDataUrl(dataUrl: string, maxSide = MAX_SIDE, quality = QUALITY): Promise<string> {
+export async function shrinkDataUrl(
+  dataUrl: string,
+  maxSide = MAX_SIDE,
+  quality = QUALITY,
+): Promise<string> {
   if (typeof document === "undefined") return dataUrl;
   try {
     const img = await new Promise<HTMLImageElement>((res, rej) => {
@@ -38,7 +42,8 @@ export async function shrinkDataUrl(dataUrl: string, maxSide = MAX_SIDE, quality
     const w = Math.max(32, Math.round(w0 * scale));
     const h = Math.max(32, Math.round(h0 * scale));
     const c = document.createElement("canvas");
-    c.width = w; c.height = h;
+    c.width = w;
+    c.height = h;
     const ctx = c.getContext("2d");
     if (!ctx) return dataUrl;
     ctx.drawImage(img, 0, 0, w, h);

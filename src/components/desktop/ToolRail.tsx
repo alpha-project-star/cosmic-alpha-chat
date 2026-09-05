@@ -1,5 +1,15 @@
 import { Link } from "@tanstack/react-router";
-import { MessageSquare, NotebookPen, Wallet, Image as ImageIcon, Bell, Map, Brain, Settings as SettingsIcon, Sparkles } from "lucide-react";
+import {
+  MessageSquare,
+  NotebookPen,
+  Wallet,
+  Image as ImageIcon,
+  Bell,
+  Map,
+  Brain,
+  Settings as SettingsIcon,
+  Sparkles,
+} from "lucide-react";
 
 const ITEMS = [
   { to: "/", icon: Sparkles, label: "Orb" },

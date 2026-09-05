@@ -10,7 +10,7 @@ import { useAlpha } from "../../lib/alpha-store";
  */
 export function OrbStage({ active }: { active: boolean }) {
   const [speaking, setSpeaking] = useState(false);
-  const bgEnabled = useAlpha(s => s.settings.backgroundEnabled);
+  const bgEnabled = useAlpha((s) => s.settings.backgroundEnabled);
   useEffect(() => speakingState.sub(setSpeaking), []);
   const hot = active || speaking;
   return (
@@ -27,13 +27,14 @@ export function OrbStage({ active }: { active: boolean }) {
           className="hidden lg:block flex-1 h-24 opacity-80"
         />
         <div className="relative shrink-0 mx-4">
-          <AlphaOrb
-            analyser={recognizer.analyserNode}
-            active={hot}
-            sizeCss="min(58vmin, 620px)"
-          />
+          <AlphaOrb analyser={recognizer.analyserNode} active={hot} sizeCss="min(58vmin, 620px)" />
           <div className="absolute left-1/2 top-[82%] w-[78%] -translate-x-1/2 pointer-events-none">
-            <KittScanner curved state={!bgEnabled ? "off" : active ? "scanning" : speaking ? "speaking" : "idle"} bars={38} height={86} />
+            <KittScanner
+              curved
+              state={!bgEnabled ? "off" : active ? "scanning" : speaking ? "speaking" : "idle"}
+              bars={38}
+              height={86}
+            />
           </div>
         </div>
         <HorizontalSpectrum

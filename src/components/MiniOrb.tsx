@@ -21,8 +21,16 @@ export function MiniOrb({ size = 56 }: { size?: number }) {
   async function handleFinal(text: string) {
     if (!text.trim()) return;
     const intent = parseIntent(text);
-    if (intent.kind === "navigate") { router.navigate({ to: intent.to }); return; }
-    if (intent.kind === "stop") { recognizer.stop(); stopSpeaking(); setActive(false); return; }
+    if (intent.kind === "navigate") {
+      router.navigate({ to: intent.to });
+      return;
+    }
+    if (intent.kind === "stop") {
+      recognizer.stop();
+      stopSpeaking();
+      setActive(false);
+      return;
+    }
     const local = tryLocalIntent(text);
     if (local) {
       alphaStore.appendChat({ id: uid(), role: "user", text, ts: Date.now() });
@@ -36,15 +44,26 @@ export function MiniOrb({ size = 56 }: { size?: number }) {
       alphaStore.appendChat({ id: uid(), role: "model", text: reply, ts: Date.now() });
       speakWith(reply, { auto: true });
     } catch (e: any) {
-      alphaStore.appendChat({ id: uid(), role: "system", text: e?.message || "Error", ts: Date.now(), error: true });
+      alphaStore.appendChat({
+        id: uid(),
+        role: "system",
+        text: e?.message || "Error",
+        ts: Date.now(),
+        error: true,
+      });
     }
   }
 
   function toggle() {
     prepareUtterance();
-    if (active) { recognizer.stop(); stopSpeaking(); setActive(false); return; }
+    if (active) {
+      recognizer.stop();
+      stopSpeaking();
+      setActive(false);
+      return;
+    }
     recognizer.setHandlers({
-      onFinal: t => handleFinal(t),
+      onFinal: (t) => handleFinal(t),
       onStart: () => setActive(true),
       onStop: () => setActive(false),
       onError: () => setActive(false),
@@ -60,7 +79,13 @@ export function MiniOrb({ size = 56 }: { size?: number }) {
       className="relative rounded-full active:scale-95 transition shrink-0"
       style={{ width: size, height: size }}
     >
-      <CyberEye analyser={recognizer.analyserNode} active={active} speaking={speaking} size={size} showMicroText={false} />
+      <CyberEye
+        analyser={recognizer.analyserNode}
+        active={active}
+        speaking={speaking}
+        size={size}
+        showMicroText={false}
+      />
     </button>
   );
 }

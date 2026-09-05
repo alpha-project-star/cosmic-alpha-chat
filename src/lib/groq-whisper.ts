@@ -43,11 +43,19 @@ export class GroqWhisperRecognizer {
   private rafId: number | null = null;
   private mime = "audio/webm";
 
-  get isActive() { return this.active; }
-  get isWanted() { return this.wantOn; }
-  get analyserNode(): AnalyserNode | null { return this.analyser; }
+  get isActive() {
+    return this.active;
+  }
+  get isWanted() {
+    return this.wantOn;
+  }
+  get analyserNode(): AnalyserNode | null {
+    return this.analyser;
+  }
 
-  setHandlers(h: Handlers) { this.handlers = h; }
+  setHandlers(h: Handlers) {
+    this.handlers = h;
+  }
 
   private pickMime(): string {
     const opts = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
@@ -68,7 +76,9 @@ export class GroqWhisperRecognizer {
     this.paused = false;
     if (this.active) return;
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
     } catch (e: any) {
       this.wantOn = false;
       this.handlers.onError?.(e?.message || "Microphone permission denied");
@@ -98,7 +108,9 @@ export class GroqWhisperRecognizer {
     } catch {
       this.recorder = new MediaRecorder(this.stream);
     }
-    this.recorder.ondataavailable = (e) => { if (e.data && e.data.size) this.chunks.push(e.data); };
+    this.recorder.ondataavailable = (e) => {
+      if (e.data && e.data.size) this.chunks.push(e.data);
+    };
     this.recorder.onstop = () => this.flushSegment();
     this.recorder.start();
   }
@@ -118,7 +130,10 @@ export class GroqWhisperRecognizer {
       form.append("model", GROQ_MODEL);
       form.append("response_format", "json");
       form.append("temperature", "0");
-      const lang = (typeof navigator !== "undefined" ? (navigator.language || "en") : "en").slice(0, 2);
+      const lang = (typeof navigator !== "undefined" ? navigator.language || "en" : "en").slice(
+        0,
+        2,
+      );
       if (lang) form.append("language", lang);
       const res = await fetch(GROQ_URL, {
         method: "POST",
@@ -143,7 +158,10 @@ export class GroqWhisperRecognizer {
     const buf = new Uint8Array(this.analyser.fftSize);
     this.analyser.getByteTimeDomainData(buf);
     let sum = 0;
-    for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+    for (let i = 0; i < buf.length; i++) {
+      const v = (buf[i] - 128) / 128;
+      sum += v * v;
+    }
     const rms = Math.sqrt(sum / buf.length);
     const SPEECH = 0.035;
     const SILENCE = 0.02;
@@ -156,21 +174,31 @@ export class GroqWhisperRecognizer {
       this.speechFrames = 0;
     }
     if (this.hasSpeech && this.silenceFrames > 55) {
-      try { this.recorder?.state === "recording" && this.recorder.stop(); } catch {}
+      try {
+        this.recorder?.state === "recording" && this.recorder.stop();
+      } catch {}
     }
     this.rafId = requestAnimationFrame(this.loop);
   };
 
   suspend() {
     this.paused = true;
-    if (this.rafId) { cancelAnimationFrame(this.rafId); this.rafId = null; }
-    try { this.recorder?.state === "recording" && this.recorder.stop(); } catch {}
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    try {
+      this.recorder?.state === "recording" && this.recorder.stop();
+    } catch {}
   }
 
   resume() {
     if (!this.wantOn) return;
     this.paused = false;
-    if (!this.stream) { void this.start(); return; }
+    if (!this.stream) {
+      void this.start();
+      return;
+    }
     this.beginSegment();
     this.loop();
   }
@@ -178,17 +206,35 @@ export class GroqWhisperRecognizer {
   stop() {
     this.wantOn = false;
     this.paused = false;
-    if (this.rafId) { cancelAnimationFrame(this.rafId); this.rafId = null; }
-    try { this.recorder?.state === "recording" && this.recorder.stop(); } catch {}
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    try {
+      this.recorder?.state === "recording" && this.recorder.stop();
+    } catch {}
     this.recorder = null;
-    try { this.source?.disconnect(); } catch {}
-    try { this.analyser?.disconnect(); } catch {}
-    try { this.ctx?.close(); } catch {}
-    this.source = null; this.analyser = null; this.ctx = null;
-    if (this.stream) { this.stream.getTracks().forEach(t => t.stop()); this.stream = null; }
+    try {
+      this.source?.disconnect();
+    } catch {}
+    try {
+      this.analyser?.disconnect();
+    } catch {}
+    try {
+      this.ctx?.close();
+    } catch {}
+    this.source = null;
+    this.analyser = null;
+    this.ctx = null;
+    if (this.stream) {
+      this.stream.getTracks().forEach((t) => t.stop());
+      this.stream = null;
+    }
     this.active = false;
     this.handlers.onStop?.();
   }
 
-  dispose() { this.stop(); }
+  dispose() {
+    this.stop();
+  }
 }

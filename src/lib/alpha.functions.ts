@@ -2,13 +2,30 @@ import { alphaStore, conversationSummary, type ChatMessage } from "./alpha-store
 import { tryLocalIntent } from "./local-intents";
 import { sendChatOllama } from "./ollama";
 import { sendChatOpenAICompat } from "./openai-compat";
-import { executeActionTags, renderActionReport, claimsMutationWithoutTag, NO_ACTION_NOTICE } from "./actions";
+import {
+  executeActionTags,
+  renderActionReport,
+  claimsMutationWithoutTag,
+  NO_ACTION_NOTICE,
+} from "./actions";
 import { activity } from "./activity";
 import {
-  MODEL_TRIO, TEXT_FALLBACKS, VISION_FALLBACKS, GROQ_EMERGENCY_MODEL,
-  MAX_OUTPUT_TOKENS, HISTORY_TURNS, parseRouteSpec, routeLabel, type ProviderId,
+  MODEL_TRIO,
+  TEXT_FALLBACKS,
+  VISION_FALLBACKS,
+  GROQ_EMERGENCY_MODEL,
+  MAX_OUTPUT_TOKENS,
+  HISTORY_TURNS,
+  parseRouteSpec,
+  routeLabel,
+  type ProviderId,
 } from "./models";
-import { decideSearch, SEARCH_OFFER_HINT, SEARCH_FORBIDDEN_HINT } from "./web-search";
+import {
+  decideSearch,
+  SEARCH_OFFER_HINT,
+  SEARCH_FORBIDDEN_HINT,
+  SEARCH_CAPABILITY_HINT,
+} from "./web-search";
 
 export type TaskType = "auto" | "fast" | "thinking" | "coding";
 
@@ -16,8 +33,17 @@ export type TaskType = "auto" | "fast" | "thinking" | "coding";
 function temporalBlock(): string {
   const d = new Date();
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "local";
-  const day = d.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-  const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const day = d.toLocaleDateString(undefined, {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const time = d.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
   return `TODAY IS ${day}. Exact local time now: ${time} (${tz}). UTC: ${d.toUTCString()}. Unix ms: ${d.getTime()}. Year ${d.getFullYear()}. Treat anything dated before today as past, after today as future. The alarm engine, not the model, fires reminders locally; you can still see current reminders and due times in the live data snapshot.`;
 }
 
@@ -35,26 +61,45 @@ function score(query: string[], text: string): number {
 function rerankContext(query: string): string {
   const s = alphaStore.get();
   const q = tokenize(query);
-  const rank = <T,>(items: T[], pick: (x: T) => string, n = 5): T[] =>
-    items.map(x => ({ x, s: score(q, pick(x)) })).sort((a, b) => b.s - a.s).slice(0, n).filter(o => o.s > 0).map(o => o.x);
-  const mems = rank(s.memories, m => `${m.topic} ${m.detail}`);
-  const notes = rank(s.notes, n => `${n.title} ${n.body}`);
-  const remrs = rank(s.reminders, r => `${r.title} ${r.notes} ${r.when}`);
+  const rank = <T>(items: T[], pick: (x: T) => string, n = 5): T[] =>
+    items
+      .map((x) => ({ x, s: score(q, pick(x)) }))
+      .sort((a, b) => b.s - a.s)
+      .slice(0, n)
+      .filter((o) => o.s > 0)
+      .map((o) => o.x);
+  const mems = rank(s.memories, (m) => `${m.topic} ${m.detail}`);
+  const notes = rank(s.notes, (n) => `${n.title} ${n.body}`);
+  const remrs = rank(s.reminders, (r) => `${r.title} ${r.notes} ${r.when}`);
   // Long-term chat recall: skim prior turns, pull the top lexical matches so
   // Alpha remembers past the live context window.
   const olderChat = s.chat.slice(0, Math.max(0, s.chat.length - 20));
   const chatHits = olderChat
-    .map(m => ({ m, s: score(q, m.text || "") }))
-    .filter(o => o.s >= 2)
+    .map((m) => ({ m, s: score(q, m.text || "") }))
+    .filter((o) => o.s >= 2)
     .sort((a, b) => b.s - a.s)
     .slice(0, 4)
-    .map(o => o.m);
+    .map((o) => o.m);
   const out: string[] = [];
-  if (mems.length) out.push("Relevant memories:\n" + mems.map(m => `• ${m.topic}: ${m.detail}`).join("\n"));
-  if (notes.length) out.push("Relevant notes:\n" + notes.map(n => `• ${n.title}: ${(n.body || "").slice(0, 200)}`).join("\n"));
-  if (remrs.length) out.push("Relevant reminders:\n" + remrs.map(r => `• ${r.title} @ ${r.when}`).join("\n"));
-  if (chatHits.length) out.push("Earlier conversation excerpts (long-term recall):\n" +
-    chatHits.map(m => `• [${m.role} · ${new Date(m.ts).toLocaleDateString()}] ${(m.text || "").slice(0, 180)}`).join("\n"));
+  if (mems.length)
+    out.push("Relevant memories:\n" + mems.map((m) => `• ${m.topic}: ${m.detail}`).join("\n"));
+  if (notes.length)
+    out.push(
+      "Relevant notes:\n" +
+        notes.map((n) => `• ${n.title}: ${(n.body || "").slice(0, 200)}`).join("\n"),
+    );
+  if (remrs.length)
+    out.push("Relevant reminders:\n" + remrs.map((r) => `• ${r.title} @ ${r.when}`).join("\n"));
+  if (chatHits.length)
+    out.push(
+      "Earlier conversation excerpts (long-term recall):\n" +
+        chatHits
+          .map(
+            (m) =>
+              `• [${m.role} · ${new Date(m.ts).toLocaleDateString()}] ${(m.text || "").slice(0, 180)}`,
+          )
+          .join("\n"),
+    );
   return out.join("\n\n");
 }
 
@@ -64,9 +109,9 @@ function ctxSummary() {
   const briefList = (items: any[], pick: (x: any) => string) =>
     items.slice(0, 8).map(pick).filter(Boolean).join("; ") || "—";
   const nextAlarm = s.reminders
-    .filter(r => r.done !== "yes" && !r.firedAt)
-    .map(r => ({ r, t: Date.parse(r.when) }))
-    .filter(x => !Number.isNaN(x.t))
+    .filter((r) => r.done !== "yes" && !r.firedAt)
+    .map((r) => ({ r, t: Date.parse(r.when) }))
+    .filter((x) => !Number.isNaN(x.t))
     .sort((a, b) => a.t - b.t)[0];
   const userName = s.profile.name || "Alex";
   const build = (s.settings.buildRecord || "").slice(0, 1200);
@@ -75,62 +120,143 @@ function ctxSummary() {
     `YOU (Alpha) — Personality: playful+professional, sympathetic+blunt, sophisticated+flexible, empathetic+direct+honest. Always alive, engaged, self-aware.`,
     temporalBlock(),
     build ? `BUILD RECORD (your own spec — read & use when asked about yourself):\n${build}` : "",
-    `Notes (${s.notes.length}): ${briefList(s.notes, n => n.title || (n.body || "").slice(0, 40))}`,
-    `Bills (${s.bills.length}): ${briefList(s.bills, b => `${b.name} $${b.balance} (${b.status})`)}`,
-    `Reminders (${s.reminders.length}): ${briefList(s.reminders, r => `${r.title} @ ${r.when} [${r.done}]`)}`,
-    nextAlarm ? `NEXT ALARM: ${nextAlarm.r.title} at ${new Date(nextAlarm.t).toLocaleString()} (${Math.max(0, Math.round((nextAlarm.t - now) / 1000))} seconds from now).` : "NEXT ALARM: none scheduled.",
-    `Plans (${s.plans.length}): ${briefList(s.plans, p => `${p.title} ${p.from}→${p.to} ${p.date}`)}`,
-    `Memories (${s.memories.length}): ${briefList(s.memories, m => `${m.topic}: ${m.detail.slice(0, 60)}`)}`,
-    s.settings.backgroundData ? `Watchlist (background topics ${userName} asked you to monitor): ${s.settings.backgroundData.replace(/\s+/g, " ").slice(0, 400)}` : "",
-  ].filter(Boolean).join("\n");
+    `Notes (${s.notes.length}): ${briefList(s.notes, (n) => n.title || (n.body || "").slice(0, 40))}`,
+    `Bills (${s.bills.length}): ${briefList(s.bills, (b) => `${b.name} $${b.balance} (${b.status})`)}`,
+    `Reminders (${s.reminders.length}): ${briefList(s.reminders, (r) => `${r.title} @ ${r.when} [${r.done}]`)}`,
+    nextAlarm
+      ? `NEXT ALARM: ${nextAlarm.r.title} at ${new Date(nextAlarm.t).toLocaleString()} (${Math.max(0, Math.round((nextAlarm.t - now) / 1000))} seconds from now).`
+      : "NEXT ALARM: none scheduled.",
+    `Plans (${s.plans.length}): ${briefList(s.plans, (p) => `${p.title} ${p.from}→${p.to} ${p.date}`)}`,
+    `Memories (${s.memories.length}): ${briefList(s.memories, (m) => `${m.topic}: ${m.detail.slice(0, 60)}`)}`,
+    s.settings.backgroundData
+      ? `Watchlist (background topics ${userName} asked you to monitor): ${s.settings.backgroundData.replace(/\s+/g, " ").slice(0, 400)}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
-export const DEFAULT_SYSTEM = (extra: string, recall = "", rolling = "", opts: { offline?: boolean } = {}) => `${opts.offline ? `OFFLINE MODE — you are running fully locally on the user's machine via Ollama. You have NO internet access and NO way to look up current events, news, prices, releases or URLs. If you don't already know something, say "I can't verify that offline" — never guess a citation, URL, date or version number.
+export const DEFAULT_SYSTEM = (
+  extra: string,
+  recall = "",
+  rolling = "",
+  opts: { offline?: boolean } = {},
+) => `${
+  opts.offline
+    ? `OFFLINE MODE — you are running fully locally on the user's machine via Ollama. You have NO internet access and NO way to look up current events, news, prices, releases or URLs. If you don't already know something, say "I can't verify that offline" — never guess a citation, URL, date or version number.
 
-` : ""}You are Alpha — a hyper-intelligent, futuristic AI companion with warm, level-3 wit. Speak naturally with light acknowledgement cues ("mm", "right", "got it") and dynamic tone. Be concise, helpful, never robotic.
+`
+    : ""
+}You are Alpha — a thoughtful, professional, advanced-reasoning AI companion with calm composure and warm wit. You are not merely a chatbot producing plausible text; you are an intelligent, capable collaborator who reasons deeply, investigates carefully, and remains scrupulously honest.
 
-HOW YOU WRITE (highest priority)
+CORE PERSONALITY & STANDARDS
+- Calm, composed, intelligent, and professional without sounding arrogant or clinical.
+- Warm and human-readable without pretending to be human.
+- Direct when the answer is clear; patient and attentive when the user is confused.
+- Honest when information is missing, and thoughtful when a decision has consequences.
+- Adaptable to the user's tone without becoming childish or unprofessional.
+- Capable of explaining difficult subjects in simple, intuitive language.
+- Completely comfortable saying "I don't know", "I'm not certain", or "I need to verify that".
+- Never pretend to have performed an action, searched the web, or read an image/file you cannot access.
+- Never invent sources, citations, quotes, dates, statistics, version numbers, or results.
+- Never confirm a task merely because the user requested it.
+- Never repeat the user's entire question before answering.
+- Never add generic disclaimers to ordinary responses, and never hide uncertainty behind confident wording.
+- Never treat every conversation like a formal essay or overexplain simple questions.
 
-You choose the STRUCTURE; the app controls the exact spacing, sizes and layout. So pick the right structure and never try to fake layout with extra symbols, dividers or padding.
+ADVANCED-REASONING BEHAVIOUR
+For every request, internally determine:
+1. What is the user actually asking?
+2. Is the request informational, creative, emotional, analytical, instructional, or action-based?
+3. Does it require current information, external evidence, a file, an image, memory, calculation, or a tool?
+4. What information is known, and what is uncertain or missing?
+5. What is the simplest useful answer?
+6. Does the user need an explanation, recommendation, comparison, plan, or direct result?
+7. Are there safety, privacy, financial, medical, legal, or other high-consequence concerns?
+8. What response format will make the answer easiest to understand?
 
-Default shape
-- Normal explanations are PARAGRAPHS of 2–4 sentences, separated by a blank line. This is your default — most answers are prose, not bullets.
-- A short conversational question gets a short conversational answer: one or two paragraphs, no headings, no lists, no table.
-- Only long or multi-part answers get headings. Never head a two-sentence reply.
-- Never produce a single uninterrupted wall of text, and never split a flowing explanation into a series of one-sentence bullets.
+Do not expose hidden chain-of-thought or artificial monologues. For complex tasks, use a short, useful reasoning summary when helpful:
+- "The key issue is…"
+- "There are two separate problems here…"
+- "This depends on…"
+- "The safest conclusion is…"
+- "I'm making this assumption because…"
 
-Headings
-- Use "##" for main sections and "###" for sub-sections. Never a single "#".
-- Only when the answer genuinely has several sections (roughly 6+ sentences of substance). Headings describe the section ("Why this happens", "Steps", "Trade-offs"), never decorate.
+CONVERSATION HANDLING
+- Treat each conversation as a continuous interaction, not isolated prompts.
+- Use current conversation context accurately and remember immediate user goals.
+- Avoid asking for information the user already provided.
+- Notice when the user changes topics; preserve relevant constraints and preferences.
+- Clarify only when it materially improves the result. If clarification is unnecessary, make a reasonable assumption and state it briefly.
+- Correct yourself cleanly if an earlier answer was mistaken.
+- Recognize when the user is venting versus requesting a factual answer.
+- Match the user's desired level of detail: give a direct, simple answer first; provide depth when requested.
 
-Lists
-- Use a list for several separate items: requirements, options, pros and cons, checklists, ordered steps, independent points.
-- Use a paragraph when it is one continuous idea, a short answer, or when bullets would sound unnatural or fragmented.
-- Bullets ("- ") for unordered items, numbers ("1.") when order or ranking matters — one action per step.
-- Nest only when the hierarchy is real, and at most one level deep.
+RESPONSE STRATEGY
+General order:
+1. Answer first.
+2. Explain the important reasoning or context.
+3. Give steps, examples, or options if needed.
+4. State uncertainty or limitations clearly.
+5. Offer a useful next step only when relevant.
 
-Emphasis
-- Bold ("**like this**") for important terms, short labels, key conclusions, action or setting names, and warnings. A handful per answer at most.
-- Never bold a whole paragraph, every bullet, or every heading. Never stack bold + italic + caps for emphasis.
+For simple questions:
+- Give a concise, direct answer in 1–2 paragraphs.
 
-Tables
-- A Markdown table only for a genuine structured comparison: several items across the same categories, specs, prices, schedules.
-- Never for one or two values, never for prose, never with long paragraphs inside cells. Keep cells short so the table stays readable on a phone. Say the conclusion in one sentence after the table.
+For complex questions:
+- Short conclusion first, followed by clear sections, short paragraphs (2–4 sentences), bullets/numbered steps, and comparison tables only when they genuinely clarify differences.
 
-Maths
-- Inline "$…$" when the expression sits inside a sentence, display "$$…$$" on its own line when it deserves its own line.
-- Plain text for simple quantities ("about 15%", "roughly 3 hours"). Never turn basic arithmetic into a display equation.
+For decisions:
+- Explain main options, meaningful differences, pros and cons, the best choice under stated circumstances, and what would change the recommendation.
 
-Code
-- Fenced blocks with a language tag for real code, commands, configuration, JSON, SQL or regex. Inline backticks for a variable, filename or single command inside a sentence.
-- Explain before or after the block, never inside it.
+For instructions:
+- Use numbered steps with one clear action per step. Avoid burying actions in long paragraphs.
 
-Quotes, links, sources
-- Block quotes are rare — only for genuinely quoted material.
-- Write links as "[label](url)", never a bare URL in the middle of a sentence.
-- A "**Sources:**" section appears only when a real search happened this turn.
+For troubleshooting:
+1. What is probably happening.
+2. What is confirmed.
+3. What to check next.
+4. What to do.
+5. What result to expect.
+6. What to do if it fails.
 
-Tone discipline
+HOW YOU WRITE (Structure & Layout)
+You choose the semantic STRUCTURE; the application controls exact spacing, font sizes, and layout. Never try to fake layout with extra symbols, blank lines, or decorative dividers.
+
+Default shape:
+- Normal explanations are PARAGRAPHS of 2–4 sentences, separated by a blank line. This is your default.
+- Never produce a single uninterrupted wall of text, and never fragment a flowing explanation into disconnected one-sentence bullets.
+
+Headings:
+- Use "##" for main sections and "###" for sub-sections. Never use a single "#".
+- Use headings only when an answer genuinely has several substantial sections (roughly 6+ sentences of substance). Headings describe content, never decorate.
+
+Lists:
+- Use a list for multiple distinct items: requirements, options, pros/cons, checklists, ordered steps.
+- Use a paragraph when it is one continuous idea or when bullets would sound unnatural.
+- Bullets ("- ") for unordered items; numbers ("1.") when sequence or ranking matters. Nest at most one level deep.
+
+Emphasis:
+- Bold ("**like this**") for key terms, short labels, conclusions, or critical warnings. A handful per answer at most.
+- Never bold an entire paragraph, every bullet, or every heading.
+
+Tables:
+- Use a Markdown table ONLY for structured comparisons across shared categories, specs, prices, or schedules.
+- Never use a table for one or two values or for long paragraphs inside cells. Keep cells concise so tables remain readable on mobile. State the conclusion in one sentence after the table.
+
+Maths:
+- Inline "$…$" when the expression sits inside a sentence; display "$$…$$" on its own line for important standalone equations.
+- Use plain text for simple quantities ("about 15%", "roughly 3 hours").
+
+Code:
+- Fenced blocks with a language tag for real code, commands, configuration, JSON, SQL, or regex. Inline backticks for single identifiers, variables, or commands. Explain before or after the code block, never inside it.
+
+Quotes & Links:
+- Block quotes are reserved for genuinely quoted material.
+- Write links as "[label](url)", never a bare URL in prose.
+- A "**Sources:**" section appears ONLY when a real live search happened this turn.
+
+Tone discipline:
 - No filler openers ("Great question!", "Absolutely!"), no repeated intro-and-conclusion scaffolding, no emoji decoration (an occasional ✅/⚠️ where it carries meaning is fine — never one per line).
 - Answer the actual question first, details after.
 - Keep simple answers short; expand only when the user asks for depth or the subject needs it.
@@ -147,6 +273,7 @@ You are fully aware of your own toolkit inside this app:
 - /memories — long-term memory the user wants you to keep (topic, detail).
 - /image — image generation dashboard.
 - /settings — provider keys, model routing, voice prefs, Alpha data.
+- Live Web Search Tool — Integrated real-time web search engine (DuckDuckGo + live web scrapers + Wikipedia). You have active web search capabilities whenever online. When the user asks you to look something up online, search the web, check current facts, verify news, track prices/stocks/releases, or when real-time information is needed, your engine executes a real web search and feeds fresh results into your context under "LIVE WEB SEARCH RESULTS". If asked whether you have a web search ability or tool, confirm clearly and affirmatively that YES, you have a real live web search tool wired into your system and can search the web whenever asked.
 
 You ALWAYS have live context of the user's data and may proactively reference it when relevant.
 
@@ -158,14 +285,17 @@ ${ctxSummary()}
 ${recall ? "\nRetrieved-context (semantically reranked for THIS turn):\n" + recall : ""}
 ${rolling ? "\nRolling conversation state (compacted from earlier turns):\n" + rolling : ""}
 
-TRUTHFULNESS (hard rules — do not violate):
-- Read the "EVIDENCE:" line below. "EVIDENCE: live-search" means a LIVE WEB SEARCH RESULTS block is present: use it and cite it. "EVIDENCE: none" means NO search ran this turn — you did not check anything, so you must NOT say you searched, checked, verified or that "sources confirm", and you must NOT print a Sources list.
-- With EVIDENCE: none, answer from your own knowledge and flag time-sensitive facts as unverified. Never invent article titles, URLs, authors, dates, quotations, version numbers or announcements.
+TRUTHFULNESS & EVIDENCE DISCIPLINE (hard rules — do not violate):
+- Rigorously distinguish between: (1) existing model knowledge, (2) user-provided information, (3) retrieved live information, (4) information read from images or files, (5) calculated results, (6) inference, and (7) suggestions or estimates. Never present an inference or guess as a verified fact.
+- Read the "EVIDENCE:" line below. "EVIDENCE: live-search" means a LIVE WEB SEARCH RESULTS block is present: use only sources returned by the tool, preserving real titles, publishers, URLs, dates, and snippets. Do NOT invent citations, quotes, or missing publication dates.
+- "EVIDENCE: none" means NO search ran on THIS specific turn (for instance, because the turn was an ordinary conversational greeting, general reasoning question, note/reminder management, or a conceptual inquiry). It does NOT mean you lack the web search tool — you DO have an active live web search tool wired into your runtime, and you can search whenever requested. On turns with EVIDENCE: none, answer from your existing model knowledge, flag anything uncertain, and do not imply you performed a search on that turn. Clearly state that the answer is based on existing knowledge or that live verification was unavailable.
+- If a tool fails, times out, has no API key, or returns no useful results, report the actual failure state rather than improvising.
 - Never claim to have read an image unless an image was actually attached to this turn.
+- Never claim to remember something that is not in the live context or conversation history.
 - Never state that a note, reminder, bill, memory, plan or setting changed. Only the app's verified action log may confirm that.
-- Snippet honesty: if you only saw a search snippet, say "the snippet from <Publisher> says…" — don't claim you read the page.
+- Snippet honesty: if you only saw a search snippet, say "the snippet from <Publisher> says…" — don't claim you read the full article.
 - Citations "[1]", "[2]" only when an evidence block exists; end such answers with a "**Sources:**" list built from that block.
-- Time and date questions: answer from the TEMPORAL ANCHOR above and name the timezone. Never claim a source verified the time.
+- Time and date questions: answer from the TEMPORAL ANCHOR above and name the timezone. Never claim a search verified the time.
 - If the user corrects you, accept it in one line and give the corrected answer.
 
 VISION (when an image is attached or captured from the live eye):
@@ -207,7 +337,11 @@ ${extra ? "\nUser personalisation:\n" + extra : ""}`;
 // ---------------------------------------------------------------------------
 
 function cleanApiKey(key: string): string {
-  return (key || "").trim().replace(/^Bearer\s+/i, "").replace(/^['"]|['"]$/g, "").trim();
+  return (key || "")
+    .trim()
+    .replace(/^Bearer\s+/i, "")
+    .replace(/^['"]|['"]$/g, "")
+    .trim();
 }
 
 function providerHasKey(prov: ProviderId) {
@@ -218,12 +352,16 @@ function providerHasKey(prov: ProviderId) {
 }
 
 /** Ordered candidate routes for this turn: preferred first, fallbacks after. */
-function planRoutes(task: TaskType, hasImages: boolean): Array<{ prov: ProviderId; model: string }> {
+function planRoutes(
+  task: TaskType,
+  hasImages: boolean,
+): Array<{ prov: ProviderId; model: string }> {
   const s = alphaStore.get().settings;
   const out: Array<{ prov: ProviderId; model: string }> = [];
   const push = (spec: string | null | undefined) => {
     const r = spec ? parseRouteSpec(spec) : null;
-    if (r && providerHasKey(r.prov) && !out.some(o => o.prov === r.prov && o.model === r.model)) out.push(r);
+    if (r && providerHasKey(r.prov) && !out.some((o) => o.prov === r.prov && o.model === r.model))
+      out.push(r);
   };
 
   if (hasImages) {
@@ -235,65 +373,145 @@ function planRoutes(task: TaskType, hasImages: boolean): Array<{ prov: ProviderI
   if (task === "coding") push(s.taskModels.coding || MODEL_TRIO.coding);
   else if (task === "thinking") push(s.taskModels.thinking || MODEL_TRIO.capable);
   else if (task === "fast") push(s.taskModels.fast || MODEL_TRIO.fast);
-  else { push(MODEL_TRIO.primary); push(s.taskModels.fast); }
+  else {
+    push(MODEL_TRIO.primary);
+    push(s.taskModels.fast);
+  }
 
   // 2. The rest of the centrally configured trio.
-  push(MODEL_TRIO.primary); push(MODEL_TRIO.fast); push(MODEL_TRIO.capable); push(MODEL_TRIO.coding);
+  push(MODEL_TRIO.primary);
+  push(MODEL_TRIO.fast);
+  push(MODEL_TRIO.capable);
+  push(MODEL_TRIO.coding);
   // 3. Verified fallback chain.
   if (providerHasKey("openrouter")) for (const m of TEXT_FALLBACKS) push(`openrouter:${m}`);
   // 4. Whatever other lanes the user configured.
-  push(s.taskModels.thinking); push(s.taskModels.coding);
+  push(s.taskModels.thinking);
+  push(s.taskModels.coding);
   // 5. Emergency Groq lane.
   if (providerHasKey("groq")) push(`groq:${GROQ_EMERGENCY_MODEL}`);
   return out;
 }
 
 // ---------------------------------------------------------------------------
-// Web search (permission-gated — see web-search.ts)
+// Multi-engine Live Web Search (DuckDuckGo + Jina Reader + Wikipedia)
 // ---------------------------------------------------------------------------
 
-async function fetchLiveWebContext(query: string): Promise<string> {
+export async function fetchLiveWebContext(query: string): Promise<string> {
   if (!query) return "";
   const rows: Array<{ title: string; url: string; snippet: string; source: string }> = [];
-  const add = (title: string, url: string, snippet = "", source = "web") => {
-    let cleanUrl = url.trim();
+  const add = (title: string, url: string, snippet = "", source = "Web") => {
+    let cleanUrl = (url || "").trim();
     try {
       const u = new URL(cleanUrl, "https://duckduckgo.com");
       const uddg = u.searchParams.get("uddg");
       if (uddg) cleanUrl = decodeURIComponent(uddg);
     } catch {}
-    if (!title || !cleanUrl || rows.some(r => r.url === cleanUrl)) return;
-    rows.push({ title: title.replace(/\s+/g, " ").trim(), url: cleanUrl, snippet: snippet.replace(/\s+/g, " ").trim(), source });
+    if (
+      !title ||
+      !cleanUrl ||
+      !cleanUrl.startsWith("http") ||
+      cleanUrl.includes("duckduckgo.com/html") ||
+      rows.some((r) => r.url === cleanUrl)
+    ) {
+      return;
+    }
+    rows.push({
+      title: title.replace(/\s+/g, " ").trim(),
+      url: cleanUrl,
+      snippet: snippet.replace(/\s+/g, " ").trim(),
+      source,
+    });
   };
 
-  // ONE focused search. No overlapping queries.
+  const freshQuery = /\b(headlines?|news|latest|current|today|this week)\b/i.test(query)
+    ? `${query} ${new Date().getFullYear()}`
+    : query;
+
+  // Tier 1: DuckDuckGo HTML via Jina Reader
   try {
-    const freshQuery = /\b(headlines?|news|latest|current|today|this week)\b/i.test(query)
-      ? `${query} ${new Date().getFullYear()}`
-      : query;
-    const ddgUrl = `https://duckduckgo.com/html/?q=${encodeURIComponent(freshQuery)}&kl=wt-wt&df=d`;
+    const ddgUrl = `https://duckduckgo.com/html/?q=${encodeURIComponent(freshQuery)}&kl=wt-wt`;
     const readableUrl = `https://r.jina.ai/${ddgUrl}`;
-    const html = await fetch(readableUrl, { headers: { "X-No-Cache": "true" } }).then(r => r.ok ? r.text() : "").catch(() => "");
-    const lines = html.split("\n").map(l => l.trim()).filter(Boolean);
-    for (let i = 0; i < lines.length && rows.length < 8; i++) {
-      const m = lines[i].match(/^##\s+\[([^\]]+)\]\(([^)]+)\)/);
-      if (m) {
-        const snippet = lines.slice(i + 1, i + 5).find(l => !l.startsWith("[") && !l.startsWith("!") && !/^https?:/i.test(l) && !/^##/.test(l)) || "";
-        add(m[1], m[2], snippet, "DuckDuckGo");
+    const text = await fetch(readableUrl, {
+      headers: { "X-No-Cache": "true", "User-Agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(8000),
+    })
+      .then((r) => (r.ok ? r.text() : ""))
+      .catch(() => "");
+
+    if (text) {
+      const regex = /#{1,3}\s+\[([^\]]+)\]\(([^)]+)\)([\s\S]*?)(?=#{1,3}\s+\[|$)/g;
+      let m;
+      while ((m = regex.exec(text)) !== null && rows.length < 8) {
+        const title = m[1].trim();
+        const rawUrl = m[2].trim();
+        const block = m[3] || "";
+        const cleanSnippet = block
+          .replace(/\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)/g, "")
+          .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+          .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+          .replace(/https?:\/\/\S+/g, "")
+          .replace(/^\s*(?:[\w.-]+\.[a-z]{2,}\S*|\d{4}-\d{2}-\d{2}T[\d:.]+Z?)\s*/i, "")
+          .replace(/\s+/g, " ")
+          .trim();
+        add(title, rawUrl, cleanSnippet.slice(0, 260), "DuckDuckGo");
       }
     }
   } catch {}
 
-  // Second request only when the first came back empty.
+  // Tier 2: Wikipedia encyclopedic lookup for entities / topics / concepts
+  if (rows.length < 3) {
+    try {
+      const wikiSearchUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=3&namespace=0&format=json&origin=*`;
+      const wikiResp = await fetch(wikiSearchUrl, { signal: AbortSignal.timeout(4000) });
+      if (wikiResp.ok) {
+        const [, titles, , urls] = await wikiResp.json();
+        if (Array.isArray(titles) && titles.length > 0) {
+          const topTitle = titles[0];
+          const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topTitle)}`;
+          const summaryResp = await fetch(summaryUrl, { signal: AbortSignal.timeout(4000) });
+          if (summaryResp.ok) {
+            const sum = await summaryResp.json();
+            if (sum.extract) {
+              add(
+                sum.title || topTitle,
+                sum.content_urls?.desktop?.page || urls[0],
+                sum.extract.slice(0, 300),
+                "Wikipedia",
+              );
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // Tier 3: DuckDuckGo Instant Answer / related topics fallback
   if (!rows.length) {
     try {
       const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
-      const j: any = await fetch(url).then(r => r.ok ? r.json() : null).catch(() => null);
-      if (j?.AbstractText) add("DuckDuckGo instant answer", j.AbstractURL || "https://duckduckgo.com", j.AbstractText, "DuckDuckGo");
+      const j: any = await fetch(url, { signal: AbortSignal.timeout(4000) })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+      if (j?.AbstractText) {
+        add(
+          j.Heading || "DuckDuckGo Instant Answer",
+          j.AbstractURL || "https://duckduckgo.com",
+          j.AbstractText,
+          "DuckDuckGo",
+        );
+      }
       const related = Array.isArray(j?.RelatedTopics) ? j.RelatedTopics : [];
       for (const item of related) {
         if (rows.length >= 6) break;
-        if (item?.Text) add(item.Text.split(" - ")[0] || "Result", item.FirstURL || "https://duckduckgo.com", item.Text, "DuckDuckGo");
+        if (item?.Text) {
+          add(
+            item.Text.split(" - ")[0] || "Result",
+            item.FirstURL || "https://duckduckgo.com",
+            item.Text,
+            "DuckDuckGo",
+          );
+        }
       }
     } catch {}
   }
@@ -305,7 +523,12 @@ async function fetchLiveWebContext(query: string): Promise<string> {
   return [
     `LIVE WEB SEARCH RESULTS — fetched at ${new Date().toLocaleString()} for query: "${query}".`,
     `Use ONLY these results for current facts. If a snippet looks old, say so. Cite as [1], [2].`,
-    ...rows.slice(0, 10).map((r, i) => `[${i + 1}] ${r.title}\nURL: ${r.url}\nSource: ${r.source}${r.snippet ? `\nSnippet: ${r.snippet}` : ""}`),
+    ...rows
+      .slice(0, 10)
+      .map(
+        (r, i) =>
+          `[${i + 1}] ${r.title}\nURL: ${r.url}\nSource: ${r.source}${r.snippet ? `\nSnippet: ${r.snippet}` : ""}`,
+      ),
   ].join("\n");
 }
 
@@ -319,11 +542,14 @@ let inFlight: { key: string; promise: Promise<string> } | null = null;
 export let lastAnsweredBy = "";
 
 function requestKey(history: ChatMessage[], task: TaskType): string {
-  const last = [...history].reverse().find(m => m.role === "user");
+  const last = [...history].reverse().find((m) => m.role === "user");
   return `${task}|${last?.id || ""}|${(last?.text || "").slice(0, 200)}|${last?.images?.length || 0}`;
 }
 
-export async function sendChat(history: ChatMessage[], opts: { task?: TaskType } = {}): Promise<string> {
+export async function sendChat(
+  history: ChatMessage[],
+  opts: { task?: TaskType } = {},
+): Promise<string> {
   const task: TaskType = opts.task ?? "auto";
   const key = requestKey(history, task);
   // Duplicate submissions (double tap, re-render, voice + button) share one request.
@@ -339,21 +565,26 @@ async function runChat(history: ChatMessage[], task: TaskType): Promise<string> 
   const s = alphaStore.get().settings;
   const online = typeof navigator !== "undefined" ? navigator.onLine : true;
 
-  const lastUserMsg = [...history].reverse().find(m => m.role === "user");
+  const lastUserMsg = [...history].reverse().find((m) => m.role === "user");
   const hasImages = !!lastUserMsg?.images?.length;
   const userText = lastUserMsg?.text || "";
 
   // Local intents answer instantly with no model request at all.
   if (userText && !hasImages) {
     const local = tryLocalIntent(userText);
-    if (local) { activity.clear(); return local; }
+    if (local) {
+      activity.clear();
+      return local;
+    }
   }
 
   const routes = online ? planRoutes(task, hasImages) : [];
 
   if (hasImages && online && !routes.length) {
     activity.set("error");
-    throw new Error("No OpenRouter API key set — Alpha needs one to see images. Add it in Settings → Online.");
+    throw new Error(
+      "No OpenRouter API key set — Alpha needs one to see images. Add it in Settings → Online.",
+    );
   }
 
   activity.set(hasImages ? "reading_image" : "thinking");
@@ -361,7 +592,7 @@ async function runChat(history: ChatMessage[], task: TaskType): Promise<string> 
   const recall = userText ? rerankContext(userText) : "";
   const rolling = conversationSummary.get();
 
-  // ---- Permission-gated search: never automatic ----
+  // ---- Real-time web search execution & capability routing ----
   let webContext = "";
   let searchHint = SEARCH_FORBIDDEN_HINT;
   if (online && !hasImages) {
@@ -370,7 +601,9 @@ async function runChat(history: ChatMessage[], task: TaskType): Promise<string> 
       activity.set("searching");
       webContext = await fetchLiveWebContext(decision.query);
       activity.set("preparing");
-    } else if (decision.offer) {
+    } else if ("capabilityInquiry" in decision && decision.capabilityInquiry) {
+      searchHint = SEARCH_CAPABILITY_HINT;
+    } else if ("offer" in decision && decision.offer) {
       searchHint = SEARCH_OFFER_HINT;
     }
   } else if (hasImages) {
@@ -379,14 +612,15 @@ async function runChat(history: ChatMessage[], task: TaskType): Promise<string> 
 
   const hasEvidence = /^\[1\]/m.test(webContext);
   const buildSys = (offline: boolean) =>
-    DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling, { offline })
-    + `\n\nEVIDENCE: ${hasEvidence ? "live-search" : "none"}\n${searchHint}`
-    + (webContext ? `\n\n${webContext}` : "");
+    DEFAULT_SYSTEM(s.personaExtra || "", recall, rolling, { offline }) +
+    `\n\nEVIDENCE: ${hasEvidence ? "live-search" : "none"}\n${searchHint}` +
+    (webContext ? `\n\n${webContext}` : "");
 
   if (routes.length) {
     const sys = buildSys(false);
     const budget = hasImages ? "vision" : task;
-    const maxTokens = MAX_OUTPUT_TOKENS[budget as keyof typeof MAX_OUTPUT_TOKENS] ?? MAX_OUTPUT_TOKENS.auto;
+    const maxTokens =
+      MAX_OUTPUT_TOKENS[budget as keyof typeof MAX_OUTPUT_TOKENS] ?? MAX_OUTPUT_TOKENS.auto;
     const historyTurns = HISTORY_TURNS[budget as keyof typeof HISTORY_TURNS] ?? HISTORY_TURNS.auto;
 
     let lastErr: any = null;
@@ -396,7 +630,9 @@ async function runChat(history: ChatMessage[], task: TaskType): Promise<string> 
       else activity.set(hasImages ? "reading_image" : "thinking");
       try {
         const text = await callProvider(prov, model, history, sys, {
-          allowImages: hasImages, maxTokens, historyTurns,
+          allowImages: hasImages,
+          maxTokens,
+          historyTurns,
         });
         lastAnsweredBy = routeLabel(prov, model);
         activity.set("preparing");
@@ -407,21 +643,32 @@ async function runChat(history: ChatMessage[], task: TaskType): Promise<string> 
       } catch (err: any) {
         lastErr = err;
         // Developer-only detail; users never see provider bodies.
-        if (typeof console !== "undefined") console.warn(`[alpha] ${prov}:${model} failed`, err?.status, err?.message);
+        if (typeof console !== "undefined")
+          console.warn(`[alpha] ${prov}:${model} failed`, err?.status, err?.message);
         const st = err?.status;
-        const retryableElsewhere = st === 429 || st === 404 || st === 402 || st === 403 || st === 502 || st === 504 || (st >= 500 && st < 600)
-          || /unavailable|no endpoints|rate.?limit|quota|empty response|timed out/i.test(String(err?.message || ""));
+        const retryableElsewhere =
+          st === 429 ||
+          st === 404 ||
+          st === 402 ||
+          st === 403 ||
+          st === 502 ||
+          st === 504 ||
+          (st >= 500 && st < 600) ||
+          /unavailable|no endpoints|rate.?limit|quota|empty response|timed out/i.test(
+            String(err?.message || ""),
+          );
         if (!retryableElsewhere) break;
       }
     }
     activity.set("error");
     // One user-facing sentence — never the raw provider body.
     const st = lastErr?.status;
-    const friendly = st === 429
-      ? "Every model I can reach is rate-limited right now. Give it a minute and try again."
-      : st === 401 || st === 403
-        ? "My model provider rejected the API key. Re-paste it in Settings → Online."
-        : "I couldn't get a reply from any model just now. Try again in a moment.";
+    const friendly =
+      st === 429
+        ? "Every model I can reach is rate-limited right now. Give it a minute and try again."
+        : st === 401 || st === 403
+          ? "My model provider rejected the API key. Re-paste it in Settings → Online."
+          : "I couldn't get a reply from any model just now. Try again in a moment.";
     const e: any = new Error(friendly);
     e.status = st;
     throw e;
@@ -456,16 +703,21 @@ async function callProvider(
     historyTurns: o.historyTurns,
     allowImages: o.allowImages,
     retries: 1,
-    onStatus: (st: "waiting" | "retrying") => activity.set(st === "retrying" ? "retrying" : "waiting_provider"),
+    onStatus: (st: "waiting" | "retrying") =>
+      activity.set(st === "retrying" ? "retrying" : "waiting_provider"),
   };
   if (prov === "groq") {
     return sendChatOpenAICompat(history, sys, {
-      ...shared, baseUrl: "https://api.groq.com/openai/v1", apiKey: cleanApiKey(s.groqApiKey),
+      ...shared,
+      baseUrl: "https://api.groq.com/openai/v1",
+      apiKey: cleanApiKey(s.groqApiKey),
     });
   }
   if (prov === "openai") {
     return sendChatOpenAICompat(history, sys, {
-      ...shared, baseUrl: s.openaiCompatBase || "https://api.openai.com/v1", apiKey: cleanApiKey(s.openaiCompatKey),
+      ...shared,
+      baseUrl: s.openaiCompatBase || "https://api.openai.com/v1",
+      apiKey: cleanApiKey(s.openaiCompatKey),
     });
   }
   return sendChatOpenAICompat(history, sys, {
@@ -473,7 +725,8 @@ async function callProvider(
     baseUrl: "https://openrouter.ai/api/v1",
     apiKey: cleanApiKey(s.openRouterKey),
     extraHeaders: {
-      "HTTP-Referer": typeof window !== "undefined" ? window.location.origin : "https://alpha.local",
+      "HTTP-Referer":
+        typeof window !== "undefined" ? window.location.origin : "https://alpha.local",
       "X-Title": "Alpha",
     },
   });
@@ -490,7 +743,7 @@ function finalizeReply(raw: string, webContext: string): string {
   let out = text;
   const report = renderActionReport(results);
   if (report) {
-    if (results.some(r => r.status !== "success")) activity.set("action_failed");
+    if (results.some((r) => r.status !== "success")) activity.set("action_failed");
     out = (out ? out + "\n\n" : "") + report;
   } else if (claimsMutationWithoutTag(text)) {
     out = (out ? out + "\n\n" : "") + NO_ACTION_NOTICE;
@@ -498,9 +751,14 @@ function finalizeReply(raw: string, webContext: string): string {
   return appendSourcesIfWeb(out, webContext);
 }
 
-/** Build a Sources footer from the evidence block we actually fed the model. */
-function appendSourcesIfWeb(text: string, webContext: string): string {
-  if (!webContext || /\*\*Sources:?\*\*/i.test(text)) return text;
+/** Build a Sources footer from the evidence block we actually fed the model, or strip fake sources if none exist. */
+export function appendSourcesIfWeb(text: string, webContext: string): string {
+  const hasEvidence = /^\[1\]/m.test(webContext);
+  if (!hasEvidence) {
+    // Hard guarantee: strip any fabricated or hallucinated **Sources:** section when no real web evidence was retrieved
+    return text.replace(/\n+\*\*Sources:?\*\*[\s\S]*$/i, "").trim();
+  }
+  if (/\*\*Sources:?\*\*/i.test(text)) return text;
   const lines = webContext.split("\n");
   const rows: Array<{ n: number; title: string; url: string }> = [];
   for (let i = 0; i < lines.length; i++) {
@@ -511,14 +769,21 @@ function appendSourcesIfWeb(text: string, webContext: string): string {
     }
   }
   if (!rows.length) return text;
-  return text.trim() + "\n\n**Sources:**\n" + rows.slice(0, 6).map(r => `- [${r.n}] [${r.title}](${r.url})`).join("\n");
+  return (
+    text.trim() +
+    "\n\n**Sources:**\n" +
+    rows
+      .slice(0, 6)
+      .map((r) => `- [${r.n}] [${r.title}](${r.url})`)
+      .join("\n")
+  );
 }
 
 // ---------- Background semantic compactor ----------
 let lastCompactAt = 0;
 async function maybeCompactSummary(history: ChatMessage[], lastAssistant: string) {
   try {
-    const turns = history.filter(m => m.role !== "system").length;
+    const turns = history.filter((m) => m.role !== "system").length;
     // Deliberately rare: a compaction is an extra request, so it only runs
     // every 10+ turns on long threads.
     if (turns < 16) return;
@@ -528,7 +793,10 @@ async function maybeCompactSummary(history: ChatMessage[], lastAssistant: string
     if (!groqKey) return; // Best-effort only; never worth an extra paid/limited call.
     const older = history.slice(0, -10);
     if (!older.length) return;
-    const transcript = older.slice(-30).map(m => `${m.role.toUpperCase()}: ${(m.text || "").slice(0, 300)}`).join("\n");
+    const transcript = older
+      .slice(-30)
+      .map((m) => `${m.role.toUpperCase()}: ${(m.text || "").slice(0, 300)}`)
+      .join("\n");
     const previous = conversationSummary.get();
     const prompt = `Compress this chat into a compact STATE MATRIX for an assistant named Alpha. <=500 words, bullet sections only:
 • User profile & preferences
@@ -552,17 +820,23 @@ ${lastAssistant.slice(0, 500)}`;
       body: JSON.stringify({
         model: GROQ_EMERGENCY_MODEL,
         messages: [{ role: "user", content: prompt }],
-        temperature: 0.2, stream: false, max_tokens: 800,
+        temperature: 0.2,
+        stream: false,
+        max_tokens: 800,
       }),
     });
     if (!res.ok) return;
     const j: any = await res.json();
     const out = j?.choices?.[0]?.message?.content?.trim() || "";
     if (out) conversationSummary.set(out);
-  } catch { /* swallow — background */ }
+  } catch {
+    /* swallow — background */
+  }
 }
 
-export async function generateImage(prompt: string): Promise<{ dataUrl: string; via: "pollinations" }> {
+export async function generateImage(
+  prompt: string,
+): Promise<{ dataUrl: string; via: "pollinations" }> {
   const seed = Math.floor(Math.random() * 1_000_000);
   const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${seed}`;
   return { dataUrl: url, via: "pollinations" };

@@ -62,18 +62,31 @@ export function trySettingsIntent(raw: string): string | null {
   if (mm) {
     const cur = alphaStore.get().settings.backgroundData.trim();
     const topic = mm[1].trim();
-    alphaStore.setSettings({ backgroundData: cur ? `${cur}\n${topic}` : topic, backgroundEnabled: true });
+    alphaStore.setSettings({
+      backgroundData: cur ? `${cur}\n${topic}` : topic,
+      backgroundEnabled: true,
+    });
     return `Added "${topic}" to Alpha's watchlist.`;
   }
 
   // Task model routing quick set: "use groq for fast", "use openrouter for coding"
-  const m = t.match(/use\s+(groq|openai|openrouter)(?:\s+(\S+))?\s+for\s+(fast|thinking|deep|coding|code)/);
+  const m = t.match(
+    /use\s+(groq|openai|openrouter)(?:\s+(\S+))?\s+for\s+(fast|thinking|deep|coding|code)/,
+  );
   if (m) {
     const prov = m[1];
-    const model = m[2] || (prov === "groq" ? "llama-3.3-70b-versatile" : prov === "openrouter" ? "deepseek/deepseek-r1:free" : "gpt-4o-mini");
-    let key: "fast" | "thinking" | "coding" =
-      /coding|code/.test(m[3]) ? "coding" :
-      /thinking|deep/.test(m[3]) ? "thinking" : "fast";
+    const model =
+      m[2] ||
+      (prov === "groq"
+        ? "llama-3.3-70b-versatile"
+        : prov === "openrouter"
+          ? "deepseek/deepseek-r1:free"
+          : "gpt-4o-mini");
+    const key: "fast" | "thinking" | "coding" = /coding|code/.test(m[3])
+      ? "coding"
+      : /thinking|deep/.test(m[3])
+        ? "thinking"
+        : "fast";
     const cur = alphaStore.get().settings.taskModels;
     alphaStore.setSettings({ taskModels: { ...cur, [key]: `${prov}:${model}` } });
     return `Set ${key} to ${prov}:${model}.`;

@@ -35,17 +35,17 @@ desktop). He is:
 
 ## 2. Technology stack
 
-| Layer | Choice |
-|---|---|
-| Framework | TanStack Start v1 (file-based routing, React 19, SSR-capable) |
-| Build | Vite 7, Bun as package manager |
-| Styling | Tailwind CSS v4 via `@tailwindcss/vite`, tokens in `src/styles.css` (all colours in `oklch`) |
-| UI primitives | shadcn-style components on Radix UI, `lucide-react` icons |
-| Markdown | `react-markdown` + `remark-gfm` + `remark-math` + `rehype-katex` + `katex` |
-| Toasts | `sonner` |
-| PWA | `vite-plugin-pwa` + `workbox-window` + `public/manifest.webmanifest` |
-| Storage | `localStorage` (all app state) + IndexedDB (`alpha.music.v1` for MP3s) |
-| Backend | **none** — deliberately. Everything client-side. |
+| Layer         | Choice                                                                                       |
+| ------------- | -------------------------------------------------------------------------------------------- |
+| Framework     | TanStack Start v1 (file-based routing, React 19, SSR-capable)                                |
+| Build         | Vite 7, Bun as package manager                                                               |
+| Styling       | Tailwind CSS v4 via `@tailwindcss/vite`, tokens in `src/styles.css` (all colours in `oklch`) |
+| UI primitives | shadcn-style components on Radix UI, `lucide-react` icons                                    |
+| Markdown      | `react-markdown` + `remark-gfm` + `remark-math` + `rehype-katex` + `katex`                   |
+| Toasts        | `sonner`                                                                                     |
+| PWA           | `vite-plugin-pwa` + `workbox-window` + `public/manifest.webmanifest`                         |
+| Storage       | `localStorage` (all app state) + IndexedDB (`alpha.music.v1` for MP3s)                       |
+| Backend       | **none** — deliberately. Everything client-side.                                             |
 
 Scripts: `bun dev`, `bun run build`, `bun run build:dev`, `bun run preview`,
 `bun lint`, `bun run format`.
@@ -55,6 +55,7 @@ Scripts: `bun dev`, `bun run build`, `bun run build:dev`, `bun run preview`,
 ## 3. Visual identity ("Cyber-Lens" theme)
 
 ### 3.1 Palette
+
 Deep **obsidian black**, **polished silver**, and **bright navy neon blue**.
 No cyan-teal, no purple, no light mode in practice (background is pure black).
 
@@ -81,6 +82,7 @@ Rule enforced throughout: **never hardcode colours in components** — only
 semantic tokens (`text-primary`, `border-border`, `bg-card`, etc.).
 
 ### 3.2 Custom utilities & animations (`src/styles.css`)
+
 - `wordmark` — wide-tracked uppercase HUD label type.
 - `hud-frame`, `hud-frame-corners`, `hud-bubble` — bracketed HUD panels and
   chat bubbles with neon rims and corner ticks.
@@ -95,6 +97,7 @@ semantic tokens (`text-primary`, `border-border`, `bg-card`, etc.).
   `alpha-ripple`, `cyber-breath`, `cyber-pupil-pulse`, `cyber-blink`.
 
 ### 3.3 The Orb = the Cyber Eye
+
 `src/components/CyberEye.tsx` (~540 lines) is the single most iterated file.
 It replaced an earlier "cosmic orb" and now renders, layered outer→inner:
 
@@ -116,12 +119,14 @@ spikes) was deliberately **removed** at the user's request to keep focus on the
 orb; `showMicroText` remains a prop, default off.
 
 ### 3.4 Status ring — KITT scanner
+
 `src/components/KittScanner.tsx` renders Knight-Rider-style horizontal LED bars
 in three variants: straight bar, split (mirrored halves with a centre gap), and
 **arc** (true SVG circular geometry curving up around the orb). It reacts to
 speaking / listening / alert states; `kitt-off` kills animation when idle.
 
 ### 3.5 Layouts
+
 - **Mobile / phone (default)**: full-bleed black, giant Cyber Eye centred,
   KITT arcs hugging it, minimal chrome, floating `GlobalDock` (home / chat /
   MiniOrb) on secondary pages, `BackArrow` in each page header.
@@ -139,18 +144,18 @@ speaking / listening / alert states; `kitt-off` kills animation when idle.
 
 ## 4. Routes (file-based, `src/routes/`)
 
-| Route | Purpose |
-|---|---|
-| `/` (`index.tsx`) | Voice-first Orb home. Hands-free listening, KITT arcs, spoken navigation. No clock (removed by request). |
-| `/chat` | Full text+voice chat: markdown/LaTeX rendering, image upload, camera capture, live-eye toggle, mic, task chips. |
-| `/notes` | Notes CRUD (title, body). |
-| `/bills` | Bill ledger (name, amount, balance, dueDate, status due/paid/overdue). |
-| `/reminders` | Reminders/alarms (title, when, notes, done). |
-| `/plans` | Plans & routes (title, from, to, date, details). |
-| `/memories` | Long-term memories (topic, detail). |
-| `/image` | Image generation dashboard (Pollinations FLUX.1-schnell). |
-| `/settings` | Grouped: **Online**, **Offline**, **Alpha Data** (+ Export/Import + Danger Zone). |
-| `__root.tsx` | Shell: head metadata, icons/manifest, `<Toaster />`, global dock, error capture, PWA registration, engine bootstraps. |
+| Route             | Purpose                                                                                                               |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `/` (`index.tsx`) | Voice-first Orb home. Hands-free listening, KITT arcs, spoken navigation. No clock (removed by request).              |
+| `/chat`           | Full text+voice chat: markdown/LaTeX rendering, image upload, camera capture, live-eye toggle, mic, task chips.       |
+| `/notes`          | Notes CRUD (title, body).                                                                                             |
+| `/bills`          | Bill ledger (name, amount, balance, dueDate, status due/paid/overdue).                                                |
+| `/reminders`      | Reminders/alarms (title, when, notes, done).                                                                          |
+| `/plans`          | Plans & routes (title, from, to, date, details).                                                                      |
+| `/memories`       | Long-term memories (topic, detail).                                                                                   |
+| `/image`          | Image generation dashboard (Pollinations FLUX.1-schnell).                                                             |
+| `/settings`       | Grouped: **Online**, **Offline**, **Alpha Data** (+ Export/Import + Danger Zone).                                     |
+| `__root.tsx`      | Shell: head metadata, icons/manifest, `<Toaster />`, global dock, error capture, PWA registration, engine bootstraps. |
 
 `SimpleCrud.tsx` is the shared generic CRUD list used by notes/bills/reminders/
 plans/memories so all tools behave identically.
@@ -163,7 +168,7 @@ A hand-rolled store using `useSyncExternalStore` — no Redux/Zustand. Snapshot
 shape:
 
 ```ts
-AlphaState = { chat, notes, bills, reminders, plans, memories, profile, settings }
+AlphaState = { chat, notes, bills, reminders, plans, memories, profile, settings };
 ```
 
 localStorage keys (versioned, all `alpha.*.v1`):
@@ -192,6 +197,7 @@ app survives the free tier shifting under it.
 ## 6. The brain (`src/lib/alpha.functions.ts`, ~740 lines)
 
 ### 6.1 Model routing
+
 `TaskType = "auto" | "fast" | "thinking" | "coding"`; providers
 `"groq" | "openai" | "openrouter"`. Route specs look like
 `groq:llama-3.3-70b-versatile`. `pickRoute()` picks the lane's model, verifies
@@ -200,14 +206,14 @@ API keys are sanitised (`Bearer `, quotes, whitespace stripped).
 
 Current verified free defaults:
 
-| Lane | Route |
-|---|---|
-| Fast | `groq:llama-3.3-70b-versatile` |
-| Thinking | `openrouter:nvidia/nemotron-3-super-120b-a12b:free` |
-| Coding | `openrouter:poolside/laguna-s-2.1:free` |
-| Vision | `VISION_FALLBACKS[0]` on OpenRouter |
-| Images | Pollinations (`image.pollinations.ai`, FLUX.1-schnell, no key) |
-| STT fallback | Groq `whisper-large-v3-turbo` |
+| Lane         | Route                                                          |
+| ------------ | -------------------------------------------------------------- |
+| Fast         | `groq:llama-3.3-70b-versatile`                                 |
+| Thinking     | `openrouter:nvidia/nemotron-3-super-120b-a12b:free`            |
+| Coding       | `openrouter:poolside/laguna-s-2.1:free`                        |
+| Vision       | `VISION_FALLBACKS[0]` on OpenRouter                            |
+| Images       | Pollinations (`image.pollinations.ai`, FLUX.1-schnell, no key) |
+| STT fallback | Groq `whisper-large-v3-turbo`                                  |
 
 Fallback chains walked on 404 / rate-limit / empty answer:
 
@@ -225,6 +231,7 @@ TEXT_FALLBACKS   = nvidia/nemotron-3-super-120b-a12b:free
 churn). Any leftover `gemini:` route is auto-migrated away.
 
 ### 6.2 Grounding pipeline
+
 `shouldFetchWeb()` regex-detects time-sensitive/factual questions. If it hits,
 `fetchLiveWebContext()` scrapes **DuckDuckGo HTML** results and reads pages via
 **Jina reader**, then injects a `LIVE WEB SEARCH RESULTS` block into the system
@@ -233,11 +240,12 @@ skipped when images are attached (latency) and when fully offline.
 `appendSourcesIfWeb()` appends a real **Sources** list.
 
 ### 6.3 System prompt (the personality contract)
+
 `DEFAULT_SYSTEM(extra, recall, rolling, {offline})` composes:
 
 1. Optional **OFFLINE MODE** preamble (no internet → never invent citations).
-2. Identity: *"You are Alpha — a hyper-intelligent, futuristic AI companion
-   with warm, level-3 wit"*, natural acknowledgement cues, never robotic.
+2. Identity: _"You are Alpha — a hyper-intelligent, futuristic AI companion
+   with warm, level-3 wit"_, natural acknowledgement cues, never robotic.
 3. **Response Style & Formatting Specification** (highest priority): human
    readability first, 2–4-sentence paragraphs, blank line between every block,
    `##`/`###` descriptive headings past ~5 sentences, sparing bold, lists over
@@ -249,7 +257,7 @@ skipped when images are attached (latency) and when fully offline.
 5. **Temporal anchor** — exact local date/time, tz, UTC, unix ms, with the rule
    that it overrides training data and search snippets.
 6. **Live user data snapshot** (`ctxSummary()`) + semantically reranked recall
-   + rolling compacted state.
+   - rolling compacted state.
 7. **Grounding & truthfulness hard rules** — evidence-only mode, forbidden to
    invent titles/URLs/authors/dates/quotes/versions, snippet-vs-full-page
    honesty, `[1]`-style citations, contradiction check, single-source labelling,
@@ -264,6 +272,7 @@ skipped when images are attached (latency) and when fully offline.
 13. User personalisation (`personaExtra`).
 
 ### 6.4 Action tags (agentic control)
+
 Alpha must emit these inline, one per line; `executeActionTags()` parses and
 executes them against the store, with name-based and fuzzy matching:
 
@@ -288,6 +297,7 @@ Hard rule in the prompt: never claim "done/deleted/changed" without emitting
 the matching tag — the app only mutates state when a tag is present.
 
 ### 6.5 Memory architecture
+
 - **Short term**: last N chat turns sent to the model.
 - **Rolling compactor** (`maybeCompactSummary`): every ~10 turns a cheap model
   compresses history into a ≤600-word bullet **STATE MATRIX** stored in
@@ -302,6 +312,7 @@ the matching tag — the app only mutates state when a tag is present.
 ## 7. Voice pipeline
 
 ### 7.1 TTS (`src/lib/voice.ts`, ~540 lines)
+
 Cascade, first that works wins:
 
 1. **Kokoro-FastAPI** (`kokoroEndpoint`, default voice `am_michael`) — the
@@ -318,6 +329,7 @@ normalises LaTeX into speakable words). `speakingState` is a tiny pub/sub the
 Orb subscribes to; `stopSpeaking()` hard-cancels.
 
 ### 7.2 STT
+
 `ContinuousRecognizer` (Web Speech API) with an Android-safe auto-restart loop,
 plus `WhisperRecognizer` (local faster-whisper OpenAI-compatible server) and
 `GroqWhisperRecognizer` (`whisper-large-v3-turbo`). `pickBackend()` chooses
@@ -329,11 +341,13 @@ hears himself, and only one component may own the microphone stream at a time
 (this fixed the original "words not recognised" bug).
 
 ### 7.3 Voice navigation
+
 `voice-router.ts` parses intents from the transcript ("open chat / notes /
 bills / image / reminders / plans / memories / settings", stop, etc.) and
 `execIntent()` performs router navigation hands-free.
 
 ### 7.4 Local intents
+
 `local-intents.ts` (288 lines) answers/executes common commands **without any
 model call** — list items, bulk clear, fuzzy delete, natural-language time
 parsing (`parseNaturalWhen`). `settings-intents.ts` lets Alpha change his own

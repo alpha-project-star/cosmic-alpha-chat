@@ -15,14 +15,20 @@ function splitDataUrl(u: string): { data: string } | null {
 
 /** Convert Alpha chat messages into Ollama's /api/chat shape. */
 function toOllamaMessages(history: ChatMessage[]) {
-  return history.filter(m => m.role !== "system").slice(-40).map(m => {
-    const msg: any = { role: m.role === "user" ? "user" : "assistant", content: m.text || "" };
-    if (m.images?.length) {
-      const imgs = m.images.map(splitDataUrl).filter(Boolean).map(x => (x as any).data);
-      if (imgs.length) msg.images = imgs;
-    }
-    return msg;
-  });
+  return history
+    .filter((m) => m.role !== "system")
+    .slice(-40)
+    .map((m) => {
+      const msg: any = { role: m.role === "user" ? "user" : "assistant", content: m.text || "" };
+      if (m.images?.length) {
+        const imgs = m.images
+          .map(splitDataUrl)
+          .filter(Boolean)
+          .map((x) => (x as any).data);
+        if (imgs.length) msg.images = imgs;
+      }
+      return msg;
+    });
 }
 
 /** GET /api/tags — list installed local models. Used by Settings to show what's available. */
@@ -48,7 +54,7 @@ export async function sendChatOllama(
 ): Promise<string> {
   // Fast local-intent shortcut (same as the Gemini path) so simple CRUD
   // never touches the LLM.
-  const lastUserMsg = [...history].reverse().find(m => m.role === "user");
+  const lastUserMsg = [...history].reverse().find((m) => m.role === "user");
   if (lastUserMsg?.text && !lastUserMsg.images?.length) {
     const local = tryLocalIntent(lastUserMsg.text);
     if (local) return local;
@@ -93,15 +99,17 @@ export async function sendChatOllama(
 let lastCompactAt = 0;
 async function maybeCompactLocal(history: ChatMessage[], lastAssistant: string, model: string) {
   try {
-    const turns = history.filter(m => m.role !== "system").length;
+    const turns = history.filter((m) => m.role !== "system").length;
     if (turns < 12 || turns - lastCompactAt < 10) return;
     lastCompactAt = turns;
     const older = history.slice(0, -10);
     if (!older.length) return;
-    const transcript = older.slice(-40).map(m => `${m.role.toUpperCase()}: ${(m.text || "").slice(0, 300)}`).join("\n");
+    const transcript = older
+      .slice(-40)
+      .map((m) => `${m.role.toUpperCase()}: ${(m.text || "").slice(0, 300)}`)
+      .join("\n");
     const previous = conversationSummary.get();
-    const prompt =
-`Compress the chat below into a compact STATE MATRIX for the assistant "Alpha".
+    const prompt = `Compress the chat below into a compact STATE MATRIX for the assistant "Alpha".
 <=500 words, bullet sections only:
 • User profile & preferences
 • Active projects / topics
@@ -132,5 +140,7 @@ ${lastAssistant.slice(0, 500)}`;
     const j: any = await res.json();
     const out = j?.message?.content?.trim() || "";
     if (out) conversationSummary.set(out);
-  } catch { /* background */ }
+  } catch {
+    /* background */
+  }
 }
