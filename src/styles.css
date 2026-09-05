@@ -505,3 +505,158 @@
   animation: cyber-blink 7.5s ease-in-out infinite;
   mix-blend-mode: multiply;
 }
+
+/* ===========================================================================
+   .alpha-prose — the one typography contract for every piece of Alpha-generated
+   content (chat replies, notes, memories, reminders, plans, bills, tool output).
+   The model chooses structure; these rules choose spacing and size.
+   =========================================================================== */
+.alpha-prose {
+  font-size: 16px;
+  line-height: 1.6;
+  font-weight: 400;
+  color: var(--color-foreground);
+  max-width: 72ch;
+  width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.alpha-prose-compact { font-size: 15px; }
+
+.alpha-prose > :first-child { margin-top: 0 !important; }
+.alpha-prose > :last-child { margin-bottom: 0 !important; }
+
+.alpha-prose p {
+  margin: 0 0 16px 0;
+}
+
+.alpha-prose h1,
+.alpha-prose h2,
+.alpha-prose h3,
+.alpha-prose h4 {
+  color: var(--color-foreground);
+  letter-spacing: -0.01em;
+}
+.alpha-prose h1 { font-size: 24px; line-height: 1.25; font-weight: 700; margin: 24px 0 12px; }
+.alpha-prose h2 { font-size: 20px; line-height: 1.3;  font-weight: 700; margin: 24px 0 10px; }
+.alpha-prose h3 { font-size: 18px; line-height: 1.35; font-weight: 600; margin: 20px 0 8px; }
+.alpha-prose h4 { font-size: 16px; line-height: 1.4;  font-weight: 600; margin: 20px 0 8px; }
+
+.alpha-prose strong { font-weight: 600; color: var(--color-foreground); }
+.alpha-prose em { font-style: italic; }
+
+.alpha-prose ul,
+.alpha-prose ol {
+  margin: 8px 0 16px 0;
+  padding-left: 24px;
+}
+.alpha-prose ol { padding-left: 28px; }
+.alpha-prose li { margin: 0 0 8px 0; padding-left: 4px; }
+.alpha-prose li:last-child { margin-bottom: 0; }
+.alpha-prose li > p { margin: 0 0 8px 0; }
+.alpha-prose li > p:last-child { margin-bottom: 0; }
+.alpha-prose ul ul,
+.alpha-prose ul ol,
+.alpha-prose ol ul,
+.alpha-prose ol ol {
+  margin: 6px 0 6px 0;
+}
+.alpha-prose ul ul li,
+.alpha-prose ol ol li,
+.alpha-prose ul ol li,
+.alpha-prose ol ul li { margin-bottom: 5px; }
+.alpha-prose ul > li::marker { color: oklch(0.8 0.25 258); }
+.alpha-prose ol > li::marker { color: oklch(0.8 0.25 258); font-weight: 600; }
+
+.alpha-prose hr {
+  margin: 24px 0;
+  border: 0;
+  border-top: 1px solid oklch(0.7 0.12 258 / 0.25);
+}
+
+.alpha-prose blockquote {
+  margin: 16px 0;
+  padding: 2px 0 2px 16px;
+  border-left: 2px solid oklch(0.7 0.2 258 / 0.5);
+  color: var(--color-muted-foreground);
+}
+.alpha-prose blockquote p { margin-bottom: 12px; }
+.alpha-prose blockquote p:last-child { margin-bottom: 0; }
+
+.alpha-prose .alpha-link {
+  color: oklch(0.82 0.25 258);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+/* Tables — real structure, generous cells, horizontal scroll on narrow screens */
+.alpha-prose .alpha-table-wrap {
+  margin: 16px 0;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid oklch(0.7 0.12 258 / 0.28);
+  border-radius: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+.alpha-prose .alpha-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.alpha-prose th,
+.alpha-prose td {
+  padding: 11px 14px;
+  text-align: left;
+  vertical-align: top;
+  white-space: normal;
+}
+.alpha-prose th {
+  font-weight: 600;
+  background: oklch(0.16 0.05 260 / 0.7);
+  border-bottom: 1px solid oklch(0.7 0.12 258 / 0.35);
+}
+.alpha-prose tbody tr + tr td { border-top: 1px solid oklch(0.7 0.1 258 / 0.16); }
+
+/* Code */
+.alpha-prose code {
+  font-size: 13.5px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: oklch(0.12 0.03 260 / 0.85);
+  color: oklch(0.9 0.12 200);
+  overflow-wrap: anywhere;
+}
+.alpha-prose .alpha-pre {
+  margin: 16px 0;
+  padding: 16px;
+  border-radius: 12px;
+  background: oklch(0.08 0.02 260 / 0.92);
+  border: 1px solid oklch(0.7 0.12 258 / 0.28);
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.alpha-prose .alpha-pre code {
+  display: block;
+  background: none;
+  padding: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  white-space: pre;
+  color: oklch(0.92 0.02 240);
+}
+
+/* Maths */
+.alpha-prose .katex { font-size: 1.03em; }
+.alpha-prose .katex-display {
+  margin: 16px 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+}
+
+.alpha-prose img { max-width: 100%; height: auto; border-radius: 12px; margin: 16px 0; }
