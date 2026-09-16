@@ -39,9 +39,13 @@ import { DesktopChatPanel } from "../components/desktop/DesktopChatPanel";
 import { KittScanner } from "../components/KittScanner";
 import { LiveClock } from "../components/LiveClock";
 import { startEye, stopEye, subscribeActive as subEyeActive } from "../lib/vision-stream";
-import { captureLiveFrame, isVisionCommand, shouldCaptureFrame } from "../lib/vision-command";
+import { captureLiveFrame, handleEyeCommand, isVisionCommand, shouldCaptureFrame } from "../lib/vision-command";
 import { fileToShrunkDataUrl } from "../lib/image-utils";
 import { useActivity, activity } from "../lib/activity";
+import { NotificationCard } from "../components/NotificationCard";
+import { OutstandingRemindersAffordance } from "../components/OutstandingRemindersAffordance";
+import { MessageActions } from "../components/MessageActions";
+import { CHAT_NAV_ITEMS } from "../lib/navigation";
 
 export const Route = createFileRoute("/chat")({
   head: () => ({
@@ -50,16 +54,7 @@ export const Route = createFileRoute("/chat")({
   component: ChatRoute,
 });
 
-const NAV = [
-  { to: "/", icon: Sparkles, label: "Orb" },
-  { to: "/notes", icon: NotebookPen, label: "Notes" },
-  { to: "/bills", icon: Wallet, label: "Bills" },
-  { to: "/image", icon: ImageIcon, label: "Image" },
-  { to: "/reminders", icon: Bell, label: "Reminders" },
-  { to: "/plans", icon: Map, label: "Plans" },
-  { to: "/memories", icon: Brain, label: "Memories" },
-  { to: "/settings", icon: SettingsIcon, label: "Settings" },
-] as const;
+const NAV = CHAT_NAV_ITEMS;
 
 function ChatRoute() {
   const chat = useAlpha((s) => s.chat);
@@ -152,8 +147,8 @@ function ChatRoute() {
     if (!t && images.length === 0) return;
     prepareUtterance();
     let outImages = images;
-    if (t && shouldCaptureFrame(t, eyeOn)) {
-      const frame = await captureLiveFrame();
+    if (t && shouldCaptureFrame(t, eyeOn, images.length > 0)) {
+      const frame = await captureLiveFrame(eyeOn);
       if (frame) outImages = [...outImages, frame].slice(0, 4);
     }
     if (!opts?.skipAppend) {
@@ -169,8 +164,8 @@ function ChatRoute() {
     setImages([]);
     setBusy(true);
     try {
-      // Local intents first — but skip when the user is asking Alpha to LOOK.
-      const local = t && !isVisionCommand(t) ? tryLocalIntent(t) : null;
+      const eyeRes = t ? await handleEyeCommand(t) : null;
+      const local = eyeRes ?? (t && !isVisionCommand(t) ? await tryLocalIntent(t) : null);
       const reply = local ?? (await sendChat(alphaStore.get().chat, { task }));
       alphaStore.appendChat({ id: uid(), role: "model", text: reply, ts: Date.now() });
       speakWith(reply, { auto: true });
@@ -259,6 +254,10 @@ function ChatRoute() {
           </div>
         </header>
 
+        <div className="px-3 pt-2">
+          <OutstandingRemindersAffordance />
+        </div>
+
         <div
           ref={scrollRef}
           onScroll={onScroll}
@@ -271,6 +270,9 @@ function ChatRoute() {
             </div>
           )}
           {chat.map((m) => {
+            if (m.role === "tool") return null;
+            if (m.role === "model" && !m.text && m.tool_calls?.length) return null;
+            
             if (m.role === "user") {
               return (
                 <div key={m.id} className="flex w-full min-w-0 justify-end">
@@ -311,6 +313,26 @@ function ChatRoute() {
                 </div>
               );
             }
+            
+            // Proactive reminder notification card
+            if (m.origin === "proactive" || m.proactiveEventId) {
+              return (
+                <NotificationCard
+                  key={m.id}
+                  messageId={m.id}
+                  proactiveEventId={m.proactiveEventId || m.id}
+                  text={m.text}
+                  ts={m.ts}
+                >
+                  <MessageActions
+                    text={m.text}
+                    onDelete={() => alphaStore.deleteChatMessage(m.id)}
+                    onRetry={() => retry(m.id)}
+                  />
+                </NotificationCard>
+              );
+            }
+
             // assistant: NO bubble — full width like ChatGPT/Gemini
             return (
               <div
@@ -344,20 +366,19 @@ function ChatRoute() {
 
         {showJump && (
           <div
-            className="fixed right-3 z-40 flex flex-col gap-2"
-            style={{ bottom: 96 + (images.length > 0 ? 80 : 0) }}
+            className="fixed right-3 top-28 z-40 flex flex-col gap-2"
           >
             <button
               onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
               aria-label="Top"
-              className="glass rounded-full p-2 neon-border active:scale-95 opacity-90"
+              className="glass rounded-full p-2 neon-border active:scale-95 opacity-90 shadow-md backdrop-blur-md"
             >
               <ArrowUp className="w-4 h-4 text-primary" />
             </button>
             <button
               onClick={() => scrollToBottom(true)}
               aria-label="Bottom"
-              className="glass rounded-full p-2 neon-border active:scale-95"
+              className="glass rounded-full p-2 neon-border active:scale-95 shadow-md backdrop-blur-md"
             >
               <ArrowDown className="w-4 h-4 text-primary" />
             </button>
@@ -512,67 +533,3 @@ function ChatRoute() {
   );
 }
 
-function MessageActions({
-  text,
-  compact = false,
-  onDelete,
-  onRetry,
-}: {
-  text: string;
-  compact?: boolean;
-  onDelete?: () => void;
-  onRetry?: () => void;
-}) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <div className={`flex items-center gap-2 ${compact ? "mt-1 justify-end" : "mt-2"} opacity-70`}>
-      {!compact && (
-        <button
-          onClick={() => {
-            prepareUtterance();
-            speakWith(text);
-          }}
-          aria-label="Speak again"
-          className="p-1.5 rounded-md hover:bg-primary/10"
-        >
-          <Volume2 className="w-4 h-4 text-primary" />
-        </button>
-      )}
-      <button
-        onClick={async () => {
-          try {
-            await navigator.clipboard.writeText(text);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-          } catch {}
-        }}
-        aria-label="Copy"
-        className="p-1.5 rounded-md hover:bg-primary/10"
-      >
-        {copied ? (
-          <Check className="w-4 h-4 text-primary" />
-        ) : (
-          <Copy className="w-4 h-4 text-primary" />
-        )}
-      </button>
-      {onRetry && (
-        <button
-          onClick={onRetry}
-          aria-label="Regenerate"
-          className="p-1.5 rounded-md hover:bg-primary/10"
-        >
-          <RotateCcw className="w-4 h-4 text-primary" />
-        </button>
-      )}
-      {onDelete && (
-        <button
-          onClick={onDelete}
-          aria-label="Delete message"
-          className="p-1.5 rounded-md hover:bg-destructive/20"
-        >
-          <Trash2 className="w-4 h-4 text-destructive" />
-        </button>
-      )}
-    </div>
-  );
-}

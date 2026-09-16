@@ -57,64 +57,58 @@ function speakTable(block: string): string {
 export function normalizeForSpeech(input: string): string {
   let s = input || "";
 
-  // 1. Internal syntax first — never spoken.
+  // 1. Internal syntax: Remove action tags, code blocks, raw URLs, and emojis.
   s = s.replace(/\[\[[\s\S]*?\]\]/g, " ");
   s = s.replace(/```[\s\S]*?```/g, " code block. ");
   s = s.replace(/~~~[\s\S]*?~~~/g, " code block. ");
   s = s.replace(/`([^`]+)`/g, "$1");
+  s = s.replace(/https?:\/\/\S+/gi, " ");
+  s = s.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F]/gu, " ");
 
-  // 2. Math → spoken math, before generic symbol stripping.
+  // 2. Math → spoken math.
   s = s.replace(MATH_DISPLAY, (_m, a, b) => " " + latexToSpeech(a || b || "") + " ");
   s = s.replace(MATH_INLINE, (m, a, b) => {
     const body = a ?? b ?? "";
-    if (a !== undefined && !looksLikeMath(a)) return m; // keep "$5" as money
+    if (a !== undefined && !looksLikeMath(a)) return m;
     return " " + latexToSpeech(body) + " ";
   });
 
   // 3. Tables → row-wise natural reading.
   s = s.replace(/(?:^\|.*\|[ \t]*\n?)+/gm, (block) => " " + speakTable(block) + " ");
 
-  // 4. Links & images.
-  s = s.replace(/!\[[^\]]*\]\([^)]*\)/g, " ");
-  s = s.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1");
-  s = s.replace(/https?:\/\/\S+/gi, " ");
-  s = s.replace(/www\.\S+/gi, " ");
+  // 4. Remove presentation markers: headings, bullets, table pipes, blockquotes, horizontal rules.
+  s = s.replace(/^\s{0,3}#{1,6}\s+/gm, "");
+  s = s.replace(/^\s{0,3}>\s?/gm, "");
+  s = s.replace(/^\s{0,3}([-*_])\1{2,}\s*$/gm, " ");
+  s = s.replace(/^\s*[-*+]\s+/gm, "");
+  s = s.replace(/^\|/gm, "");
 
-  // 5. Sources / metadata footers Alpha appends for the eye, not the ear.
+  // 5. Sources / metadata footers: Strip strictly.
   s = s.replace(/\*\*Sources:?\*\*[\s\S]*$/i, " ");
   s = s.replace(/_No web sources[^.]*\./gi, " ");
   s = s.replace(/^\s*(?:✅|❌|⚠️)\s*/gm, "");
 
-  // 6. Markdown block syntax.
-  s = s.replace(/^\s{0,3}#{1,6}\s+/gm, ""); // headings
-  s = s.replace(/^\s{0,3}>\s?/gm, ""); // blockquotes
-  s = s.replace(/^\s{0,3}([-*_])\1{2,}\s*$/gm, " "); // horizontal rules
-  s = s.replace(/^\s*[-*+]\s+/gm, ""); // bullets
-  s = s.replace(/^\s*(\d+)[.)]\s+/gm, "$1. "); // keep ordinal numbering
-
-  // 7. Emphasis markers — pairs only, so a_b and 3 * 4 survive.
+  // 6. Emphasis markers — pairs only.
   s = s.replace(/\*\*\*([^*]+)\*\*\*/g, "$1");
   s = s.replace(/\*\*([^*]+)\*\*/g, "$1");
   s = s.replace(/(^|\s)\*([^*\n]+)\*(?=\s|$|[.,;:!?])/g, "$1$2");
   s = s.replace(/(^|\s)__([^_]+)__/g, "$1$2");
   s = s.replace(/(^|\s)_([^_\n]+)_(?=\s|$|[.,;:!?])/g, "$1$2");
 
-  // 8. Semantic symbols → words (order matters).
+  // 7. Semantic symbols → words.
   s = s.replace(/(\d)\s*%/g, "$1 percent");
   s = s.replace(/%/g, " percent ");
   s = s.replace(/×/g, " times ");
   s = s.replace(/÷/g, " divided by ");
-  s = s.replace(/(^|[\s(])-(\d)/g, "$1minus $2"); // -5 → minus 5
-  s = s.replace(/(\d)\s*[–—]\s*(\d)/g, "$1 to $2"); // ranges
+  s = s.replace(/(^|[\s(])-(\d)/g, "$1minus $2");
+  s = s.replace(/(\d)\s*[–—]\s*(\d)/g, "$1 to $2");
   s = s.replace(/\$\s?(\d[\d,]*(?:\.\d+)?)/g, "$1 dollars");
   s = s.replace(/(\d)\s*°C/gi, "$1 degrees Celsius");
   s = s.replace(/(\d)\s*°F/gi, "$1 degrees Fahrenheit");
-
-  // 9. Emoji & decorative leftovers.
-  s = s.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F]/gu, " ");
   s = s.replace(/[|•▪●※]+/g, ", ");
   s = s.replace(/[#*_`~]/g, "");
 
+  // 8. Clean up whitespace: preserve paragraph/sentence breaks.
   s = s
     .replace(/[ \t]+/g, " ")
     .replace(/\s*\n\s*/g, "\n")

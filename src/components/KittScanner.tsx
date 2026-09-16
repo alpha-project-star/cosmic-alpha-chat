@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { speakingState } from "../lib/voice";
 import { alertBus } from "../lib/alerts";
+import { useActivity } from "../lib/activity";
 
 export type KittState = "idle" | "scanning" | "speaking" | "processing" | "alert" | "off";
 
@@ -32,6 +33,9 @@ export function KittScanner({
 }) {
   const [talking, setTalking] = useState(false);
   const [alerting, setAlerting] = useState(false);
+  const act = useActivity();
+  const isBusy = act.kind !== "idle" && act.kind !== "listening";
+
   useEffect(() => speakingState.sub(setTalking), []);
   useEffect(
     () =>
@@ -43,7 +47,19 @@ export function KittScanner({
   );
 
   const effective: KittState =
-    state === "off" ? "off" : alerting ? "alert" : talking ? "speaking" : state;
+    state === "off"
+      ? "off"
+      : alerting
+        ? "alert"
+        : talking
+          ? "speaking"
+          : state !== "idle"
+            ? state
+            : act.kind === "listening"
+              ? "scanning"
+              : isBusy
+                ? "processing"
+                : "idle";
 
   if (curved) {
     const perHalf = Math.max(8, Math.floor(bars / 2));

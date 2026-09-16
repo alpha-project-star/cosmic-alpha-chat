@@ -6,8 +6,14 @@ import {
   mayBenefitFromSearch,
   stripSearchPreamble,
   SEARCH_CAPABILITY_HINT,
+  SearchProvider,
 } from "../src/lib/web-search";
-import { DEFAULT_SYSTEM, fetchLiveWebContext } from "../src/lib/alpha.functions";
+import {
+  appendSourcesIfWeb,
+  DEFAULT_SYSTEM,
+  fetchLiveWebContext,
+} from "../src/lib/alpha.functions";
+import { BoundedResearchService } from "../src/lib/research";
 
 describe("Web Search Routing & Capability Awareness", () => {
   it("detects user questions inquiring about search capability", () => {
@@ -85,6 +91,28 @@ describe("Web Search Routing & Capability Awareness", () => {
   });
 });
 
+class MockProvider implements SearchProvider {
+  async search(query: string) {
+    return [{ title: "Mock", url: "https://mock.com", snippet: "Snippet", source: "Mock" }];
+  }
+  async readPage(url: string) {
+    return { title: "Mock Page", content: "Content", status: "success" };
+  }
+}
+
+describe("WebToolReceipt and BoundedResearchService", () => {
+  it("returns a structured WebToolReceipt with search metadata", async () => {
+    const service = new BoundedResearchService(new MockProvider());
+    const result = await service.research("test query");
+    
+    expect(result.receipt).toBeDefined();
+    expect(result.receipt.toolSelected).toBe(true);
+    expect(result.receipt.querySent).toBe("test query");
+    expect(result.receipt.status).toBe("usable");
+    expect(result.receipt.resultCount).toBeGreaterThan(0);
+  });
+});
+
 describe("System Prompt Self-Awareness of Search Engine", () => {
   const prompt = DEFAULT_SYSTEM("", "", "", { offline: false });
 
@@ -98,5 +126,71 @@ describe("System Prompt Self-Awareness of Search Engine", () => {
     expect(prompt).toContain("EVIDENCE: none");
     expect(prompt).toContain("It does NOT mean you lack the web search tool");
     expect(prompt).toContain("DO have an active live web search tool");
+  });
+
+  it("contains strict citation traceability and support verification rules", () => {
+    expect(prompt).toContain("CITATION TRACEABILITY");
+    expect(prompt).toContain("VERIFY SUPPORT BEFORE CITING");
+    expect(prompt).toContain("BAN IRRELEVANT / GENERAL LINKS AS SUPPORTING SOURCES");
+    expect(prompt).toContain("INSUFFICIENT EVIDENCE DISCIPLINE");
+    expect(prompt).toContain("STRICT SOURCES SECTION RULE");
+    expect(prompt).toContain("NO \"**Sources:**\" section should appear unless there are actual retrieved sources directly supporting specific claims");
+  });
+});
+
+describe("Citation Traceability & Source Discipline Post-Processing", () => {
+
+  const mockWebContext = [
+    "[1] US strikes Iranian oil tankers - Reuters",
+    "URL: https://reuters.com/news/article1",
+    "Publisher/Source: Reuters",
+    "[2] Global News Homepage",
+    "URL: https://cnn.com/",
+    "Publisher/Source: CNN",
+    "[3] Envoys in Moscow for Ukraine talks - BBC",
+    "URL: https://bbc.com/news/article3",
+    "Publisher/Source: BBC",
+  ].join("\n");
+
+  it("omits Sources section completely when no claims are cited in text", () => {
+    const text = "I checked the web, but I am summarizing from memory.";
+    const result = appendSourcesIfWeb(text, mockWebContext);
+    expect(result).not.toContain("**Sources:**");
+    expect(result).toBe(text);
+  });
+
+  it("strips hallucinated Sources section when no claims were cited in body", () => {
+    const text = "Here is some general talk.\n\n**Sources:**\n- [1] [CNN](https://cnn.com)\n- [2] [BBC](https://bbc.com)";
+    const result = appendSourcesIfWeb(text, mockWebContext);
+    expect(result).not.toContain("**Sources:**");
+    expect(result).toBe("Here is some general talk.");
+  });
+
+  it("omits Sources section when assistant acknowledges insufficient evidence", () => {
+    const text =
+      "I attempted a live search, but the results mostly returned general news pages rather than usable headline content. " +
+      "Evidence: live-search — the search tool ran, but the returned evidence was insufficient to verify specific headlines. " +
+      "I can't responsibly list today's headlines from those results without risking another fabricated answer. I can try a more targeted search for Zimbabwe, Africa, or global news.\n\n" +
+      "**Sources:**\n- [1] [CNN](https://cnn.com)";
+    const result = appendSourcesIfWeb(text, mockWebContext);
+    expect(result).not.toContain("**Sources:**");
+    expect(result).not.toContain("https://cnn.com");
+  });
+
+  it("includes ONLY legitimately cited sources traceable to retrieved results", () => {
+    const text = "Reuters reported strikes on tankers [1], while BBC reported talks in Moscow [3].";
+    const result = appendSourcesIfWeb(text, mockWebContext);
+    expect(result).toContain("**Sources:**");
+    expect(result).toContain("- [1] [US strikes Iranian oil tankers - Reuters](https://reuters.com/news/article1)");
+    expect(result).toContain("- [3] [Envoys in Moscow for Ukraine talks - BBC](https://bbc.com/news/article3)");
+    // [2] was an irrelevant uncited link and must NOT be in Sources
+    expect(result).not.toContain("[2]");
+    expect(result).not.toContain("https://cnn.com/");
+  });
+
+  it("does not include citation numbers that do not exist in retrieved evidence", () => {
+    const text = "Something happened according to an unverified report [99].";
+    const result = appendSourcesIfWeb(text, mockWebContext);
+    expect(result).not.toContain("**Sources:**");
   });
 });

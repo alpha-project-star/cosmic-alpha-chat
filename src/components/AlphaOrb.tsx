@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { speakingState } from "../lib/voice";
+import { useActivity } from "../lib/activity";
 import { CyberEye } from "./CyberEye";
 
 export function AlphaOrb({
@@ -14,6 +15,10 @@ export function AlphaOrb({
   sizeCss?: string;
 }) {
   const [speaking, setSpeaking] = useState(false);
+  const act = useActivity();
+  const isBusy = act.kind !== "idle" && act.kind !== "listening";
+  const effectiveActive = active || isBusy;
+
   useEffect(() => speakingState.sub(setSpeaking), []);
 
   return (
@@ -25,14 +30,14 @@ export function AlphaOrb({
             className="absolute inset-0 rounded-full alpha-ripple"
             style={{
               animationDelay: `${i * 1.1}s`,
-              animationDuration: active || speaking ? "3.2s" : "4.8s",
+              animationDuration: effectiveActive || speaking ? "3.2s" : "4.8s",
             }}
           />
         ))}
       </div>
       <CyberEye
         analyser={analyser}
-        active={active}
+        active={effectiveActive}
         speaking={speaking}
         size="100%"
         showMicroText={false}

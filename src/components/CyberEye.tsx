@@ -26,9 +26,7 @@ export function CyberEye({
 }) {
   const [level, setLevel] = useState(0);
   const [beat, setBeat] = useState(0);
-  const [tilt, setTilt] = useState({ x: 0, y: 0, r: 0 });
   const [blink, setBlink] = useState(0);
-  const [pulse, setPulse] = useState(0);
   const [eyeOn, setEyeOn] = useState(false);
   const [gaze, setGaze] = useState({ x: 0, y: 0, luma: 0, motion: 0 });
 
@@ -75,23 +73,6 @@ export function CyberEye({
     return () => cancelAnimationFrame(raf);
   }, [speaking, active]);
 
-  // Idle micro-tilt: the eye subtly drifts / glances around, always alive.
-  useEffect(() => {
-    let raf = 0;
-    const t0 = performance.now();
-    const loop = () => {
-      const t = (performance.now() - t0) / 1000;
-      const x = Math.sin(t * 0.37) * 2.4 + Math.sin(t * 0.91 + 1.3) * 1.1;
-      const y = Math.cos(t * 0.29) * 1.8 + Math.sin(t * 0.73 + 0.6) * 0.9;
-      const r = Math.sin(t * 0.21) * 1.2;
-      setTilt({ x, y, r });
-      setPulse(0.5 + 0.5 * Math.sin(t * 1.6));
-      raf = requestAnimationFrame(loop);
-    };
-    loop();
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
   // Occasional blink — closes for ~150ms every 5–9s.
   useEffect(() => {
     let cancelled = false;
@@ -118,11 +99,8 @@ export function CyberEye({
     0.32 +
     (active ? level * 0.5 : 0) +
     (speaking ? beat * 0.28 : 0) +
-    pulse * 0.18 +
     (eyeOn ? gaze.luma * 0.28 + gaze.motion * 0.35 : 0);
   const liveOpacity = hot ? 0.34 + level * 0.24 + beat * 0.12 : 0.18;
-  const gazeDx = eyeOn ? gaze.x * 3.2 : 0;
-  const gazeDy = eyeOn ? gaze.y * 2.4 : 0;
 
   const rPupil = 9.4;
 
@@ -205,9 +183,7 @@ export function CyberEye({
       <div
         className="absolute inset-0"
         style={{
-          transform: `translate3d(${tilt.x * 0.35}%, ${tilt.y * 0.35}%, 0) rotate(${tilt.r * 0.2}deg)`,
           animation: "cyber-breath 5.2s ease-in-out infinite",
-          transition: "transform .18s ease-out",
         }}
       >
         {/* Reference-accurate cyber lens base. */}
@@ -482,53 +458,14 @@ export function CyberEye({
               ))}
             </g>
 
-            {/* Radial burst gradient disc behind pupil (soft bloom). */}
+            {/* Radial burst gradient disc (soft ambient aperture bloom) */}
             <circle
-              cx={50 + gazeDx * 0.4}
-              cy={50 + gazeDy * 0.4}
+              cx="50"
+              cy="50"
               r={rPupil + 10 + pupilGlow * 2.4}
               fill="url(#burstGrad)"
               opacity={0.3 + pupilGlow * 0.12}
             />
-
-            {/* Living core — bright pulsing navy-neon center (the ONLY pupil now). */}
-            <g
-              style={{
-                transformOrigin: "50px 50px",
-                transformBox: "fill-box",
-                animation: "cyber-pupil-pulse 1.6s ease-in-out infinite",
-                transform: `translate(${gazeDx}px, ${gazeDy}px)`,
-                transition: "transform .18s ease-out",
-              }}
-            >
-              <circle
-                cx="50"
-                cy="50"
-                r={rPupil * 0.85 + pupilGlow * 1.2}
-                fill="oklch(0.08 0.18 258)"
-                opacity="0.85"
-              />
-              <circle
-                cx="50"
-                cy="50"
-                r={rPupil * 0.65 + pupilGlow * 1.0}
-                fill="oklch(0.42 0.28 254)"
-                opacity="0.7"
-                style={{ filter: "drop-shadow(0 0 6px oklch(0.75 0.32 254))" }}
-              />
-              <circle
-                cx="50"
-                cy="50"
-                r={2.4 + pupilGlow * 1.4}
-                fill="oklch(0.98 0.22 250)"
-                opacity="0.95"
-                style={{
-                  filter:
-                    "drop-shadow(0 0 6px oklch(0.85 0.3 254)) drop-shadow(0 0 12px oklch(0.7 0.32 258))",
-                }}
-              />
-              <circle cx="50" cy="50" r={1.1 + pupilGlow * 0.6} fill="#fff" opacity="1" />
-            </g>
 
             {/* Glossy top-half dome highlight */}
             <ellipse cx="50" cy="28" rx="36" ry="14" fill="url(#glassSheen)" opacity="0.5" />

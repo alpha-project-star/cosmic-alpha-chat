@@ -3,7 +3,7 @@
  *
  * Every state-changing tag the model emits produces exactly one
  * ActionResult. A tag being parsed is NOT success — success means the store
- * was mutated AND a re-read of the store confirms the mutation.
+ * or canonical repository was mutated and verified.
  */
 import {
   alphaStore,
@@ -11,11 +11,17 @@ import {
   type Bill,
   type Memory,
   type Note,
-  type Plan,
-  type Reminder,
+  type Task,
+  type Goal,
 } from "./alpha-store";
 import { normalizeWhen, formatWhen } from "./when";
 import { activity, actionActivity } from "./activity";
+import { getAuth } from "firebase/auth";
+import {
+  FirestoreReminderRepository,
+  type FirestoreReminder,
+  type ReminderRepository,
+} from "./reminder-repo";
 
 export type ActionStatus = "success" | "failed" | "ambiguous" | "not_found" | "invalid";
 
@@ -25,29 +31,38 @@ export interface ActionResult {
   message: string;
 }
 
-type Kind = "note" | "reminder" | "memory" | "plan" | "bill";
+export interface ExecuteActionTagsOptions {
+  userId?: string | null;
+  repo?: ReminderRepository;
+}
+
+type Kind = "note" | "memory" | "task" | "goal" | "bill" | "reminder";
 
 const KIND_PLURAL: Record<Kind, string> = {
   note: "notes",
-  reminder: "reminders",
   memory: "memories",
-  plan: "plans",
+  task: "tasks",
+  goal: "goals",
   bill: "bills",
+  reminder: "reminders",
 };
 
 function searchText(kind: Kind, x: any): string {
   switch (kind) {
     case "note":
-      return `${x.title} ${x.body}`;
-    case "reminder":
-      return `${x.title} ${x.notes}`;
+      return `${x.title} ${x.body}`.toLowerCase();
     case "memory":
-      return `${x.topic} ${x.detail}`;
-    case "plan":
-      return `${x.title} ${x.from} ${x.to} ${x.details || ""}`;
+      return `${x.topic} ${x.detail}`.toLowerCase();
+    case "task":
+      return `${x.title} ${x.description} ${x.status}`.toLowerCase();
+    case "goal":
+      return `${x.title} ${x.description} ${x.status}`.toLowerCase();
     case "bill":
-      return `${x.name}`;
+      return `${x.name} ${x.amount} ${x.dueDate} ${x.status}`.toLowerCase();
+    case "reminder":
+      return `${x.title} ${x.notes} ${x.when}`.toLowerCase();
   }
+  return "";
 }
 
 function label(kind: Kind, x: any): string {
@@ -58,28 +73,28 @@ function listOf(kind: Kind): any[] {
   const s = alphaStore.get();
   return kind === "note"
     ? s.notes
-    : kind === "reminder"
-      ? s.reminders
-      : kind === "memory"
-        ? s.memories
-        : kind === "plan"
-          ? s.plans
-          : s.bills;
+    : kind === "memory"
+      ? s.memories
+      : kind === "task"
+        ? s.tasks
+        : kind === "goal"
+        ? s.goals
+        : s.bills;
 }
 
 function deleteById(kind: Kind, id: string) {
   if (kind === "note") alphaStore.deleteNote(id);
-  else if (kind === "reminder") alphaStore.deleteReminder(id);
   else if (kind === "memory") alphaStore.deleteMemory(id);
-  else if (kind === "plan") alphaStore.deletePlan(id);
+  else if (kind === "task") alphaStore.deleteTask(id);
+  else if (kind === "goal") alphaStore.deleteGoal(id);
   else alphaStore.deleteBill(id);
 }
 
 function upsert(kind: Kind, item: any) {
   if (kind === "note") alphaStore.upsertNote(item as Note);
-  else if (kind === "reminder") alphaStore.upsertReminder(item as Reminder);
   else if (kind === "memory") alphaStore.upsertMemory(item as Memory);
-  else if (kind === "plan") alphaStore.upsertPlan(item as Plan);
+  else if (kind === "task") alphaStore.upsertTask(item as Task);
+  else if (kind === "goal") alphaStore.upsertGoal(item as Goal);
   else alphaStore.upsertBill(item as Bill);
 }
 
@@ -132,7 +147,7 @@ function verify(kind: Kind, id: string, check?: (x: any) => boolean): boolean {
   return check ? check(found) : true;
 }
 
-// ---------------------------------------------------------------- executor
+// ---------------------------------------------------------------- synchronous executor for non-reminders
 export function executeActionTags(input: string): { text: string; results: ActionResult[] } {
   let text = input;
   const results: ActionResult[] = [];
@@ -154,7 +169,7 @@ export function executeActionTags(input: string): { text: string; results: Actio
     });
   };
 
-  // ---------------- CREATE
+  // ---------------- CREATE NOTE / MEMORY / PLAN / BILL
   apply(/\[\[ADD_NOTE:\s*([^|\]]+?)\s*\|\s*([\s\S]*?)\s*\]\]/gi, (m) => {
     const title = m[1].trim();
     const body = m[2].trim();
@@ -171,79 +186,37 @@ export function executeActionTags(input: string): { text: string; results: Actio
       : { tag: "ADD_NOTE", status: "failed", message: `Note "${title}" could not be saved.` };
   });
 
-  apply(/\[\[ADD_REMINDER:\s*([^|\]]+?)\s*\|\s*([^|\]]+?)\s*(?:\|\s*([\s\S]*?)\s*)?\]\]/gi, (m) => {
-    const title = m[1].trim();
-    const w = normalizeWhen(m[2].trim());
-    const notes = (m[3] || "").trim();
-    if (!title)
-      return {
-        tag: "ADD_REMINDER",
-        status: "invalid",
-        message: "A reminder needs a title — nothing was saved.",
-      };
-    const id = uid();
-    upsert("reminder", { id, title, when: w.iso, notes, done: "no" } satisfies Reminder);
-    if (!verify("reminder", id, (x) => x.when === w.iso && x.notes === notes)) {
-      return {
-        tag: "ADD_REMINDER",
-        status: "failed",
-        message: `Reminder "${title}" could not be saved.`,
-      };
-    }
-    return w.parsed
-      ? {
-          tag: "ADD_REMINDER",
-          status: "success",
-          message: `Reminder saved: "${title}" — ${formatWhen(w.iso)}`,
-        }
-      : {
-          tag: "ADD_REMINDER",
-          status: "success",
-          message: `Reminder saved: "${title}" — but I could not turn "${w.phrase}" into a real time, so no alarm is scheduled. Give me a clear time (e.g. "today at 9pm").`,
-        };
-  });
 
   apply(/\[\[ADD_MEMORY:\s*([^|\]]+?)\s*\|\s*([\s\S]*?)\s*\]\]/gi, (m) => {
-    const topic = m[1].trim();
-    const detail = m[2].trim();
-    if (!topic)
+    const rawTopic = m[1].trim();
+    const rawDetail = m[2].trim();
+    const topic = rawTopic.replace(/\[\[[\s\S]*?\]\]/g, "").trim();
+    const detail = rawDetail.replace(/\[\[[\s\S]*?\]\]/g, "").trim();
+    if (!topic && !detail)
       return {
         tag: "ADD_MEMORY",
         status: "invalid",
         message: "A memory needs a topic — nothing was saved.",
       };
+    const finalTopic = topic || detail.slice(0, 40);
     const id = uid();
-    upsert("memory", { id, topic, detail, updatedAt: Date.now() } satisfies Memory);
+    upsert("memory", {
+      id,
+      topic: finalTopic,
+      detail,
+      category: "general",
+      provenance: "explicit_user",
+      confidence: "high",
+      status: "active",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    } satisfies Memory);
     return verify("memory", id, (x) => x.detail === detail)
-      ? { tag: "ADD_MEMORY", status: "success", message: `Memory saved: "${topic}"` }
-      : { tag: "ADD_MEMORY", status: "failed", message: `Memory "${topic}" could not be saved.` };
+      ? { tag: "ADD_MEMORY", status: "success", message: `Memory saved: "${finalTopic}"` }
+      : { tag: "ADD_MEMORY", status: "failed", message: `Memory "${finalTopic}" could not be saved.` };
   });
 
-  apply(
-    /\[\[ADD_PLAN:\s*([^|\]]+?)\s*\|\s*([^|\]]*?)\s*\|\s*([^|\]]*?)\s*\|\s*([^|\]]*?)\s*(?:\|\s*([\s\S]*?)\s*)?\]\]/gi,
-    (m) => {
-      const title = m[1].trim();
-      if (!title)
-        return {
-          tag: "ADD_PLAN",
-          status: "invalid",
-          message: "A plan needs a title — nothing was saved.",
-        };
-      const id = uid();
-      const details = (m[5] || "").trim();
-      upsert("plan", {
-        id,
-        title,
-        from: m[2].trim(),
-        to: m[3].trim(),
-        date: m[4].trim(),
-        details,
-      } satisfies Plan);
-      return verify("plan", id, (x) => x.details === details)
-        ? { tag: "ADD_PLAN", status: "success", message: `Plan saved: "${title}"` }
-        : { tag: "ADD_PLAN", status: "failed", message: `Plan "${title}" could not be saved.` };
-    },
-  );
+  
 
   apply(/\[\[ADD_BILL:\s*([^|\]]+?)\s*\|\s*([^|\]]*?)\s*\|\s*([^|\]]*?)\s*\]\]/gi, (m) => {
     const name = m[1].trim();
@@ -297,24 +270,18 @@ export function executeActionTags(input: string): { text: string; results: Actio
       const target = hits[0];
       const patch: Record<string, any> = {};
       for (const k of keys) {
-        if (kind === "reminder" && k === "when") {
-          const w = normalizeWhen(fields[k]);
-          patch.when = w.iso;
-          if (!w.parsed) patch.__unparsed = w.phrase;
-        } else if (kind === "bill" && (k === "amount" || k === "balance")) {
+        if (kind === "bill" && (k === "amount" || k === "balance")) {
           patch[k] = Number(fields[k].replace(/[^\d.]/g, "")) || 0;
         } else {
           patch[k] = fields[k];
         }
       }
-      const unparsed = patch.__unparsed;
-      delete patch.__unparsed;
       const next = { ...target, ...patch };
       if (kind === "note" || kind === "memory") next.updatedAt = Date.now();
       upsert(kind, next);
       const ok = verify(kind, target.id, (x) =>
         keys.every((k) => {
-          if (k === "when" || k === "amount" || k === "balance")
+          if (k === "amount" || k === "balance")
             return String(x[k]) === String(next[k]);
           return x[k] === next[k];
         }),
@@ -326,21 +293,16 @@ export function executeActionTags(input: string): { text: string; results: Actio
           message: `Could not update ${kind} "${label(kind, target)}".`,
         };
       const what = keys
-        .map((k) => `${k} → ${k === "when" ? formatWhen(next.when) : next[k]}`)
+        .map((k) => `${k} → ${next[k]}`)
         .join(", ");
       return {
         tag,
         status: "success",
-        message:
-          `Updated ${kind} "${label(kind, next)}": ${what}` +
-          (unparsed
-            ? ` — but "${unparsed}" is not a time I can schedule, so no alarm is set.`
-            : ""),
+        message: `Updated ${kind} "${label(kind, next)}": ${what}`,
       };
     };
 
   apply(/\[\[UPDATE_NOTE:\s*([^|\]]+?)\s*\|\s*([^|\]]*?)\s*\|\s*([\s\S]*?)\s*\]\]/gi, (m) => {
-    // Legacy 3-part form: keyword | new title | new body
     const query = m[1].trim();
     const hits = findMatches("note", query);
     if (!hits.length)
@@ -359,25 +321,19 @@ export function executeActionTags(input: string): { text: string; results: Actio
       : { tag: "UPDATE_NOTE", status: "failed", message: `Could not update note "${n.title}".` };
   });
 
-  apply(
-    /\[\[UPDATE_REMINDER:\s*([^|\]]+?)\s*\|\s*([\s\S]*?)\s*\]\]/gi,
-    updateTag("reminder", "UPDATE_REMINDER", ["title", "when", "notes", "done"]),
-  );
+
   apply(
     /\[\[UPDATE_MEMORY:\s*([^|\]]+?)\s*\|\s*([\s\S]*?)\s*\]\]/gi,
     updateTag("memory", "UPDATE_MEMORY", ["topic", "detail"]),
   );
-  apply(
-    /\[\[UPDATE_PLAN:\s*([^|\]]+?)\s*\|\s*([\s\S]*?)\s*\]\]/gi,
-    updateTag("plan", "UPDATE_PLAN", ["title", "from", "to", "date", "details"]),
-  );
+  
   apply(
     /\[\[UPDATE_BILL:\s*([^|\]]+?)\s*\|\s*([\s\S]*?)\s*\]\]/gi,
-    updateTag("bill", "UPDATE_BILL", ["name", "amount", "balance", "duedate", "status"]),
+    updateTag("bill", "UPDATE_BILL", ["name", "amount", "balance", "dueDate", "status"]),
   );
 
   // ---------------- DELETE
-  apply(/\[\[DELETE_LAST:\s*(note|reminder|memory|plan|bill)\s*\]\]/gi, (m) => {
+  apply(/\[\[DELETE_LAST:\s*(note|memory|bill)\s*\]\]/gi, (m) => {
     const kind = m[1].toLowerCase() as Kind;
     const list = listOf(kind);
     if (!list.length)
@@ -400,6 +356,7 @@ export function executeActionTags(input: string): { text: string; results: Actio
           message: `Deleted ${kind} "${label(kind, victim)}".`,
         };
   });
+  apply(/\[\[DELETE_LAST:\s*(reminder)\s*\]\]/gi, () => ({ tag: "DELETE_LAST", status: "failed", message: "Reminder actions require asynchronous execution." }));
 
   const deleteTag =
     (kind: Kind, tag: string) =>
@@ -431,12 +388,12 @@ export function executeActionTags(input: string): { text: string; results: Actio
     };
 
   apply(/\[\[DELETE_NOTE:\s*([^\]]+?)\s*\]\]/gi, deleteTag("note", "DELETE_NOTE"));
-  apply(/\[\[DELETE_REMINDER:\s*([^\]]+?)\s*\]\]/gi, deleteTag("reminder", "DELETE_REMINDER"));
+
   apply(/\[\[DELETE_MEMORY:\s*([^\]]+?)\s*\]\]/gi, deleteTag("memory", "DELETE_MEMORY"));
-  apply(/\[\[DELETE_PLAN:\s*([^\]]+?)\s*\]\]/gi, deleteTag("plan", "DELETE_PLAN"));
+  
   apply(/\[\[DELETE_BILL:\s*([^\]]+?)\s*\]\]/gi, deleteTag("bill", "DELETE_BILL"));
 
-  apply(/\[\[CLEAR_ALL:\s*(notes|reminders|memories|plans|bills)\s*\]\]/gi, (m) => {
+  apply(/\[\[CLEAR_ALL:\s*(notes|memoriess|bills)\s*\]\]/gi, (m) => {
     const plural = m[1].toLowerCase();
     const kind = (Object.keys(KIND_PLURAL) as Kind[]).find((k) => KIND_PLURAL[k] === plural)!;
     const list = [...listOf(kind)];
@@ -452,67 +409,24 @@ export function executeActionTags(input: string): { text: string; results: Actio
       : { tag: "CLEAR_ALL", status: "success", message: `Cleared all ${list.length} ${plural}.` };
   });
 
+
   // ---------------- COMPLETE
-  apply(/\[\[MARK_REMINDER_DONE:\s*([^\]]+?)\s*\]\]/gi, (m) => {
-    const query = m[1].trim();
-    const hits = findMatches("reminder", query);
-    if (!hits.length)
-      return {
-        tag: "MARK_REMINDER_DONE",
-        status: "not_found",
-        message: `No reminder matching "${query}" — nothing was changed.`,
-      };
-    if (hits.length > 1) return ambiguous("MARK_REMINDER_DONE", "reminder", hits, query);
-    const r = hits[0] as Reminder;
-    upsert("reminder", { ...r, done: "yes" });
-    return verify("reminder", r.id, (x) => x.done === "yes")
-      ? {
-          tag: "MARK_REMINDER_DONE",
-          status: "success",
-          message: `Marked reminder "${r.title}" done.`,
-        }
-      : {
-          tag: "MARK_REMINDER_DONE",
-          status: "failed",
-          message: `Could not complete reminder "${r.title}".`,
-        };
-  });
 
-  apply(/\[\[MARK_BILL_PAID:\s*([^\]]+?)\s*\]\]/gi, (m) => {
-    const query = m[1].trim();
-    const hits = findMatches("bill", query);
-    if (!hits.length)
-      return {
-        tag: "MARK_BILL_PAID",
-        status: "not_found",
-        message: `No bill matching "${query}" — nothing was changed.`,
-      };
-    if (hits.length > 1) return ambiguous("MARK_BILL_PAID", "bill", hits, query);
-    const b = hits[0] as Bill;
-    upsert("bill", { ...b, status: "paid", balance: 0 });
-    return verify("bill", b.id, (x) => x.status === "paid" && x.balance === 0)
-      ? { tag: "MARK_BILL_PAID", status: "success", message: `Marked bill "${b.name}" paid.` }
-      : {
-          tag: "MARK_BILL_PAID",
-          status: "failed",
-          message: `Could not mark bill "${b.name}" paid.`,
-        };
-  });
 
-  // ---------------- SETTINGS / PROFILE
-  apply(/\[\[SET_SETTING:\s*([^|\]]+?)\s*\|\s*([^\]]*?)\s*\]\]/gi, (m) => {
+  // Settings
+  apply(/\[\[SET_SETTING:\s*([a-zA-Z0-9_-]+)\s*\|\s*([\s\S]*?)\s*\]\]/gi, (m) => {
     const tag = "SET_SETTING";
     const key = m[1].trim();
     const raw = m[2].trim();
     const cur = alphaStore.get().settings;
-    const boolVal = /^(true|on|yes|enabled?|1)$/i.test(raw);
+    const boolVal = /^true|yes|on|1$/i.test(raw);
     const boolKeys = [
+      "soundEnabled",
       "voiceEnabled",
-      "continuousListen",
+      "proactiveVoice",
       "backgroundEnabled",
       "autoSpeak",
       "autoSubmitVoice",
-      "visionAmbientEnabled",
     ] as const;
     const ok = (msg: string, check: () => boolean): ActionResult =>
       check()
@@ -546,6 +460,13 @@ export function executeActionTags(input: string): { text: string; results: Actio
         () => alphaStore.get().settings.taskModels[lane] === raw,
       );
     }
+    if (/^(?:eye|camera|vision)$/i.test(key)) {
+      return {
+        tag,
+        status: "invalid",
+        message: `Eye state cannot be changed via settings — use commands like "open your eyes" or "close your eyes".`,
+      };
+    }
     return {
       tag,
       status: "invalid",
@@ -568,12 +489,373 @@ export function executeActionTags(input: string): { text: string; results: Actio
       : { tag: "SET_PROFILE", status: "failed", message: "Could not update your profile." };
   });
 
-  // Any leftover unknown tag must not be silently swallowed as success.
-  apply(/\[\[([A-Z_]+)(?::[^\]]*)?\]\]/g, (m) => ({
-    tag: m[1],
-    status: "invalid",
-    message: `I tried to use an action I don't support ("${m[1]}") — nothing was changed.`,
-  }));
+  apply(/\[\[ADD_REMINDER:\s*([^|\]]+?)\s*\|\s*([^|\]]+?)\s*(?:\|\s*([\s\S]*?)\s*)?\]\]/gi, () => ({ tag: "ADD_REMINDER", status: "failed", message: "Reminder actions require asynchronous execution." }));
+  apply(/\[\[UPDATE_REMINDER:\s*([^|\]]+?)\s*\|\s*([\s\S]*?)\s*\]\]/gi, () => ({ tag: "UPDATE_REMINDER", status: "failed", message: "Reminder actions require asynchronous execution." }));
+  apply(/\[\[DELETE_REMINDER:\s*([^\]]+?)\s*\]\]/gi, () => ({ tag: "DELETE_REMINDER", status: "failed", message: "Reminder actions require asynchronous execution." }));
+  apply(/\[\[MARK_REMINDER_DONE:\s*([^\]]+?)\s*\]\]/gi, () => ({ tag: "MARK_REMINDER_DONE", status: "failed", message: "Reminder actions require asynchronous execution." }));
+  apply(/\[\[CLEAR_ALL:\s*(reminders)\s*\]\]/gi, () => ({ tag: "CLEAR_ALL_REMINDERS", status: "failed", message: "Reminder actions require asynchronous execution." }));
+  
+  apply(/\[\[([A-Z_]+)(?::[^\]]*)?\]\]/g, (m) => {
+    // Leave CLEAR_ALL reminders dummy handling to the CLEAR_ALL generic handler above
+    return {
+      tag: m[1],
+      status: "invalid",
+      message: `I tried to use an action I don't support ("${m[1]}") — nothing was changed.`,
+    };
+  });
+
+  return { text: text.replace(/\n{3,}/g, "\n\n").trim(), results };
+}
+
+/**
+ * Asynchronous action-tag executor that routes reminder actions through the canonical
+ * FirestoreReminderRepository / ReminderRepository and awaits persistence.
+ */
+export async function executeActionTagsAsync(
+  input: string,
+  options?: ExecuteActionTagsOptions,
+): Promise<{ text: string; results: ActionResult[] }> {
+  let text = input;
+  const syncResult = executeActionTags(text);
+  text = syncResult.text;
+  const results: ActionResult[] = syncResult.results.filter(
+    (r) => !["ADD_REMINDER", "UPDATE_REMINDER", "DELETE_REMINDER", "MARK_REMINDER_DONE", "CLEAR_ALL_REMINDERS"].includes(r.tag)
+  );
+
+  const userId = options?.userId ?? (getAuth().currentUser?.uid || null);
+  const repo = options?.repo ?? new FirestoreReminderRepository();
+
+  async function findReminderHits(query: string): Promise<FirestoreReminder[]> {
+    if (!userId) return [];
+    try {
+      const list = await repo.listReminders(userId);
+      const q = (query || "").toLowerCase().trim().replace(/^all\s+/, "");
+      if (!q) return [];
+      const exact = list.filter((r) => (r.title || "").toLowerCase().trim() === q);
+      if (exact.length) return exact;
+      const titleHits = list.filter((r) => (r.title || "").toLowerCase().includes(q));
+      if (titleHits.length) return titleHits;
+      return list.filter((r) => `${r.title} ${r.notes || ""}`.toLowerCase().includes(q));
+    } catch {
+      return [];
+    }
+  }
+
+  // Handle ADD_REMINDER asynchronously
+  const addRemRe = /\[\[ADD_REMINDER:\s*([^|\]]+?)\s*\|\s*([^|\]]+?)\s*(?:\|\s*([\s\S]*?)\s*)?\]\]/gi;
+  let match: RegExpExecArray | null;
+  while ((match = addRemRe.exec(input)) !== null) {
+    const fullMatch = match[0];
+    const title = match[1].trim();
+    const w = normalizeWhen(match[2].trim());
+    const notes = (match[3] || "").trim();
+    activity.set(actionActivity("ADD_REMINDER"));
+
+    if (!title) {
+      results.push({
+        tag: "ADD_REMINDER",
+        status: "invalid",
+        message: "An appointment or reminder needs a title — nothing was saved.",
+      });
+      text = text.replace(fullMatch, "");
+      continue;
+    }
+    if (!userId) {
+      activity.set("action_failed");
+      results.push({
+        tag: "ADD_REMINDER",
+        status: "failed",
+        message: "You need to be signed in to add reminders.",
+      });
+      text = text.replace(fullMatch, "");
+      continue;
+    }
+
+    const id = uid();
+    const parsedMs = Date.parse(w.iso);
+    const dueAt = Number.isNaN(parsedMs) ? Date.now() + 3600000 : parsedMs;
+    const now = Date.now();
+    try {
+      await repo.createReminder(userId, {
+        id,
+        userId,
+        title,
+        notes,
+        dueAt,
+        createdAt: now,
+        updatedAt: now,
+        reminderState: "active",
+        notificationState: "pending",
+      });
+      results.push(
+        w.parsed
+          ? {
+              tag: "ADD_REMINDER",
+              status: "success",
+              message: `Reminder saved: "${title}" — ${formatWhen(w.iso)}`,
+            }
+          : {
+              tag: "ADD_REMINDER",
+              status: "success",
+              message: `Reminder saved: "${title}" — but I could not turn "${w.phrase}" into a real time, so no alarm is scheduled. Give me a clear time (e.g. "today at 9pm").`,
+            },
+      );
+    } catch (err: any) {
+      activity.set("action_failed");
+      results.push({
+        tag: "ADD_REMINDER",
+        status: "failed",
+        message: `Reminder "${title}" could not be saved: ${err?.message || "error"}`,
+      });
+    }
+    text = text.replace(fullMatch, "");
+  }
+
+  // Handle UPDATE_REMINDER asynchronously
+  const updRemRe = /\[\[UPDATE_REMINDER:\s*([^|\]]+?)\s*\|\s*([\s\S]*?)\s*\]\]/gi;
+  while ((match = updRemRe.exec(input)) !== null) {
+    const fullMatch = match[0];
+    const query = match[1].trim();
+    activity.set(actionActivity("UPDATE_REMINDER"));
+
+    const hits = await findReminderHits(query);
+    if (!hits.length) {
+      activity.set("action_failed");
+      results.push({
+        tag: "UPDATE_REMINDER",
+        status: "not_found",
+        message: `No reminder matching "${query}" — nothing was changed.`,
+      });
+      text = text.replace(fullMatch, "");
+      continue;
+    }
+    if (hits.length > 1) {
+      activity.set("action_failed");
+      results.push({
+        tag: "UPDATE_REMINDER",
+        status: "ambiguous",
+        message: `${hits.length} reminders match "${query}" (${hits.map((h) => `"${h.title}"`).join(", ")}). Nothing was changed — say exactly which one.`,
+      });
+      text = text.replace(fullMatch, "");
+      continue;
+    }
+
+    const target = hits[0];
+    const fields = parseFields(match[2] || "");
+    const allowed = ["title", "when", "notes", "done"];
+    const keys = Object.keys(fields).filter((k) => allowed.includes(k));
+    if (!keys.length) {
+      activity.set("action_failed");
+      results.push({
+        tag: "UPDATE_REMINDER",
+        status: "invalid",
+        message: `I need fields to change (title, when, notes, done) — nothing was changed on "${target.title}".`,
+      });
+      text = text.replace(fullMatch, "");
+      continue;
+    }
+
+    const patch: Partial<FirestoreReminder> = { updatedAt: Date.now() };
+    let unparsed = "";
+    for (const k of keys) {
+      if (k === "when") {
+        const w = normalizeWhen(fields[k]);
+        const parsedMs = Date.parse(w.iso);
+        if (!Number.isNaN(parsedMs)) patch.dueAt = parsedMs;
+        if (!w.parsed) unparsed = w.phrase;
+      } else if (k === "title") {
+        patch.title = fields[k];
+      } else if (k === "notes") {
+        patch.notes = fields[k];
+      } else if (k === "done") {
+        patch.reminderState = fields[k] === "yes" || fields[k] === "true" ? "completed" : "active";
+        if (patch.reminderState === "completed") patch.notificationState = "accepted";
+      }
+    }
+
+    try {
+      await repo.updateReminder(userId!, target.id, patch);
+      const what = keys
+        .map((k) => `${k} → ${k === "when" && patch.dueAt ? formatWhen(new Date(patch.dueAt).toISOString()) : fields[k]}`)
+        .join(", ");
+      results.push({
+        tag: "UPDATE_REMINDER",
+        status: "success",
+        message:
+          `Updated reminder "${target.title}": ${what}` +
+          (unparsed ? ` — but "${unparsed}" is not a time I can schedule, so no alarm is set.` : ""),
+      });
+    } catch (err: any) {
+      activity.set("action_failed");
+      results.push({
+        tag: "UPDATE_REMINDER",
+        status: "failed",
+        message: `Could not update reminder "${target.title}": ${err?.message || "error"}`,
+      });
+    }
+    text = text.replace(fullMatch, "");
+  }
+
+  // Handle DELETE_REMINDER asynchronously
+  const delRemRe = /\[\[DELETE_REMINDER:\s*([^\]]+?)\s*\]\]/gi;
+  while ((match = delRemRe.exec(input)) !== null) {
+    const fullMatch = match[0];
+    const query = match[1].trim();
+    activity.set(actionActivity("DELETE_REMINDER"));
+
+    const all = /^all\s+/i.test(query);
+    const hits = await findReminderHits(query);
+    if (!hits.length) {
+      activity.set("action_failed");
+      results.push({
+        tag: "DELETE_REMINDER",
+        status: "not_found",
+        message: `No reminder matching "${query}" — nothing was deleted.`,
+      });
+      text = text.replace(fullMatch, "");
+      continue;
+    }
+    if (hits.length > 1 && !all) {
+      activity.set("action_failed");
+      results.push({
+        tag: "DELETE_REMINDER",
+        status: "ambiguous",
+        message: `${hits.length} reminders match "${query}" (${hits.map((h) => `"${h.title}"`).join(", ")}). Nothing was deleted.`,
+      });
+      text = text.replace(fullMatch, "");
+      continue;
+    }
+
+    try {
+      for (const h of hits) {
+        await repo.deleteReminder(userId!, h.id);
+      }
+      results.push({
+        tag: "DELETE_REMINDER",
+        status: "success",
+        message: `Deleted ${hits.length} ${hits.length === 1 ? "reminder" : "reminders"}: ${hits.map((h) => `"${h.title}"`).join(", ")}.`,
+      });
+    } catch (err: any) {
+      activity.set("action_failed");
+      results.push({
+        tag: "DELETE_REMINDER",
+        status: "failed",
+        message: `Could not delete reminders: ${err?.message || "error"}`,
+      });
+    }
+    text = text.replace(fullMatch, "");
+  }
+
+  // Handle MARK_REMINDER_DONE asynchronously
+  const markDoneRe = /\[\[MARK_REMINDER_DONE:\s*([^\]]+?)\s*\]\]/gi;
+  while ((match = markDoneRe.exec(input)) !== null) {
+    const fullMatch = match[0];
+    const query = match[1].trim();
+    activity.set(actionActivity("MARK_REMINDER_DONE"));
+
+    const hits = await findReminderHits(query);
+    if (!hits.length) {
+      activity.set("action_failed");
+      results.push({
+        tag: "MARK_REMINDER_DONE",
+        status: "not_found",
+        message: `No reminder matching "${query}" — nothing was changed.`,
+      });
+      text = text.replace(fullMatch, "");
+      continue;
+    }
+    if (hits.length > 1) {
+      activity.set("action_failed");
+      results.push({
+        tag: "MARK_REMINDER_DONE",
+        status: "ambiguous",
+        message: `${hits.length} reminders match "${query}" (${hits.map((h) => `"${h.title}"`).join(", ")}).`,
+      });
+      text = text.replace(fullMatch, "");
+      continue;
+    }
+
+    const target = hits[0];
+    try {
+      await repo.updateReminder(userId!, target.id, {
+        reminderState: "completed",
+        notificationState: "accepted",
+        updatedAt: Date.now(),
+      });
+      results.push({
+        tag: "MARK_REMINDER_DONE",
+        status: "success",
+        message: `Marked reminder "${target.title}" as done ✅`,
+      });
+    } catch (err: any) {
+      activity.set("action_failed");
+      results.push({
+        tag: "MARK_REMINDER_DONE",
+        status: "failed",
+        message: `Could not mark reminder "${target.title}" as done: ${err?.message || "error"}`,
+      });
+    }
+    text = text.replace(fullMatch, "");
+  }
+
+  // Handle DELETE_LAST: reminder
+  const delLastRemRe = /\[\[DELETE_LAST:\s*(reminder)\s*\]\]/gi;
+  while ((match = delLastRemRe.exec(input)) !== null) {
+    const fullMatch = match[0];
+    activity.set(actionActivity("DELETE_LAST"));
+    if (!userId) {
+      activity.set("action_failed");
+      results.push({ tag: "DELETE_LAST", status: "failed", message: "You need to be signed in." });
+      text = text.replace(fullMatch, "");
+      continue;
+    }
+    const list = await repo.listReminders(userId);
+    if (!list.length) {
+      activity.set("action_failed");
+      results.push({ tag: "DELETE_LAST", status: "not_found", message: "There are no reminders to delete." });
+      text = text.replace(fullMatch, "");
+      continue;
+    }
+    const victim = list[0];
+    try {
+      await repo.deleteReminder(userId, victim.id);
+      results.push({ tag: "DELETE_LAST", status: "success", message: `Deleted reminder "${victim.title}".` });
+    } catch (err: any) {
+      activity.set("action_failed");
+      results.push({ tag: "DELETE_LAST", status: "failed", message: `Could not delete reminder: ${err?.message}` });
+    }
+    text = text.replace(fullMatch, "");
+  }
+
+  // Handle CLEAR_ALL: reminders
+  const clearRemRe = /\[\[CLEAR_ALL:\s*(reminders)\s*\]\]/gi;
+  while ((match = clearRemRe.exec(input)) !== null) {
+    const fullMatch = match[0];
+    activity.set(actionActivity("CLEAR_ALL"));
+    if (!userId) {
+      activity.set("action_failed");
+      results.push({ tag: "CLEAR_ALL", status: "failed", message: "You need to be signed in." });
+      text = text.replace(fullMatch, "");
+      continue;
+    }
+    const list = await repo.listReminders(userId);
+    if (!list.length) {
+      activity.set("action_failed");
+      results.push({ tag: "CLEAR_ALL", status: "not_found", message: "There are no reminders to clear." });
+      text = text.replace(fullMatch, "");
+      continue;
+    }
+    try {
+      for (const r of list) {
+        await repo.deleteReminder(userId, r.id);
+      }
+      results.push({ tag: "CLEAR_ALL", status: "success", message: `Cleared all ${list.length} reminders.` });
+    } catch (err: any) {
+      activity.set("action_failed");
+      results.push({ tag: "CLEAR_ALL", status: "failed", message: `Could not clear reminders: ${err?.message}` });
+    }
+    text = text.replace(fullMatch, "");
+  }
 
   return { text: text.replace(/\n{3,}/g, "\n\n").trim(), results };
 }
@@ -597,12 +879,8 @@ export function renderActionReport(results: ActionResult[]): string {
 }
 
 const MUTATION_CLAIM =
-  /\b(?:i(?:'ve| have)?\s+(?:just\s+)?(?:saved|added|created|deleted|removed|updated|changed|set|scheduled|cleared|marked)|(?:done|saved|added|deleted|removed|updated)\s*[.!]|it'?s\s+(?:saved|added|deleted|done|set))\b/i;
+  /\b(?:i(?:'ve| have)?\s+(?:just\s+)?(?:saved|added|created|deleted|removed|updated|changed|set|scheduled|cleared|marked|noted|remembered)|(?:done|saved|added|deleted|removed|updated|noted|remembered)\s*[.!]|it'?s\s+(?:saved|added|deleted|done|set|noted|remembered))\b/i;
 
-/**
- * The model sometimes claims a mutation without emitting a tag. Nothing was
- * executed in that case, so say so instead of letting the claim stand.
- */
 export function claimsMutationWithoutTag(text: string): boolean {
   return MUTATION_CLAIM.test(text);
 }

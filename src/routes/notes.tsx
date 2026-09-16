@@ -1,8 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { SimpleCrud } from "../components/SimpleCrud";
 import { alphaStore, uid, useAlpha, type Note } from "../lib/alpha-store";
-import { ArrowLeft } from "lucide-react";
-import { KittScanner } from "../components/KittScanner";
+import { ToolHeader } from "../components/ToolHeader";
 
 export const Route = createFileRoute("/notes")({
   head: () => ({ meta: [{ title: "Alpha — Notes" }, { name: "description", content: "Quick plaintext notes." }] }),
@@ -13,11 +12,7 @@ function NotesRoute() {
   const notes = useAlpha(s => s.notes);
   return (
     <div className="starfield min-h-screen">
-      <header className="p-3 flex items-center gap-3 glass border-b border-primary/20">
-        <Link to="/" className="p-1.5 rounded-full glass"><ArrowLeft className="w-4 h-4 text-primary" /></Link>
-        <span className="font-semibold neon-text">Notes</span>
-      </header>
-      <div className="px-3 pt-2"><KittScanner bars={22} height={8} /></div>
+      <ToolHeader title="Notes" />
       <SimpleCrud<Note>
         title="Your Notes"
         items={notes}

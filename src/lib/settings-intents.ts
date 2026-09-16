@@ -80,7 +80,7 @@ export function trySettingsIntent(raw: string): string | null {
       (prov === "groq"
         ? "llama-3.3-70b-versatile"
         : prov === "openrouter"
-          ? "deepseek/deepseek-r1:free"
+          ? "nvidia/nemotron-3-super-120b-a12b:free"
           : "gpt-4o-mini");
     const key: "fast" | "thinking" | "coding" = /coding|code/.test(m[3])
       ? "coding"

@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { recognizer, prepareUtterance, stopSpeaking, speakingState } from "../lib/voice";
+import { useActivity } from "../lib/activity";
 import { alphaStore, uid } from "../lib/alpha-store";
 import { sendChat } from "../lib/alpha.functions";
 import { speakWith } from "../lib/voice";
 import { parseIntent } from "../lib/voice-router";
 import { tryLocalIntent } from "../lib/local-intents";
+import { handleEyeCommand } from "../lib/vision-command";
 import { CyberEye } from "./CyberEye";
 
 /**
@@ -16,6 +18,10 @@ export function MiniOrb({ size = 56 }: { size?: number }) {
   const router = useRouter();
   const [active, setActive] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const act = useActivity();
+  const isBusy = act.kind !== "idle" && act.kind !== "listening";
+  const effectiveActive = active || isBusy;
+
   useEffect(() => speakingState.sub(setSpeaking), []);
 
   async function handleFinal(text: string) {
@@ -31,7 +37,8 @@ export function MiniOrb({ size = 56 }: { size?: number }) {
       setActive(false);
       return;
     }
-    const local = tryLocalIntent(text);
+    const eyeRes = await handleEyeCommand(text);
+    const local = eyeRes ?? (await tryLocalIntent(text));
     if (local) {
       alphaStore.appendChat({ id: uid(), role: "user", text, ts: Date.now() });
       alphaStore.appendChat({ id: uid(), role: "model", text: local, ts: Date.now() });
@@ -81,7 +88,7 @@ export function MiniOrb({ size = 56 }: { size?: number }) {
     >
       <CyberEye
         analyser={recognizer.analyserNode}
-        active={active}
+        active={effectiveActive}
         speaking={speaking}
         size={size}
         showMicroText={false}

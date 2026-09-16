@@ -1,8 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { SimpleCrud } from "../components/SimpleCrud";
 import { alphaStore, uid, useAlpha, type Bill } from "../lib/alpha-store";
-import { ArrowLeft } from "lucide-react";
-import { KittScanner } from "../components/KittScanner";
+import { ToolHeader } from "../components/ToolHeader";
 
 export const Route = createFileRoute("/bills")({
   head: () => ({ meta: [{ title: "Alpha — Bills" }, { name: "description", content: "Track bills & balances." }] }),
@@ -14,14 +13,14 @@ function BillsRoute() {
   const total = bills.reduce((s, b) => s + (b.balance || 0), 0);
   return (
     <div className="starfield min-h-screen">
-      <header className="p-3 flex items-center justify-between glass border-b border-primary/20">
-        <div className="flex items-center gap-3">
-          <Link to="/" className="p-1.5 rounded-full glass"><ArrowLeft className="w-4 h-4 text-primary" /></Link>
-          <span className="font-semibold neon-text">Ledger</span>
-        </div>
-        <span className="text-sm text-muted-foreground">Outstanding: <span className="text-primary font-semibold">${total.toFixed(2)}</span></span>
-      </header>
-      <div className="px-3 pt-2"><KittScanner bars={22} height={8} /></div>
+      <ToolHeader
+        title="Ledger"
+        right={
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            Outstanding: <span className="text-primary font-semibold">${total.toFixed(2)}</span>
+          </span>
+        }
+      />
       <SimpleCrud<Bill>
         title="Bills & Ledger"
         items={bills}

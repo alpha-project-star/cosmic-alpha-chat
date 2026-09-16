@@ -1,3 +1,5 @@
+import { MusicManager } from "./audio-subsystem/music-manager";
+
 export interface MusicTrackMeta {
   id: string;
   name: string;
@@ -8,7 +10,6 @@ export interface MusicTrackMeta {
 
 const DB_NAME = "alpha.music.v1";
 const STORE = "tracks";
-let currentAudio: HTMLAudioElement | null = null;
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -87,15 +88,7 @@ export async function deleteMusicTrack(id: string): Promise<void> {
 }
 
 export function stopMusic() {
-  if (currentAudio) {
-    try {
-      currentAudio.pause();
-    } catch {}
-    try {
-      URL.revokeObjectURL(currentAudio.src);
-    } catch {}
-    currentAudio = null;
-  }
+  MusicManager.getInstance().stop();
 }
 
 export async function playMusicByName(query = ""): Promise<string> {
@@ -111,11 +104,7 @@ export async function playMusicByName(query = ""): Promise<string> {
       )
     : rows.sort((a, b) => Number(b.addedAt || 0) - Number(a.addedAt || 0))[0];
   if (!row) return `I couldn't find a track matching "${query}".`;
-  stopMusic();
-  const url = URL.createObjectURL(row.blob as Blob);
-  const audio = new Audio(url);
-  currentAudio = audio;
-  audio.onended = () => stopMusic();
-  await audio.play();
+  
+  await MusicManager.getInstance().play(row.blob as Blob, row.name);
   return `Playing ${row.name}.`;
 }

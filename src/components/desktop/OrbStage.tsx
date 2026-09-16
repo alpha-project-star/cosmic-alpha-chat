@@ -2,8 +2,9 @@ import { AlphaOrb } from "../AlphaOrb";
 import { HorizontalSpectrum } from "./HorizontalSpectrum";
 import { recognizer, speakingState } from "../../lib/voice";
 import { useEffect, useState } from "react";
-import { KittScanner } from "../KittScanner";
+import { KittScanner, type KittState } from "../KittScanner";
 import { useAlpha } from "../../lib/alpha-store";
+import { useActivity } from "../../lib/activity";
 
 /**
  * Desktop hero orb with left/right horizontal spectrum wings, sized to viewport.
@@ -11,8 +12,22 @@ import { useAlpha } from "../../lib/alpha-store";
 export function OrbStage({ active }: { active: boolean }) {
   const [speaking, setSpeaking] = useState(false);
   const bgEnabled = useAlpha((s) => s.settings.backgroundEnabled);
+  const act = useActivity();
+  const busy = act.kind !== "idle" && act.kind !== "listening";
+  const hot = active || speaking || busy;
+
   useEffect(() => speakingState.sub(setSpeaking), []);
-  const hot = active || speaking;
+
+  const scannerState: KittState = !bgEnabled
+    ? "off"
+    : active || act.kind === "listening"
+      ? "scanning"
+      : speaking
+        ? "speaking"
+        : busy
+          ? "processing"
+          : "idle";
+
   return (
     <div className="relative flex items-center justify-center w-full h-full">
       <div
@@ -31,7 +46,7 @@ export function OrbStage({ active }: { active: boolean }) {
           <div className="absolute left-1/2 top-[82%] w-[78%] -translate-x-1/2 pointer-events-none">
             <KittScanner
               curved
-              state={!bgEnabled ? "off" : active ? "scanning" : speaking ? "speaking" : "idle"}
+              state={scannerState}
               bars={38}
               height={86}
             />

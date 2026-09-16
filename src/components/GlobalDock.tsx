@@ -1,26 +1,14 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ArrowLeft, MessageSquare, Sparkles } from "lucide-react";
 import { MiniOrb } from "./MiniOrb";
+import { PWAInstallButton } from "./PWAInstallButton";
 
 /**
- * Persistent floating dock so the user can talk to Alpha or navigate from any
- * page. Hidden on the main Orb page (/) and on /chat (the chat already shows
- * its own mini-orb in the sticky header).
+ * Obsolete floating dock superseded by UI-2 ToolHeader.
+ * Returns null to eliminate duplicate controls across tool pages.
  */
 export function GlobalDock() {
-  const path = useRouterState({ select: (s) => s.location.pathname });
-  if (path === "/" || path === "/chat") return null;
-  return (
-    <div className="fixed top-3 right-3 z-40 flex items-center gap-2 glass neon-border rounded-full px-2 py-1.5 shadow-xl">
-      <Link to="/" aria-label="Home" className="p-2 rounded-full hover:bg-primary/10">
-        <Sparkles className="w-4 h-4 text-primary" />
-      </Link>
-      <Link to="/chat" aria-label="Open chat" className="p-2 rounded-full hover:bg-primary/10">
-        <MessageSquare className="w-4 h-4 text-primary" />
-      </Link>
-      <MiniOrb size={36} />
-    </div>
-  );
+  return null;
 }
 
 /** Reusable back arrow shown in every secondary page header. */

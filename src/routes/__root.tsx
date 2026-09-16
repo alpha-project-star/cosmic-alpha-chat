@@ -14,10 +14,13 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import "katex/dist/katex.min.css";
 import { AlphaLock } from "../components/AlphaLock";
-import { GlobalDock } from "../components/GlobalDock";
 import { registerAlphaPWA } from "../lib/pwa";
 import { startAlarmEngine } from "../lib/alarm-engine";
 import { startProactive } from "../lib/proactive";
+import { reminderScheduler } from "../lib/reminder-scheduler";
+import { AuthProvider, useAuth } from "../lib/auth";
+import { useAutoMigration } from "../hooks/useAutoMigration";
+import { FirestoreReminderRepository } from "../lib/reminder-repo";
 
 function NotFoundComponent() {
   return (
@@ -136,15 +139,36 @@ function RootComponent() {
     registerAlphaPWA();
     startAlarmEngine();
     startProactive();
+    reminderScheduler.start();
+    return () => reminderScheduler.stop();
   }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AlphaLock>
-        <Outlet />
-        <GlobalDock />
-        <Toaster position="top-center" richColors />
-      </AlphaLock>
+      <AuthProvider>
+        <MigrationAppContent />
+      </AuthProvider>
     </QueryClientProvider>
+  );
+}
+
+function MigrationAppContent() {
+  useAutoMigration();
+  const auth = useAuth();
+  const user = auth.status === 'authenticated' ? auth.user : null;
+
+  useEffect(() => {
+    if (user) {
+      reminderScheduler.setUser(user.uid, new FirestoreReminderRepository());
+    } else if (auth.status === 'unauthenticated' || auth.status === 'error') {
+      reminderScheduler.setUser(undefined);
+    }
+  }, [auth.status, user]);
+
+  return (
+    <AlphaLock>
+      <Outlet />
+      <Toaster position="top-center" richColors />
+    </AlphaLock>
   );
 }

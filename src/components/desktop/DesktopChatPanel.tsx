@@ -3,15 +3,18 @@ import { ImagePlus, Send, Sparkles, X, ArrowDown, ArrowUp, Zap } from "lucide-re
 import { alphaStore, uid, useAlpha } from "../../lib/alpha-store";
 import { sendChat, type TaskType } from "../../lib/alpha.functions";
 import { MessageContent } from "../MessageContent";
+import { MessageActions } from "../MessageActions";
 import { prepareUtterance, speakWith } from "../../lib/voice";
 import { tryLocalIntent } from "../../lib/local-intents";
 import { fileToShrunkDataUrl } from "../../lib/image-utils";
-import { captureLiveFrame, isVisionCommand, shouldCaptureFrame } from "../../lib/vision-command";
+import { captureLiveFrame, handleEyeCommand, isVisionCommand, shouldCaptureFrame } from "../../lib/vision-command";
 import { isActive as eyeIsActive } from "../../lib/vision-stream";
 import { HudPanel } from "./HudPanel";
 import { HudBubble } from "./HudBubble";
 import { LiveClock } from "../LiveClock";
 import { useActivity, activity } from "../../lib/activity";
+import { NotificationCard } from "../NotificationCard";
+import { OutstandingRemindersAffordance } from "../OutstandingRemindersAffordance";
 
 /** Full HUD chat panel rendered inside the desktop shell right column. */
 export function DesktopChatPanel() {
@@ -54,14 +57,21 @@ export function DesktopChatPanel() {
     setShowJump(el.scrollHeight - el.scrollTop - el.clientHeight > 200);
   }
 
+  async function retry(assistantId: string) {
+    if (busy) return;
+    const r = alphaStore.prepareRetry(assistantId);
+    if (!r) return;
+    await send(r.userText);
+  }
+
   async function send(overrideText?: string) {
     if (busy) return;
     const t = (overrideText ?? text).trim();
     if (!t && images.length === 0) return;
     prepareUtterance();
     let outImages = images;
-    if (t && shouldCaptureFrame(t, eyeIsActive())) {
-      const frame = await captureLiveFrame();
+    if (t && shouldCaptureFrame(t, eyeIsActive(), images.length > 0)) {
+      const frame = await captureLiveFrame(eyeIsActive());
       if (frame) outImages = [...outImages, frame].slice(0, 4);
     }
     alphaStore.appendChat({
@@ -75,7 +85,8 @@ export function DesktopChatPanel() {
     setImages([]);
     setBusy(true);
     try {
-      const local = t && !isVisionCommand(t) ? tryLocalIntent(t) : null;
+      const eyeRes = t ? await handleEyeCommand(t) : null;
+      const local = eyeRes ?? (t && !isVisionCommand(t) ? await tryLocalIntent(t) : null);
       const reply = local ?? (await sendChat(alphaStore.get().chat, { task }));
       alphaStore.appendChat({ id: uid(), role: "model", text: reply, ts: Date.now() });
       speakWith(reply, { auto: true });
@@ -114,6 +125,8 @@ export function DesktopChatPanel() {
         </button>
       </div>
 
+      <OutstandingRemindersAffordance />
+
       <div
         ref={scrollRef}
         onScroll={onScroll}
@@ -133,7 +146,35 @@ export function DesktopChatPanel() {
                 className="rounded-xl px-3 py-2 bg-destructive/15 border border-destructive/40 text-destructive-foreground text-sm"
               >
                 {m.text}
+                <div className="mt-1">
+                  <MessageActions
+                    text={m.text}
+                    compact
+                    onDelete={() => alphaStore.deleteChatMessage(m.id)}
+                    onRetry={() => retry(m.id)}
+                  />
+                </div>
               </div>
+            );
+          }
+          if (m.origin === "proactive" || m.proactiveEventId) {
+            return (
+              <NotificationCard
+                key={m.id}
+                messageId={m.id}
+                proactiveEventId={m.proactiveEventId || m.id}
+                text={m.text}
+                ts={m.ts}
+              >
+                <div className="mt-1">
+                  <MessageActions
+                    text={m.text}
+                    compact
+                    onDelete={() => alphaStore.deleteChatMessage(m.id)}
+                    onRetry={() => retry(m.id)}
+                  />
+                </div>
+              </NotificationCard>
             );
           }
           return (
@@ -150,6 +191,14 @@ export function DesktopChatPanel() {
               ) : (
                 <div className="whitespace-pre-wrap">{m.text}</div>
               )}
+              <div className="mt-1">
+                <MessageActions
+                  text={m.text}
+                  compact
+                  onDelete={() => alphaStore.deleteChatMessage(m.id)}
+                  onRetry={() => retry(m.id)}
+                />
+              </div>
             </HudBubble>
           );
         })}
@@ -167,18 +216,18 @@ export function DesktopChatPanel() {
       </div>
 
       {showJump && (
-        <div className="absolute right-4 bottom-28 z-10 flex flex-col gap-2">
+        <div className="absolute right-4 top-14 z-20 flex flex-col gap-2">
           <button
             onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
             aria-label="Top"
-            className="hud-bubble p-2 active:scale-95"
+            className="hud-bubble p-2 active:scale-95 shadow-md"
           >
             <ArrowUp className="w-4 h-4 text-primary" />
           </button>
           <button
             onClick={() => scrollToBottom(true)}
             aria-label="Bottom"
-            className="hud-bubble p-2 active:scale-95"
+            className="hud-bubble p-2 active:scale-95 shadow-md"
           >
             <ArrowDown className="w-4 h-4 text-primary" />
           </button>

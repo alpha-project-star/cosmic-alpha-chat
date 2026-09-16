@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { temporal } from "../lib/temporal";
 
 /**
  * Real-time clock. Ticks every second.
@@ -11,9 +12,9 @@ export function LiveClock({
   full?: boolean;
   className?: string;
 }) {
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState(() => temporal.now());
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
+    const id = setInterval(() => setNow(temporal.now()), 1000);
     return () => clearInterval(id);
   }, []);
 

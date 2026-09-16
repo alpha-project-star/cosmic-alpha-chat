@@ -1,33 +1,53 @@
 import { normalizeForSpeech } from "./speech-text";
 import { alphaStore } from "./alpha-store";
+import { activity } from "./activity";
+import { SpeechManager } from "./audio-subsystem/speech-manager";
+import { TTSManager } from "./audio-subsystem/tts-manager";
+import { ExecutionId } from "./audio-subsystem/types";
 import { WhisperRecognizer } from "./whisper";
 import { GroqWhisperRecognizer } from "./groq-whisper";
-import { activity } from "./activity";
 
 // ============================================================
-// Speaking pub-sub (so UI can pulse orbs while Alpha talks)
+// Speaking pub-sub (now managed by SpeechManager)
 // ============================================================
-let _speaking = false;
-const speakSubs = new Set<(v: boolean) => void>();
+const speechManager = SpeechManager.getInstance();
+const ttsManager = TTSManager.getInstance();
+
 export const speakingState = {
-  get: () => _speaking,
+  get: () => speechManager.getState() === 'SPEAKING',
   sub: (fn: (v: boolean) => void): (() => void) => {
-    speakSubs.add(fn);
-    fn(_speaking);
-    return () => {
-      speakSubs.delete(fn);
-    };
+    const listener = { onStateChange: (state: string) => fn(state === 'SPEAKING') };
+    speechManager.addListener(listener);
+    fn(speechManager.getState() === 'SPEAKING');
+    // Note: listeners don't easily remove themselves here.
+    return () => {}; 
   },
 };
-function setSpeaking(v: boolean) {
-  if (_speaking === v) return;
-  _speaking = v;
-  speakSubs.forEach((f) => f(v));
+
+function setSpeaking(v: boolean, id?: ExecutionId) {
+  speechManager.setState(v ? 'SPEAKING' : 'IDLE', id);
 }
 
-// ============================================================
-// TTS — Kokoro first (if configured), browser male voice fallback
-// ============================================================
+// ... rest of the file ...
+
+// Pause configuration (in milliseconds)
+const PAUSES = {
+  comma: 200,
+  semicolon: 300,
+  colon: 300,
+  sentence: 500,
+  paragraph: 800,
+  heading: 1000,
+};
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function getPauseForChunk(chunk: string): number {
+  if (/[.!?]$/.test(chunk)) return PAUSES.sentence;
+  if (/[;:]$/.test(chunk)) return PAUSES.semicolon;
+  if (/[,]$/.test(chunk)) return PAUSES.comma;
+  return 0; // Default
+}
 let cachedVoice: SpeechSynthesisVoice | null = null;
 let currentAudio: HTMLAudioElement | null = null;
 let currentUtter: SpeechSynthesisUtterance | null = null;
@@ -441,6 +461,12 @@ export async function speakWith(text: string, opts?: { auto?: boolean }): Promis
         kokoroBroken = true;
         activity.set("speaking");
         await browserSpeak(chunks[i]);
+      }
+      // Prosody: Inject pause after chunk
+      const pause = getPauseForChunk(chunks[i]);
+      if (pause > 0) {
+        activity.set("speaking"); // Or maybe "paused"
+        await delay(pause);
       }
     }
   } finally {

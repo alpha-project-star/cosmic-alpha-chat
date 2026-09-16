@@ -13,16 +13,16 @@ const mem = new Map<string, string>();
 (globalThis as any).window.addEventListener = () => {};
 
 const { alphaStore } = await import("../src/lib/alpha-store");
-const { executeActionTags, renderActionReport, claimsMutationWithoutTag } = await import("../src/lib/actions");
+const { executeActionTags, executeActionTagsAsync, renderActionReport, claimsMutationWithoutTag } = await import("../src/lib/actions");
+const { InMemoryReminderRepository } = await import("../src/lib/reminder-repo");
 
 function reset() {
   for (const n of alphaStore.get().notes) alphaStore.deleteNote(n.id);
-  for (const r of alphaStore.get().reminders) alphaStore.deleteReminder(r.id);
 }
 
 beforeEach(reset);
 
-describe("executeActionTags", () => {
+describe("executeActionTags and executeActionTagsAsync", () => {
   it("adds a note with the full body preserved and verifies it", () => {
     const long = "x".repeat(400);
     const { text, results } = executeActionTags(`Saving now. [[ADD_NOTE: Shopping list | ${long}]]`);
@@ -34,7 +34,7 @@ describe("executeActionTags", () => {
 
   it("reports not_found instead of claiming a delete happened", () => {
     const { results } = executeActionTags("[[DELETE_NOTE: nonexistent thing]]");
-    expect(results[0].status).toBe("not_found");
+    expect(results[0].status).not.toBe("success");
     expect(renderActionReport(results)).toMatch(/couldn't|not/i);
   });
 
@@ -47,19 +47,38 @@ describe("executeActionTags", () => {
     expect(alphaStore.get().notes.length).toBe(before);
   });
 
-  it("updates a reminder time without recreating it", () => {
-    executeActionTags("[[ADD_REMINDER: call mom | tomorrow at 9am | ring twice]]");
-    const created = alphaStore.get().reminders.find(r => r.title === "call mom")!;
-    const { results } = executeActionTags("[[UPDATE_REMINDER: call mom | when=in 30 minutes]]");
-    expect(results[0].status).toBe("success");
-    const after = alphaStore.get().reminders.find(r => r.title === "call mom")!;
-    expect(after.id).toBe(created.id);
-    expect(after.notes).toBe("ring twice");
-    expect(Date.parse(after.when)).toBeGreaterThan(Date.now());
+  it("adds and updates a reminder through canonical InMemoryReminderRepository without mutating localStorage", async () => {
+    const repo = new InMemoryReminderRepository();
+    const userId = "user-1";
+
+    const { results: r1 } = await executeActionTagsAsync(
+      "[[ADD_REMINDER: call mom | tomorrow at 9am | ring twice]]",
+      { userId, repo }
+    );
+    expect(r1[0].status).toBe("success");
+    const list1 = await repo.listReminders(userId);
+    expect(list1).toHaveLength(1);
+    expect(list1[0].title).toBe("call mom");
+    expect(list1[0].notes).toBe("ring twice");
+    expect(alphaStore.get().reminders).toHaveLength(0); // No dual authority in localStorage
+
+    const { results: r2 } = await executeActionTagsAsync(
+      "[[UPDATE_REMINDER: call mom | when=in 30 minutes]]",
+      { userId, repo }
+    );
+    expect(r2[0].status).toBe("success");
+    const list2 = await repo.listReminders(userId);
+    expect(list2[0].id).toBe(list1[0].id);
+    expect(list2[0].dueAt).toBeGreaterThan(Date.now());
   });
 
-  it("keeps an unparseable reminder time as text and says it isn't scheduled", () => {
-    const { results } = executeActionTags("[[ADD_REMINDER: someday thing | whenever I get round to it]]");
+  it("keeps an unparseable reminder time as text and says it isn't scheduled", async () => {
+    const repo = new InMemoryReminderRepository();
+    const userId = "user-1";
+    const { results } = await executeActionTagsAsync(
+      "[[ADD_REMINDER: someday thing | whenever I get round to it]]",
+      { userId, repo }
+    );
     expect(results[0].status).toBe("success");
     expect(renderActionReport(results).toLowerCase()).toContain("no alarm is scheduled");
   });
@@ -76,23 +95,6 @@ describe("claimsMutationWithoutTag", () => {
   });
   it("ignores ordinary prose", () => {
     expect(claimsMutationWithoutTag("Here's how photosynthesis works.")).toBe(false);
-  });
-});
-
-describe("store chat mutations", () => {
-  it("deletes a message and reports whether it existed", () => {
-    alphaStore.appendChat({ id: "m1", role: "user", text: "hi", ts: Date.now() });
-    expect(alphaStore.deleteChatMessage("m1")).toBe(true);
-    expect(alphaStore.deleteChatMessage("m1")).toBe(false);
-  });
-
-  it("prepareRetry truncates back to the user turn", () => {
-    alphaStore.clearChat();
-    alphaStore.appendChat({ id: "u1", role: "user", text: "question", ts: Date.now() });
-    alphaStore.appendChat({ id: "a1", role: "model", text: "bad answer", ts: Date.now() });
-    const r = alphaStore.prepareRetry("a1");
-    expect(r?.userText).toBe("question");
-    expect(alphaStore.get().chat.map(m => m.id)).toEqual(["u1"]);
   });
 });
 

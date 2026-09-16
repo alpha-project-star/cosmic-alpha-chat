@@ -1,13 +1,23 @@
 import { alphaStore, uid } from "./alpha-store";
 import { trySettingsIntent } from "./settings-intents";
 import { playMusicByName, stopMusic } from "./music";
+import { getAuth } from "firebase/auth";
+import { getReminderTool } from "./tool-registry";
+import { ensureAuthenticatedUser } from "./auth";
+import { formatReminderDate } from "./reminder-date-utils";
+import type { FirestoreReminder } from "./reminder-repo";
+
+async function getActiveUserId(): Promise<string | null> {
+  const user = await ensureAuthenticatedUser();
+  return user?.uid || getAuth().currentUser?.uid || null;
+}
 
 /**
  * Lightweight on-device intent parser for CRUD commands so Alpha can actually
  * perform operations (add reminder, add note, save memory, delete X) without
  * hitting the LLM. Returns a spoken confirmation string, or null if no match.
  */
-export function tryLocalIntent(raw: string): string | null {
+export async function tryLocalIntent(raw: string): Promise<string | null> {
   const t = raw.trim();
   const lower = t.toLowerCase();
 
@@ -24,7 +34,7 @@ export function tryLocalIntent(raw: string): string | null {
   if (!music) music = lower.match(/^(?:play|start)\s+(.+)$/);
   if (
     music &&
-    !/^(?:open|delete|remove|clear|add|set|switch|change|use|remind|remember|note|plan|mark)\b/.test(
+    !/^(?:open|delete|remove|clear|add|set|switch|change|use|remind|remember|note|task|mark)\b/.test(
       lower,
     )
   ) {
@@ -35,40 +45,42 @@ export function tryLocalIntent(raw: string): string | null {
 
   // ---- READ / LIST ------------------------------------------------------
   let mm = lower.match(
-    /^(?:what|which|list|show|read)\s+(?:are\s+)?(?:my\s+|the\s+)?(reminders|notes|memories|memorys|memory|plans|bills)/,
+    /^(?:what|which|list|show|read)\s+(?:are\s+)?(?:my\s+|the\s+)?(reminders|notes|memories|memorys|memory|tasks|bills)/,
   );
   if (mm) {
     const kind = mm[1].replace(/s$/, "");
-    return listItems(kind);
+    return await listItems(kind);
   }
-  if (/^(?:what|which)\s+do\s+you\s+remember/.test(lower)) return listItems("memory");
+  if (/^(?:what|which)\s+do\s+you\s+remember/.test(lower)) return await listItems("memory");
 
   // ---- BULK CLEAR -------------------------------------------------------
   mm = lower.match(
-    /^(?:delete|remove|clear)\s+all\s+(notes|reminders|memories|memory|plans|bills)/,
+    /^(?:delete|remove|clear)\s+all\s+(notes|reminders|memories|memory|tasks|bills)/,
   );
   if (mm) {
     const kind = mm[1].replace(/s$/, "");
-    return bulkClear(kind);
+    return await bulkClear(kind);
   }
   if (/^(?:clear|delete|remove)\s+(?:all\s+)?done\s+reminders/.test(lower)) {
-    const s = alphaStore.get();
-    let n = 0;
-    for (const r of s.reminders)
-      if (r.done === "yes") {
-        alphaStore.deleteReminder(r.id);
-        n++;
-      }
-    return `Cleared ${n} completed reminder${n === 1 ? "" : "s"}.`;
+    const userId = getAuth().currentUser?.uid || null;
+    if (!userId) return "You need to be signed in to manage reminders.";
+    const tool = getReminderTool(userId);
+    const res = await tool.listReminders();
+    if (!res.success) return `Could not fetch reminders: ${res.error?.message || "error"}.`;
+    const doneList = (res.data || []).filter((r: any) => r.reminderState === "completed");
+    for (const r of doneList) {
+      await tool.deleteReminder(r.id);
+    }
+    return `Cleared ${doneList.length} completed reminder${doneList.length === 1 ? "" : "s"}.`;
   }
 
   // ---- DELETE BY NAME (fuzzy) ------------------------------------------
   mm = lower.match(
-    /^(?:delete|remove|forget)\s+(?:the\s+)?(note|reminder|memory|plan|bill)\s+(?:about\s+|called\s+|named\s+|to\s+)?(.+)$/,
+    /^(?:delete|remove|forget)\s+(?:the\s+)?(note|reminder|memory|task|bill)\s+(?:about\s+|called\s+|named\s+|to\s+)?(.+)$/,
   );
-  if (mm) return deleteFuzzy(mm[1], trim(mm[2]));
+  if (mm) return await deleteFuzzy(mm[1], trim(mm[2]));
   mm = lower.match(/^forget\s+(?:that|about)\s+(.+)$/);
-  if (mm) return deleteFuzzy("memory", trim(mm[1]));
+  if (mm) return await deleteFuzzy("memory", trim(mm[1]));
 
   // ---- UPDATE ----------------------------------------------------------
   mm = lower.match(
@@ -103,9 +115,20 @@ export function tryLocalIntent(raw: string): string | null {
   if (m) {
     const title = trim(m[1]);
     const when = trim(m[2] || "");
-    const iso = when ? parseNaturalWhen(when) : "";
-    alphaStore.upsertReminder({ id: uid(), title, when: iso || when, notes: "", done: "no" });
-    return `Done — reminder added: "${title}"${when ? " at " + when : ""}.`;
+    const userId = await getActiveUserId();
+    if (!userId) {
+      return "You need to be signed in to manage reminders.";
+    }
+    const tool = getReminderTool(userId);
+    const res = await tool.createReminder({
+      title,
+      dueAt: when || "today at 9pm",
+    });
+    if (res.success && res.data) {
+      const dueText = formatReminderDate(res.data.dueAt);
+      return `Done — reminder added: "${res.data.title}" (${dueText}).`;
+    }
+    return `I couldn't set that reminder: ${res.error?.message || "unknown error"}.`;
   }
 
   // Add note — broad: "take a note: X", "note that X", "add a note X",
@@ -135,18 +158,6 @@ export function tryLocalIntent(raw: string): string | null {
     return `Stored to memory: "${detail.slice(0, 60)}".`;
   }
 
-  // Plan: "plan a trip from X to Y on Z" / "add a plan X"
-  m = lower.match(
-    /(?:plan (?:a )?(?:trip|route|journey)\s+from\s+(.+?)\s+to\s+(.+?)(?:\s+on\s+(.+))?)$/,
-  );
-  if (m) {
-    const from = trim(m[1]);
-    const to = trim(m[2]);
-    const date = trim(m[3] || "");
-    alphaStore.upsertPlan({ id: uid(), title: `${from} → ${to}`, from, to, date, details: "" });
-    return `Plan added: ${from} to ${to}${date ? " on " + date : ""}.`;
-  }
-
   // Bill: "add a bill X for $N due Y"
   m = lower.match(/add (?:a )?bill\s+(.+?)\s+(?:for\s+\$?(\d+(?:\.\d+)?))?(?:\s+due\s+(.+))?$/);
   if (m) {
@@ -159,16 +170,26 @@ export function tryLocalIntent(raw: string): string | null {
 
   // Delete latest of a kind: "delete the last note" / "remove last reminder"
   m = lower.match(
-    /(?:delete|remove|clear)\s+(?:the\s+)?(?:last|latest|recent)\s+(note|reminder|memory|plan|bill)/,
+    /(?:delete|remove|clear)\s+(?:the\s+)?(?:last|latest|recent)\s+(note|reminder|memory|task|bill)/,
   );
   if (m) {
     const kind = m[1];
+    if (kind === "reminder") {
+      const userId = getAuth().currentUser?.uid || null;
+      if (!userId) return "You need to be signed in to manage reminders.";
+      const tool = getReminderTool(userId);
+      const res = await tool.listReminders();
+      if (!res.success || !res.data?.length) return "No reminders to delete.";
+      const sorted = [...res.data].sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+      const latest = sorted[0];
+      await tool.deleteReminder(latest.id);
+      return `Deleted the last reminder: "${latest.title}".`;
+    }
     const s = alphaStore.get();
     const map: Record<string, { list: any[]; del: (id: string) => void }> = {
       note: { list: s.notes, del: alphaStore.deleteNote },
-      reminder: { list: s.reminders, del: alphaStore.deleteReminder },
       memory: { list: s.memories, del: alphaStore.deleteMemory },
-      plan: { list: s.plans, del: alphaStore.deletePlan },
+      task: { list: s.tasks, del: alphaStore.deleteTask },
       bill: { list: s.bills, del: alphaStore.deleteBill },
     };
     const e = map[kind];
@@ -183,10 +204,12 @@ export function tryLocalIntent(raw: string): string | null {
   m = lower.match(/(?:mark|set)\s+(?:reminder\s+)?(.+?)\s+(?:as\s+)?done/);
   if (m) {
     const q = trim(m[1]);
-    const r = alphaStore.get().reminders.find((x) => x.title.toLowerCase().includes(q));
-    if (r) {
-      alphaStore.upsertReminder({ ...r, done: "yes" });
-      return `Marked "${r.title}" as done.`;
+    const userId = await getActiveUserId();
+    if (!userId) return "You need to be signed in to manage reminders.";
+    const tool = getReminderTool(userId);
+    const res = await tool.completeReminder(q);
+    if (res.success && res.data) {
+      return `Marked reminder "${res.data.title}" as done.`;
     }
     return `I couldn't find that reminder.`;
   }
@@ -196,15 +219,23 @@ export function tryLocalIntent(raw: string): string | null {
 
 // ---------------------------------------------------------------------------
 
-function listItems(kind: string): string {
+async function listItems(kind: string): Promise<string> {
   const s = alphaStore.get();
   if (kind === "reminder") {
-    if (!s.reminders.length) return "You have no reminders.";
+    const userId = await getActiveUserId();
+    if (!userId) return "You need to be signed in to view your reminders.";
+    const tool = getReminderTool(userId);
+    const res = await tool.listReminders();
+    if (!res.success) return `I couldn't fetch your reminders: ${res.error?.message || "error"}.`;
+    if (!res.data || !res.data.length) return "You have no reminders.";
     return (
       "**Reminders:**\n" +
-      s.reminders
+      res.data
         .slice(0, 20)
-        .map((r) => `• ${r.title}${r.when ? " @ " + r.when : ""}${r.done === "yes" ? " ✅" : ""}`)
+        .map(
+          (r: FirestoreReminder) =>
+            `• ${r.title} @ ${formatReminderDate(r.dueAt)}${r.reminderState === "completed" ? " ✅" : ""}`,
+        )
         .join("\n")
     );
   }
@@ -228,13 +259,13 @@ function listItems(kind: string): string {
         .join("\n")
     );
   }
-  if (kind === "plan") {
-    if (!s.plans.length) return "You have no plans.";
+  if (kind === "task") {
+    if (!s.tasks.length) return "You have no tasks.";
     return (
-      "**Plans:**\n" +
-      s.plans
+      "**Tasks:**\n" +
+      s.tasks
         .slice(0, 20)
-        .map((p) => `• ${p.title} (${p.from} → ${p.to})${p.date ? " on " + p.date : ""}`)
+        .map((p) => `• ${p.title} (${p.status})`)
         .join("\n")
     );
   }
@@ -253,22 +284,31 @@ function listItems(kind: string): string {
   return `I don't know how to list "${kind}".`;
 }
 
-function bulkClear(kind: string): string {
+async function bulkClear(kind: string): Promise<string> {
   const s = alphaStore.get();
+  if (kind === "reminder") {
+    const userId = getAuth().currentUser?.uid || null;
+    if (!userId) return "You need to be signed in to manage reminders.";
+    const tool = getReminderTool(userId);
+    const res = await tool.listReminders();
+    if (!res.success || !res.data?.length) return "No reminders to clear.";
+    const n = res.data.length;
+    for (const r of res.data) {
+      await tool.deleteReminder(r.id);
+    }
+    return `Cleared all ${n} reminders.`;
+  }
   let list: { id: string }[] = [];
   let del: (id: string) => void = () => {};
   if (kind === "note") {
     list = s.notes;
     del = alphaStore.deleteNote;
-  } else if (kind === "reminder") {
-    list = s.reminders;
-    del = alphaStore.deleteReminder;
   } else if (kind === "memory") {
     list = s.memories;
     del = alphaStore.deleteMemory;
-  } else if (kind === "plan") {
-    list = s.plans;
-    del = alphaStore.deletePlan;
+  } else if (kind === "task") {
+    list = s.tasks;
+    del = alphaStore.deleteTask;
   } else if (kind === "bill") {
     list = s.bills;
     del = alphaStore.deleteBill;
@@ -278,9 +318,22 @@ function bulkClear(kind: string): string {
   return `Cleared all ${n} ${kind}${n === 1 ? "" : "s"}.`;
 }
 
-function deleteFuzzy(kind: string, q: string): string {
+async function deleteFuzzy(kind: string, q: string): Promise<string> {
   const s = alphaStore.get();
   const lc = q.toLowerCase();
+  if (kind === "reminder") {
+    const userId = await getActiveUserId();
+    if (!userId) return "You need to be signed in to manage reminders.";
+    const tool = getReminderTool(userId);
+    const res = await tool.deleteReminder(q);
+    if (!res.success || !res.data) {
+      if (res.error?.code === "AMBIGUOUS") {
+        return res.error.message;
+      }
+      return `No reminder matching "${q}".`;
+    }
+    return `Deleted reminder "${res.data.title}".`;
+  }
   if (kind === "note") {
     const matches = s.notes.filter(
       (n) =>
@@ -292,14 +345,6 @@ function deleteFuzzy(kind: string, q: string): string {
     alphaStore.deleteNote(matches[0].id);
     return `Deleted note "${matches[0].title || matches[0].body.slice(0, 30)}".`;
   }
-  if (kind === "reminder") {
-    const matches = s.reminders.filter((r) => r.title.toLowerCase().includes(lc));
-    if (!matches.length) return `No reminder matching "${q}".`;
-    if (matches.length > 1)
-      return `Multiple reminders match "${q}" — which? (${matches.map((m) => m.title).join(", ")})`;
-    alphaStore.deleteReminder(matches[0].id);
-    return `Deleted reminder "${matches[0].title}".`;
-  }
   if (kind === "memory") {
     const matches = s.memories.filter(
       (m) => m.topic.toLowerCase().includes(lc) || m.detail.toLowerCase().includes(lc),
@@ -310,15 +355,19 @@ function deleteFuzzy(kind: string, q: string): string {
     alphaStore.deleteMemory(matches[0].id);
     return `Forgot memory "${matches[0].topic}".`;
   }
-  if (kind === "plan") {
-    const matches = s.plans.filter((p) => p.title.toLowerCase().includes(lc));
-    if (!matches.length) return `No plan matching "${q}".`;
-    alphaStore.deletePlan(matches[0].id);
-    return `Deleted plan "${matches[0].title}".`;
+  if (kind === "task") {
+    const matches = s.tasks.filter((p) => p.title.toLowerCase().includes(lc));
+    if (!matches.length) return `No task matching "${q}".`;
+    if (matches.length > 1)
+      return `Multiple tasks match "${q}" — which one? (${matches.map((p) => p.title).join(", ")})`;
+    alphaStore.deleteTask(matches[0].id);
+    return `Deleted task "${matches[0].title}".`;
   }
   if (kind === "bill") {
     const matches = s.bills.filter((b) => b.name.toLowerCase().includes(lc));
     if (!matches.length) return `No bill matching "${q}".`;
+    if (matches.length > 1)
+      return `Multiple bills match "${q}" — which one? (${matches.map((b) => b.name).join(", ")})`;
     alphaStore.deleteBill(matches[0].id);
     return `Deleted bill "${matches[0].name}".`;
   }

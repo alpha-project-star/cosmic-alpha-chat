@@ -51,7 +51,7 @@ describe("Evidence Discipline & Source Isolation", () => {
   });
 
   it("attaches real verified Sources section when live search evidence exists", () => {
-    const rawReply = "NASA announced a new Artemis milestone today.";
+    const rawReply = "NASA announced a new Artemis milestone today [1].";
     const liveEvidence =
       "LIVE WEB SEARCH RESULTS — fetched today for query: 'artemis news'\n[1] Artemis Updates\nURL: https://nasa.gov/artemis\nSource: NASA\nSnippet: Launch date confirmed.";
 

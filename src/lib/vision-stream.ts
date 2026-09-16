@@ -25,6 +25,8 @@ let capCanvas: HTMLCanvasElement | null = null;
 let sampleTimer: number | null = null;
 let lastLuma: Uint8ClampedArray | null = null;
 
+let currentStartId = 0;
+
 const activeSubs = new Set<(active: boolean) => void>();
 const statSubs = new Set<(s: FrameStats) => void>();
 let currentStats: FrameStats = { luma: 0, cx: 0, cy: 0, motion: 0 };
@@ -43,14 +45,26 @@ export function isActive(): boolean { return !!stream && !!video && !video.pause
 export async function startEye(): Promise<void> {
   if (typeof window === "undefined") throw new Error("No window");
   if (isActive()) return;
+  
+  const startId = ++currentStartId;
+  
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error("Camera not supported in this browser.");
   }
+  
   const s = await navigator.mediaDevices.getUserMedia({
     video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
     audio: false,
   });
+
+  // Verify that we haven't been superseded or unmounted
+  if (startId !== currentStartId) {
+    for (const t of s.getTracks()) t.stop();
+    throw new Error("Camera startup was superseded.");
+  }
+
   stream = s;
+  
   if (!video) {
     video = document.createElement("video");
     video.setAttribute("playsinline", "true");
@@ -62,16 +76,44 @@ export async function startEye(): Promise<void> {
     video.style.left = "-10px"; video.style.top = "-10px";
     document.body.appendChild(video);
   }
+  
   video.srcObject = stream;
-  await video.play().catch(() => {});
+  
+  try {
+    await video.play();
+  } catch (err: any) {
+    // Playback failed. Release everything cleanly and throw
+    for (const t of s.getTracks()) t.stop();
+    stream = null;
+    video.srcObject = null;
+    notifyActive(false);
+    throw new Error(`Camera playback failed: ${err?.message || "unsupported browser background context"}`);
+  }
+
+  // Double check if we were cancelled during the async playback step
+  if (startId !== currentStartId) {
+    for (const t of s.getTracks()) t.stop();
+    stream = null;
+    video.srcObject = null;
+    notifyActive(false);
+    throw new Error("Camera startup cancelled.");
+  }
+
   startSampling();
   notifyActive(true);
 }
 
 export function stopEye(): void {
+  currentStartId = 0; // Invalidate any pending startEye
   if (sampleTimer != null) { clearInterval(sampleTimer); sampleTimer = null; }
-  if (stream) { for (const t of stream.getTracks()) t.stop(); stream = null; }
-  if (video) { try { video.pause(); } catch {} video.srcObject = null; }
+  if (stream) {
+    for (const t of stream.getTracks()) t.stop();
+    stream = null;
+  }
+  if (video) {
+    try { video.pause(); } catch {}
+    video.srcObject = null;
+  }
   lastLuma = null;
   currentStats = { luma: 0, cx: 0, cy: 0, motion: 0 };
   notifyStats(currentStats);
@@ -142,7 +184,7 @@ export function captureFrame(maxSide = 640, quality = 0.72): string | null {
 }
 
 // Auto-stop on tab hidden / page unload for privacy.
-if (typeof window !== "undefined") {
+if (typeof window !== "undefined" && typeof document !== "undefined") {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden" && isActive()) stopEye();
   });

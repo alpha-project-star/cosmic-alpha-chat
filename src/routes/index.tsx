@@ -13,7 +13,7 @@ import {
   ChevronDown,
   NotebookPen,
   Wallet,
-  Image as ImageIcon,
+  ImageIcon,
   Bell,
   Map,
   Brain,
@@ -21,7 +21,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { startEye, stopEye, subscribeActive as subEyeActive } from "../lib/vision-stream";
-import { captureLiveFrame, isVisionCommand } from "../lib/vision-command";
+import { captureLiveFrame, handleEyeCommand, isVisionCommand } from "../lib/vision-command";
 import { startVisionAmbient, stopVisionAmbient } from "../lib/vision-ambient";
 import { DesktopShell } from "../components/desktop/DesktopShell";
 import { DesktopHomePanel } from "../components/desktop/DesktopHomePanel";
@@ -104,7 +104,8 @@ function OrbHome() {
     }
 
     // Local CRUD intents — skip when the user is asking Alpha to LOOK.
-    const local = !isVisionCommand(text) ? tryLocalIntent(text) : null;
+    const eyeRes = await handleEyeCommand(text);
+    const local = eyeRes ?? (!isVisionCommand(text) ? await tryLocalIntent(text) : null);
     if (local) {
       alphaStore.appendChat({ id: uid(), role: "user", text, ts: Date.now() });
       alphaStore.appendChat({ id: uid(), role: "model", text: local, ts: Date.now() });
@@ -196,78 +197,6 @@ function OrbHome() {
       />
       {/* Mobile layout */}
       <div className="lg:hidden starfield min-h-screen flex flex-col items-center px-4 pt-10 pb-12 relative overflow-hidden">
-        <div className="absolute top-4 right-4 z-10">
-          <button
-            onClick={() => setSettingsOpen((v) => !v)}
-            aria-label="Settings"
-            className="glass rounded-full p-1.5 inline-flex neon-border"
-          >
-            <ChevronDown className="w-4 h-4 text-primary" />
-          </button>
-          {settingsOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setSettingsOpen(false)} />
-              <div className="absolute top-10 right-0 z-20 glass neon-border rounded-xl p-1.5 flex flex-col gap-1 w-40">
-                <Link
-                  to="/settings"
-                  onClick={() => setSettingsOpen(false)}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-background/40 text-xs"
-                >
-                  <SettingsIcon className="w-4 h-4 text-primary" /> Settings
-                </Link>
-              </div>
-            </>
-          )}
-        </div>
-        <div className="absolute top-4 right-16 z-10">
-          <button
-            onClick={toggleEye}
-            aria-label={eyeOn ? "Stop Eye" : "Enable Eye"}
-            className={`glass rounded-full p-1.5 inline-flex ${eyeOn ? "border border-destructive/60" : "neon-border"}`}
-          >
-            {eyeOn ? (
-              <EyeOff className="w-4 h-4 text-destructive" />
-            ) : (
-              <Eye className="w-4 h-4 text-primary" />
-            )}
-          </button>
-        </div>
-        <div className="absolute top-4 left-4 z-10">
-          <button
-            onClick={() => setToolsOpen((v) => !v)}
-            aria-label="Tools"
-            className="glass rounded-full p-1.5 inline-flex neon-border"
-          >
-            <ChevronDown className="w-4 h-4 text-primary" />
-          </button>
-          {toolsOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setToolsOpen(false)} />
-              <div className="absolute top-12 left-0 z-20 glass neon-border rounded-2xl p-2 grid grid-cols-3 gap-2 w-60">
-                {[
-                  { to: "/chat", icon: MessageSquare, label: "Chat" },
-                  { to: "/notes", icon: NotebookPen, label: "Notes" },
-                  { to: "/bills", icon: Wallet, label: "Bills" },
-                  { to: "/image", icon: ImageIcon, label: "Image" },
-                  { to: "/reminders", icon: Bell, label: "Reminders" },
-                  { to: "/plans", icon: Map, label: "Plans" },
-                  { to: "/memories", icon: Brain, label: "Memories" },
-                  { to: "/settings", icon: SettingsIcon, label: "Settings" },
-                ].map(({ to, icon: Icon, label }) => (
-                  <Link
-                    key={to}
-                    to={to as any}
-                    onClick={() => setToolsOpen(false)}
-                    className="flex flex-col items-center gap-1 px-2 py-2 rounded-xl bg-background/40 active:scale-95"
-                  >
-                    <Icon className="w-5 h-5 text-primary" />
-                    <span className="text-[10px] text-foreground/80">{label}</span>
-                  </Link>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
         <h1 className="text-xs tracking-[0.5em] text-muted-foreground mb-8">ALPHA</h1>
 
         <div onClick={toggleMic} className="cursor-pointer select-none">
@@ -293,14 +222,105 @@ function OrbHome() {
           </div>
         )}
 
-        <div className="flex items-center justify-center mt-6">
+        {/* Voice-first two-sided bottom dock arrangement */}
+        <div className="flex items-center justify-center gap-6 mt-6 relative z-20">
+          {/* Left down-arrow dock: Tools navigation */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setToolsOpen((v) => !v);
+                setSettingsOpen(false);
+              }}
+              aria-label="Alpha tools"
+              aria-expanded={toolsOpen}
+              className="glass rounded-full p-3.5 neon-border inline-flex items-center justify-center active:scale-95 transition"
+            >
+              <ChevronDown className={`w-5 h-5 text-primary transition-transform duration-200 ${toolsOpen ? "rotate-180" : ""}`} />
+            </button>
+            {toolsOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setToolsOpen(false)} />
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 mb-3 z-20 glass neon-border rounded-2xl p-2.5 grid grid-cols-3 gap-2 w-72 backdrop-blur-xl shadow-2xl animate-in fade-in zoom-in-95 duration-100">
+                  {[
+                    { to: "/chat", icon: MessageSquare, label: "Chat" },
+                    { to: "/notes", icon: NotebookPen, label: "Notes" },
+                    { to: "/bills", icon: Wallet, label: "Bills" },
+                    { to: "/image", icon: ImageIcon, label: "Image" },
+                    { to: "/reminders", icon: Bell, label: "Reminders" },
+                    { to: "/plans", icon: Map, label: "Plans" },
+                    { to: "/memories", icon: Brain, label: "Memories" },
+                  ].map(({ to, icon: Icon, label }) => (
+                    <Link
+                      key={to}
+                      to={to as any}
+                      onClick={() => setToolsOpen(false)}
+                      className="flex flex-col items-center gap-1.5 px-2 py-2.5 rounded-xl bg-background/40 hover:bg-background/60 active:scale-95 transition"
+                    >
+                      <Icon className="w-5 h-5 text-primary" />
+                      <span className="text-[10px] text-foreground/85">{label}</span>
+                    </Link>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Center: Chat button */}
           <Link
             to="/chat"
             aria-label="Open chat"
-            className="glass rounded-full p-4 neon-border inline-flex"
+            className="glass rounded-full p-4 neon-border inline-flex active:scale-95 transition shadow-lg"
           >
             <MessageSquare className="w-6 h-6 text-primary" />
           </Link>
+
+          {/* Right down-arrow dock: Settings & Eye */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setSettingsOpen((v) => !v);
+                setToolsOpen(false);
+              }}
+              aria-label="Alpha settings & controls"
+              aria-expanded={settingsOpen}
+              className="glass rounded-full p-3.5 neon-border inline-flex items-center justify-center active:scale-95 transition"
+            >
+              <ChevronDown className={`w-5 h-5 text-primary transition-transform duration-200 ${settingsOpen ? "rotate-180" : ""}`} />
+            </button>
+            {settingsOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setSettingsOpen(false)} />
+                <div className="absolute bottom-full right-0 mb-3 z-20 glass neon-border rounded-2xl p-2.5 flex flex-col gap-2 min-w-[130px] backdrop-blur-xl shadow-2xl animate-in fade-in zoom-in-95 duration-100">
+                  <Link
+                    to="/settings"
+                    onClick={() => setSettingsOpen(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-background/40 hover:bg-background/60 active:scale-95 transition"
+                  >
+                    <SettingsIcon className="w-4 h-4 text-primary" />
+                    <span className="text-xs text-foreground/85">Settings</span>
+                  </Link>
+
+                  {/* Manual Live Eye activation control inside the right dock */}
+                  <button
+                    onClick={() => toggleEye()}
+                    aria-label={eyeOn ? "Stop Live Eye" : "Enable Live Eye"}
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition active:scale-95 ${
+                      eyeOn
+                        ? "bg-destructive/25 border border-destructive/60 text-destructive-foreground font-medium"
+                        : "bg-background/40 hover:bg-background/60 text-foreground/85"
+                    }`}
+                  >
+                    {eyeOn ? (
+                      <EyeOff className="w-4 h-4 text-destructive" />
+                    ) : (
+                      <Eye className="w-4 h-4 text-primary" />
+                    )}
+                    <span className="text-xs">{eyeOn ? "Stop Eye" : "Live Eye"}</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </>

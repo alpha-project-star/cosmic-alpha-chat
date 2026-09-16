@@ -23,10 +23,18 @@ const ONLINE_WORDS = /\b(online|web|internet|net|sources?|citation|latest|live|n
 const AFFIRM =
   /^(?:\s*(?:yes|yeah|yep|yup|sure|ok|okay|please|do it|go ahead|search|go on|affirmative|do|please do)\b[\s.!,]*)+$/i;
 
-export type SearchDecision =
-  | { search: true; query: string; reason: "explicit" | "granted" | "auto" }
-  | { search: false; capabilityInquiry: true }
-  | { search: false; offer: boolean };
+export interface SearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+  source?: string;
+  date?: string;
+}
+
+export interface SearchProvider {
+  search(query: string, limit?: number): Promise<SearchResult[]>;
+  readPage(url: string): Promise<{ title: string; content: string; status: string }>;
+}
 
 let pendingOffer: { query: string; at: number } | null = null;
 
@@ -115,6 +123,14 @@ export function mayBenefitFromSearch(text: string): boolean {
  * Decide what to do with this user turn.
  * `search: true` means the app runs a live multi-engine search and provides evidence.
  */
+export type SearchDecision = {
+  search: boolean;
+  query?: string;
+  capabilityInquiry?: boolean;
+  offer?: boolean;
+  reason?: string;
+};
+
 export function decideSearch(text: string): SearchDecision {
   const t = (text || "").trim();
   if (!t) return { search: false, offer: false };

@@ -1,5 +1,4 @@
 import { alphaStore, conversationSummary, type ChatMessage } from "./alpha-store";
-import { tryLocalIntent } from "./local-intents";
 
 /** Normalise the endpoint the user typed. */
 function base(): string {
@@ -52,14 +51,6 @@ export async function sendChatOllama(
   systemPrompt: string,
   webContext = "",
 ): Promise<string> {
-  // Fast local-intent shortcut (same as the Gemini path) so simple CRUD
-  // never touches the LLM.
-  const lastUserMsg = [...history].reverse().find((m) => m.role === "user");
-  if (lastUserMsg?.text && !lastUserMsg.images?.length) {
-    const local = tryLocalIntent(lastUserMsg.text);
-    if (local) return local;
-  }
-
   const model = alphaStore.get().settings.ollamaModel || "llama3.2:3b";
   const url = `${base()}/api/chat`;
 

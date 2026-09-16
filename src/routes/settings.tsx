@@ -13,11 +13,20 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
-import { alphaStore, useAlpha } from "../lib/alpha-store";
+import { alphaStore, useAlpha, type Settings } from "../lib/alpha-store";
 import { listVoices, speakWith, testKokoroTTS } from "../lib/voice";
 import { listOllamaModels } from "../lib/ollama";
 import { testAlarmNow, requestAlarmPermission } from "../lib/alarm-engine";
+import {
+  getBrowserNotificationPermission,
+  requestBrowserNotificationPermission,
+  isBrowserNotificationSupported,
+} from "../lib/browser-notification-channel";
+import { registerPushSubscription, unregisterPushSubscription, isPushSupported } from "../lib/push-subscription";
+import { useAuth } from "../lib/auth";
+import { ToolHeader } from "../components/ToolHeader";
 import { KittScanner } from "../components/KittScanner";
+import { MigrationDryRun } from "../components/MigrationDryRun";
 import {
   addMusicFiles,
   deleteMusicTrack,
@@ -57,8 +66,14 @@ const KOKORO_VOICES = [
 ];
 
 function SettingsRoute() {
-  const s = useAlpha((x) => x.settings);
+  const globalSettings = useAlpha((x) => x.settings);
+  const [s, setS] = useState(globalSettings);
+  
+  function updateSetting(patch: Partial<Settings>) {
+    setS(prev => ({ ...prev, ...patch }));
+  }
   const profile = useAlpha((x) => x.profile);
+  const auth = useAuth();
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [saved, setSaved] = useState(false);
   const [kokoroStatus, setKokoroStatus] = useState<string>("");
@@ -72,7 +87,7 @@ function SettingsRoute() {
   const [online, setOnline] = useState<boolean>(
     typeof navigator !== "undefined" ? navigator.onLine : true,
   );
-  const [openGroup, setOpenGroup] = useState<"online" | "offline" | "data" | null>("online");
+  const [openGroup, setOpenGroup] = useState<"online" | "offline" | "data" | "migration" | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -183,7 +198,7 @@ function SettingsRoute() {
 
       const sizeKb = ((res.blobSize || 0) / 1024).toFixed(1);
       if (res.wasFallback && res.workingUrl) {
-        alphaStore.setSettings({ kokoroEndpoint: res.workingUrl });
+        updateSetting({ kokoroEndpoint: res.workingUrl });
         setKokoroStatus(
           `✅ Kokoro is working (${sizeKb} KB) via ${res.workingUrl}! Updated endpoint from /v1/audio/speech to /tts to eliminate 404 retry latency.`,
         );
@@ -205,7 +220,7 @@ function SettingsRoute() {
         setOllamaStatus("⚠️ Reached Ollama, but no models installed. Run: ollama pull llama3.2:3b");
         return;
       }
-      alphaStore.setSettings({ ollamaModels: models });
+      updateSetting({ ollamaModels: models });
       setOllamaStatus(`✅ Connected. ${models.length} model(s): ${models.join(", ")}`);
     } catch (e: any) {
       setOllamaStatus(
@@ -235,21 +250,17 @@ function SettingsRoute() {
 
   return (
     <div className="starfield min-h-screen pb-8">
-      <header className="p-3 flex items-center gap-3 glass border-b border-primary/20">
-        <Link to="/" aria-label="Back" className="p-1.5 rounded-full glass neon-border">
-          <ArrowLeft className="w-4 h-4 text-primary" />
-        </Link>
-        <span className="text-xs tracking-[0.4em] text-muted-foreground">SETTINGS</span>
-        <span
-          className={`ml-auto inline-flex items-center gap-1 text-[10px] tracking-wider px-2 py-0.5 rounded-full border ${online ? "border-emerald-400/40 text-emerald-300" : "border-amber-400/40 text-amber-300"}`}
-        >
-          {online ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-          {online ? "ONLINE" : "OFFLINE"}
-        </span>
-      </header>
-      <div className="px-3 pt-2">
-        <KittScanner bars={22} height={8} />
-      </div>
+      <ToolHeader
+        title="Settings"
+        right={
+          <span
+            className={`inline-flex items-center gap-1 text-[10px] tracking-wider px-2 py-0.5 rounded-full border whitespace-nowrap ${online ? "border-emerald-400/40 text-emerald-300" : "border-amber-400/40 text-amber-300"}`}
+          >
+            {online ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+            {online ? "ONLINE" : "OFFLINE"}
+          </span>
+        }
+      />
 
       <div className="p-4 max-w-xl mx-auto space-y-4">
         {/* ONLINE ================================================== */}
@@ -267,7 +278,7 @@ function SettingsRoute() {
             <input
               type="password"
               value={s.groqApiKey}
-              onChange={(e) => alphaStore.setSettings({ groqApiKey: e.target.value })}
+              onChange={(e) => updateSetting({ groqApiKey: e.target.value })}
               placeholder="gsk_..."
               className="w-full bg-input rounded-md px-3 py-2 border border-border"
             />
@@ -280,14 +291,14 @@ function SettingsRoute() {
             <input
               type="text"
               value={s.openaiCompatBase}
-              onChange={(e) => alphaStore.setSettings({ openaiCompatBase: e.target.value })}
+              onChange={(e) => updateSetting({ openaiCompatBase: e.target.value })}
               placeholder="https://api.openai.com/v1"
               className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2"
             />
             <input
               type="password"
               value={s.openaiCompatKey}
-              onChange={(e) => alphaStore.setSettings({ openaiCompatKey: e.target.value })}
+              onChange={(e) => updateSetting({ openaiCompatKey: e.target.value })}
               placeholder="sk-..."
               className="w-full bg-input rounded-md px-3 py-2 border border-border"
             />
@@ -300,7 +311,7 @@ function SettingsRoute() {
             <input
               type="password"
               value={s.openRouterKey}
-              onChange={(e) => alphaStore.setSettings({ openRouterKey: e.target.value })}
+              onChange={(e) => updateSetting({ openRouterKey: e.target.value })}
               placeholder="sk-or-..."
               className="w-full bg-input rounded-md px-3 py-2 border border-border"
             />
@@ -313,7 +324,7 @@ function SettingsRoute() {
             <TaskRow
               label="⚡ Fast (chat, quick)"
               value={s.taskModels.fast}
-              onChange={(v) => alphaStore.setSettings({ taskModels: { ...s.taskModels, fast: v } })}
+              onChange={(v) => updateSetting({ taskModels: { ...s.taskModels, fast: v } })}
               examples={[
                 "groq:llama-3.3-70b-versatile",
                 "groq:llama-3.1-8b-instant",
@@ -324,7 +335,7 @@ function SettingsRoute() {
               label="🧠 Deep thinking"
               value={s.taskModels.thinking}
               onChange={(v) =>
-                alphaStore.setSettings({ taskModels: { ...s.taskModels, thinking: v } })
+                updateSetting({ taskModels: { ...s.taskModels, thinking: v } })
               }
               examples={[
                 "openrouter:nvidia/nemotron-3-super-120b-a12b:free",
@@ -336,7 +347,7 @@ function SettingsRoute() {
               label="🛠 Coding & debug"
               value={s.taskModels.coding}
               onChange={(v) =>
-                alphaStore.setSettings({ taskModels: { ...s.taskModels, coding: v } })
+                updateSetting({ taskModels: { ...s.taskModels, coding: v } })
               }
               examples={[
                 "openrouter:cohere/north-mini-code:free",
@@ -353,14 +364,14 @@ function SettingsRoute() {
             <input
               type="text"
               value={s.kokoroEndpoint}
-              onChange={(e) => alphaStore.setSettings({ kokoroEndpoint: e.target.value })}
+              onChange={(e) => updateSetting({ kokoroEndpoint: e.target.value })}
               placeholder="https://your-kokoro-host/tts or .../v1/audio/speech"
               className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2"
             />
             <div className="text-xs text-muted-foreground mb-1">Kokoro voice</div>
             <select
               value={s.kokoroVoice}
-              onChange={(e) => alphaStore.setSettings({ kokoroVoice: e.target.value })}
+              onChange={(e) => updateSetting({ kokoroVoice: e.target.value })}
               className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2"
             >
               {KOKORO_VOICES.map((v) => (
@@ -376,7 +387,7 @@ function SettingsRoute() {
               max={1.4}
               step={0.05}
               value={s.ttsRate}
-              onChange={(e) => alphaStore.setSettings({ ttsRate: Number(e.target.value) })}
+              onChange={(e) => updateSetting({ ttsRate: Number(e.target.value) })}
               className="w-full"
             />
             <div className="mt-2 flex gap-2 flex-wrap">
@@ -409,14 +420,14 @@ function SettingsRoute() {
             <input
               type="text"
               value={s.ollamaEndpoint}
-              onChange={(e) => alphaStore.setSettings({ ollamaEndpoint: e.target.value })}
+              onChange={(e) => updateSetting({ ollamaEndpoint: e.target.value })}
               placeholder="http://localhost:11434"
               className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2"
             />
             <div className="text-xs text-muted-foreground mb-1">Active local model</div>
             <select
               value={s.ollamaModel}
-              onChange={(e) => alphaStore.setSettings({ ollamaModel: e.target.value })}
+              onChange={(e) => updateSetting({ ollamaModel: e.target.value })}
               className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2"
             >
               {allOllamaModels.map((m) => (
@@ -440,7 +451,7 @@ function SettingsRoute() {
                   const t = newModel.trim();
                   if (!t) return;
                   const list = Array.from(new Set([...(s.ollamaModels || []), t]));
-                  alphaStore.setSettings({ ollamaModels: list, ollamaModel: t });
+                  updateSetting({ ollamaModels: list, ollamaModel: t });
                   setNewModel("");
                 }}
                 className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground"
@@ -465,7 +476,7 @@ function SettingsRoute() {
               {(["auto", "browser", "whisper"] as const).map((v) => (
                 <button
                   key={v}
-                  onClick={() => alphaStore.setSettings({ sttBackend: v })}
+                  onClick={() => updateSetting({ sttBackend: v })}
                   className={`px-3 py-2 rounded-md text-sm border ${s.sttBackend === v ? "bg-primary text-primary-foreground border-primary" : "glass neon-border"}`}
                 >
                   {v === "auto" ? "Auto" : v === "browser" ? "Browser" : "Whisper (local)"}
@@ -475,14 +486,14 @@ function SettingsRoute() {
             <input
               type="text"
               value={s.whisperEndpoint}
-              onChange={(e) => alphaStore.setSettings({ whisperEndpoint: e.target.value })}
+              onChange={(e) => updateSetting({ whisperEndpoint: e.target.value })}
               placeholder="http://localhost:8001"
               className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2"
             />
             <input
               type="text"
               value={s.whisperModel}
-              onChange={(e) => alphaStore.setSettings({ whisperModel: e.target.value })}
+              onChange={(e) => updateSetting({ whisperModel: e.target.value })}
               placeholder="Systran/faster-whisper-small"
               className="w-full bg-input rounded-md px-3 py-2 border border-border mb-2"
             />
@@ -494,6 +505,16 @@ function SettingsRoute() {
             </button>
             {whisperStatus && <div className="mt-2 text-xs break-words">{whisperStatus}</div>}
           </Section>
+        </Group>
+
+        <Group
+          id="migration"
+          title="Migration Dry-Run"
+          hint="Audit reminders for Firestore compatibility."
+          open={openGroup === "migration"}
+          onToggle={() => setOpenGroup(openGroup === "migration" ? null : "migration")}
+        >
+          <MigrationDryRun />
         </Group>
 
         {/* ALPHA DATA ================================================== */}
@@ -513,7 +534,7 @@ function SettingsRoute() {
               <input
                 type="checkbox"
                 checked={s.visionAmbientEnabled}
-                onChange={(e) => alphaStore.setSettings({ visionAmbientEnabled: e.target.checked })}
+                onChange={(e) => updateSetting({ visionAmbientEnabled: e.target.checked })}
               />
               Ambient watching (Alpha comments only when the scene changes)
             </label>
@@ -527,7 +548,7 @@ function SettingsRoute() {
               step={5}
               value={s.visionAmbientIntervalSec}
               onChange={(e) =>
-                alphaStore.setSettings({ visionAmbientIntervalSec: Number(e.target.value) })
+                updateSetting({ visionAmbientIntervalSec: Number(e.target.value) })
               }
               className="w-full"
             />
@@ -538,7 +559,7 @@ function SettingsRoute() {
               <input
                 type="checkbox"
                 checked={s.voiceEnabled}
-                onChange={(e) => alphaStore.setSettings({ voiceEnabled: e.target.checked })}
+                onChange={(e) => updateSetting({ voiceEnabled: e.target.checked })}
               />
               Voice output enabled (master switch)
             </label>
@@ -546,7 +567,7 @@ function SettingsRoute() {
               <input
                 type="checkbox"
                 checked={s.autoSpeak !== false}
-                onChange={(e) => alphaStore.setSettings({ autoSpeak: e.target.checked })}
+                onChange={(e) => updateSetting({ autoSpeak: e.target.checked })}
               />
               Speak replies automatically{" "}
               <span className="text-xs text-muted-foreground">
@@ -557,7 +578,7 @@ function SettingsRoute() {
               <input
                 type="checkbox"
                 checked={s.autoSubmitVoice !== false}
-                onChange={(e) => alphaStore.setSettings({ autoSubmitVoice: e.target.checked })}
+                onChange={(e) => updateSetting({ autoSubmitVoice: e.target.checked })}
               />
               Send voice transcript automatically{" "}
               <span className="text-xs text-muted-foreground">(off = review, then tap Send)</span>
@@ -566,7 +587,7 @@ function SettingsRoute() {
               <input
                 type="checkbox"
                 checked={s.continuousListen}
-                onChange={(e) => alphaStore.setSettings({ continuousListen: e.target.checked })}
+                onChange={(e) => updateSetting({ continuousListen: e.target.checked })}
               />
               Continuous listening on the Orb
             </label>
@@ -575,12 +596,12 @@ function SettingsRoute() {
             </div>
             <select
               value={s.preferredVoice}
-              onChange={(e) => alphaStore.setSettings({ preferredVoice: e.target.value })}
+              onChange={(e) => updateSetting({ preferredVoice: e.target.value })}
               className="w-full bg-input rounded-md px-3 py-2 border border-border"
             >
               <option value="">Auto (prefers male)</option>
-              {voices.map((v) => (
-                <option key={v.name} value={v.name}>
+              {voices.map((v, i) => (
+                <option key={`${v.name}-${v.lang}-${i}`} value={v.name}>
                   {v.name} ({v.lang})
                 </option>
               ))}
@@ -590,42 +611,123 @@ function SettingsRoute() {
           <Section title="Persona Extras" hint="Personal context Alpha keeps each call.">
             <textarea
               value={s.personaExtra}
-              onChange={(e) => alphaStore.setSettings({ personaExtra: e.target.value })}
+              onChange={(e) => updateSetting({ personaExtra: e.target.value })}
               className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[100px]"
             />
           </Section>
 
           <Section
-            title="Alarms"
-            hint="Honest limitation: alarms run inside this app's tab. While Alpha is open (even in the background) reminders chime, speak, and show notifications. If the tab is fully closed or the phone kills it, nothing fires until you open Alpha again — missed reminders then fire on next open."
+            title="Alarms & System Notifications"
+            hint="Alarms and proactive reminders can surface via in-app chat alerts and OS/browser notifications. When enabled, system notifications appear even if the window is in the background."
           >
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={async () => {
-                  const ok = await requestAlarmPermission();
-                  setAlarmStatus(
-                    ok
-                      ? "✅ Notifications enabled. Alarms will chime, speak, and show pop-ups while Alpha is open."
-                      : "⚠️ Notifications blocked. Alarms will still chime and speak while Alpha is open.",
-                  );
-                }}
-                className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground"
-              >
-                Enable notifications
-              </button>
-              <button
-                onClick={() => {
-                  testAlarmNow();
-                  setAlarmStatus(
-                    "✅ Test alarm fired — scanner alert, chime, and voice were triggered.",
-                  );
-                }}
-                className="px-3 py-1.5 text-sm rounded-md glass neon-border"
-              >
-                Test alarm now
-              </button>
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!isBrowserNotificationSupported()) {
+                      setAlarmStatus("⚠️ Browser notifications are not supported in this environment.");
+                      return;
+                    }
+                    const res = await requestBrowserNotificationPermission();
+                    if (res.state === "granted") {
+                      setAlarmStatus("✅ Browser notifications enabled. System alerts will fire when reminders become due.");
+                      toast.success("Browser notifications enabled");
+                    } else if (res.state === "denied") {
+                      setAlarmStatus("⚠️ Browser notifications are blocked in your browser settings. Please allow notifications in site permissions.");
+                      toast.error("Browser notifications blocked");
+                    } else {
+                      setAlarmStatus("⚠️ Notification permission was dismissed.");
+                    }
+                  }}
+                  className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground"
+                >
+                  Enable browser notifications
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    testAlarmNow();
+                    setAlarmStatus(
+                      "✅ Test alarm fired — scanner alert, chime, and voice were triggered.",
+                    );
+                  }}
+                  className="px-3 py-1.5 text-sm rounded-md glass neon-border"
+                >
+                  Test alarm now
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (auth.status !== "authenticated") {
+                      setAlarmStatus("⚠️ Please sign in to enable background push notifications.");
+                      toast.error("Sign in required for background push");
+                      return;
+                    }
+                    if (!isPushSupported()) {
+                      setAlarmStatus("⚠️ Push notifications are not supported in this browser.");
+                      toast.error("Push notifications not supported");
+                      return;
+                    }
+                    const vapidKey = (import.meta.env.VITE_VAPID_PUBLIC_KEY || "") as string;
+                    if (!vapidKey) {
+                      // Fallback test key if none configured in env
+                      const defaultKey = "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U";
+                      const res = await registerPushSubscription(auth.user.uid, defaultKey);
+                      if (res.success) {
+                        setAlarmStatus("✅ Background push registered successfully.");
+                        toast.success("Background push notifications enabled");
+                      } else {
+                        setAlarmStatus(`⚠️ Push registration failed: ${res.error?.message || "unknown"}`);
+                        toast.error(res.error?.message || "Push registration failed");
+                      }
+                      return;
+                    }
+                    const res = await registerPushSubscription(auth.user.uid, vapidKey);
+                    if (res.success) {
+                      setAlarmStatus("✅ Background push registered successfully.");
+                      toast.success("Background push notifications enabled");
+                    } else {
+                      setAlarmStatus(`⚠️ Push registration failed: ${res.error?.message || "unknown"}`);
+                      toast.error(res.error?.message || "Push registration failed");
+                    }
+                  }}
+                  className="px-3 py-1.5 text-sm rounded-md glass neon-border text-primary"
+                >
+                  Enable background push
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (auth.status !== "authenticated") {
+                      setAlarmStatus("⚠️ Please sign in first.");
+                      return;
+                    }
+                    const res = await unregisterPushSubscription(auth.user.uid);
+                    if (res.success) {
+                      setAlarmStatus("✅ Background push unregistered.");
+                      toast.success("Background push unregistered");
+                    } else {
+                      setAlarmStatus(`⚠️ Unsubscribe failed: ${res.error || "unknown"}`);
+                    }
+                  }}
+                  className="px-3 py-1.5 text-sm rounded-md glass neon-border text-destructive"
+                >
+                  Disable background push
+                </button>
+              </div>
+
+              {alarmStatus && <div className="text-xs text-muted-foreground">{alarmStatus}</div>}
+
+              <div className="text-xs text-muted-foreground border-t border-border/40 pt-2 flex items-center gap-1.5">
+                <span>System Notification Status:</span>
+                <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-background/50 border border-border">
+                  {typeof window === "undefined" || !isBrowserNotificationSupported()
+                    ? "unsupported"
+                    : getBrowserNotificationPermission()}
+                </span>
+              </div>
             </div>
-            {alarmStatus && <div className="mt-2 text-xs text-muted-foreground">{alarmStatus}</div>}
           </Section>
 
           <Section
@@ -756,7 +858,7 @@ function SettingsRoute() {
           >
             <textarea
               value={s.backgroundData}
-              onChange={(e) => alphaStore.setSettings({ backgroundData: e.target.value })}
+              onChange={(e) => updateSetting({ backgroundData: e.target.value })}
               placeholder="Latest AI news\nDelta intake update\n8:30 am Saturday reminder"
               className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[100px] font-mono text-xs"
             />
@@ -764,7 +866,7 @@ function SettingsRoute() {
               <input
                 type="checkbox"
                 checked={s.backgroundEnabled}
-                onChange={(e) => alphaStore.setSettings({ backgroundEnabled: e.target.checked })}
+                onChange={(e) => updateSetting({ backgroundEnabled: e.target.checked })}
               />
               Background processing enabled (scanner lights on)
             </label>
@@ -776,7 +878,7 @@ function SettingsRoute() {
           >
             <textarea
               value={s.buildRecord}
-              onChange={(e) => alphaStore.setSettings({ buildRecord: e.target.value })}
+              onChange={(e) => updateSetting({ buildRecord: e.target.value })}
               className="w-full bg-input rounded-md px-3 py-2 border border-border min-h-[160px] font-mono text-xs"
             />
           </Section>
@@ -784,9 +886,10 @@ function SettingsRoute() {
 
         {/* Inline Save bar (was fixed & hidden behind orb — now inline) */}
         <div className="glass border border-primary/30 rounded-xl p-3 flex items-center justify-between mt-4">
-          <span className="text-xs text-muted-foreground">Changes save automatically.</span>
+          <span className="text-xs text-muted-foreground">Unsaved changes.</span>
           <button
             onClick={() => {
+              alphaStore.setSettings(s);
               setSaved(true);
               setTimeout(() => setSaved(false), 1500);
             }}

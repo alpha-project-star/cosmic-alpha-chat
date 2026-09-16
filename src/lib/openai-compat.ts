@@ -16,8 +16,19 @@ export interface CompatOpts {
   historyTurns?: number;
   /** Bounded retries for 429 / 5xx. Default 2 (so 3 attempts total). */
   retries?: number;
+  /** Tools (OpenAI function calling format) */
+  tools?: any[];
+  /** tool_choice */
+  toolChoice?: string | object;
   /** User-facing status hook ("Retrying…", "Waiting for provider…"). */
   onStatus?: (s: "waiting" | "retrying") => void;
+  /** Abort signal for cancellation */
+  signal?: AbortSignal;
+}
+
+export interface ChatResponse {
+  content: string;
+  tool_calls?: any[];
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -46,6 +57,7 @@ function retryAfterMs(res: Response, body: string): number | null {
  * preamble and any <think> blocks so the user only sees the answer.
  */
 export function stripLeakedThinking(text: string): string {
+  if (!text) return "";
   let t = text;
   t = t.replace(/<(think|thinking|reasoning)>[\s\S]*?<\/\1>/gi, "").trim();
   t = t.replace(/^<(think|thinking|reasoning)>[\s\S]*$/i, "").trim();
@@ -55,7 +67,7 @@ export function stripLeakedThinking(text: string): string {
     /^(?:here'?s\s+(?:a|my)\s+)?(?:thinking process|reasoning|thought process|internal monologue)\s*:?[\s\S]*?(?:\n\s*(?:final answer|answer|response)\s*:?\s*)/i,
   );
   if (marker) t = t.slice(marker[0].length).trim();
-  return t || text.trim();
+  return t;
 }
 
 /**
@@ -66,7 +78,7 @@ export async function sendChatOpenAICompat(
   history: ChatMessage[],
   systemPrompt: string,
   opts: CompatOpts,
-): Promise<string> {
+): Promise<ChatResponse> {
   const apiKey = (opts.apiKey || "").replace(/[\s\r\n\t]+/g, "").replace(/^Bearer/i, "");
   if (!apiKey) {
     throw new Error(
@@ -84,22 +96,33 @@ export async function sendChatOpenAICompat(
     return -1;
   })();
   for (let idx = 0; idx < turns.length; idx++) {
-    const m = turns[idx];
-    const role = m.role === "user" ? "user" : "assistant";
+    const m = turns[idx] as any;
+    const role = m.role === "user" ? "user" : m.role === "tool" ? "tool" : "assistant";
     const keepImages = idx === lastImageIdx;
-    if (role === "user" && m.images?.length && opts.allowImages && keepImages) {
+
+    const msg: any = { role };
+    if (role === "tool") {
+      msg.tool_call_id = m.tool_call_id;
+      msg.content = m.text || "";
+    } else if (role === "user" && m.images?.length && opts.allowImages && keepImages) {
       const parts: any[] = [];
       if (m.text) parts.push({ type: "text", text: m.text });
       for (const img of m.images) parts.push({ type: "image_url", image_url: { url: img } });
-      messages.push({ role, content: parts });
+      msg.content = parts;
     } else if (role === "user" && m.images?.length && keepImages) {
       const note = `[user attached ${m.images.length} image${m.images.length > 1 ? "s" : ""} — not visible to this text-only model]`;
-      messages.push({ role, content: m.text ? `${m.text}\n\n${note}` : note });
+      msg.content = m.text ? `${m.text}\n\n${note}` : note;
     } else if (role === "user" && m.images?.length) {
-      messages.push({ role, content: m.text || "[image]" });
+      msg.content = m.text || "[image]";
     } else {
-      messages.push({ role, content: m.text || "" });
+      msg.content = m.text || "";
     }
+
+    if (m.tool_calls) {
+      msg.tool_calls = m.tool_calls;
+    }
+
+    messages.push(msg);
   }
 
   const maxAttempts = Math.max(1, (opts.retries ?? 2) + 1);
@@ -116,7 +139,7 @@ export async function sendChatOpenAICompat(
       opts.onStatus?.(attempt === 1 ? "waiting" : "retrying");
       res = await fetch(url, {
         method: "POST",
-        signal: ctrl.signal,
+        signal: opts.signal || ctrl.signal,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
@@ -128,6 +151,8 @@ export async function sendChatOpenAICompat(
           temperature: 0.8,
           stream: false,
           ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
+          ...(opts.tools ? { tools: opts.tools } : {}),
+          ...(opts.toolChoice ? { tool_choice: opts.toolChoice } : {}),
           ...(opts.extraBody || {}),
         }),
       });
@@ -177,21 +202,22 @@ export async function sendChatOpenAICompat(
 
     const j: any = await res.json();
     const msg = j?.choices?.[0]?.message;
-    let text = (typeof msg?.content === "string" ? msg.content : "").trim();
-    if (!text) {
+    const tool_calls = msg?.tool_calls;
+    let content = (typeof msg?.content === "string" ? msg.content : "").trim();
+    if (!content && !tool_calls) {
       // Some reasoning models return the answer in reasoning fields.
       const reasoning =
         (typeof msg?.reasoning === "string" ? msg.reasoning : "") ||
         (typeof msg?.reasoning_content === "string" ? msg.reasoning_content : "");
-      text = reasoning.trim();
+      content = reasoning.trim();
     }
-    text = stripLeakedThinking(text);
-    if (!text) {
+    content = stripLeakedThinking(content);
+    if (!content && !tool_calls) {
       const err: any = new Error(`${opts.model} returned an empty response.`);
       err.status = 502;
       throw err;
     }
-    return text;
+    return { content, tool_calls };
   }
   throw lastErr || new Error("Request failed.");
 }

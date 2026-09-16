@@ -15,6 +15,8 @@ export type ActivityKind =
   | "preparing"
   | "searching"
   | "reading_image"
+  | "reading_article"
+  | "search_deciding"
   | "processing_attachment"
   | "reading_memory"
   | "reading_note"
@@ -47,6 +49,8 @@ const LABELS: Record<ActivityKind, string> = {
   preparing: "Preparing response…",
   searching: "Searching the web…",
   reading_image: "Reading image…",
+  reading_article: "Reading article…",
+  search_deciding: "Deciding to search…",
   processing_attachment: "Processing attachment…",
   reading_memory: "Reading memory…",
   reading_note: "Reading note…",
@@ -73,36 +77,161 @@ const LABELS: Record<ActivityKind, string> = {
   error: "Error",
 };
 
+export const DEFAULT_ERROR_AUTOCLEAR_MS = 2500;
+
 export interface Activity {
   kind: ActivityKind;
   /** Optional override text — still user-facing wording, never API details. */
   detail?: string;
+  /** Generation token associated with this activity state */
+  generation?: number;
 }
 
-let current: Activity = { kind: "idle" };
+export interface ActivitySession {
+  readonly generation: number;
+  set: (kind: ActivityKind, detail?: string) => boolean;
+  error: (detail?: string, autoClearMs?: number) => boolean;
+  clear: () => boolean;
+  isCurrent: () => boolean;
+}
+
+let currentGeneration = 0;
+let current: Activity = { kind: "idle", generation: 0 };
 const listeners = new Set<(a: Activity) => void>();
+let autoRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearAutoRecoveryTimer(): void {
+  if (autoRecoveryTimer !== null) {
+    clearTimeout(autoRecoveryTimer);
+    autoRecoveryTimer = null;
+  }
+}
+
+function scheduleErrorRecovery(targetGen: number, autoClearMs = DEFAULT_ERROR_AUTOCLEAR_MS): void {
+  clearAutoRecoveryTimer();
+  autoRecoveryTimer = setTimeout(() => {
+    autoRecoveryTimer = null;
+    if (
+      currentGeneration === targetGen &&
+      (current.kind === "error" || current.kind === "action_failed")
+    ) {
+      current = { kind: "idle", generation: currentGeneration };
+      listeners.forEach((l) => l(current));
+    }
+  }, autoClearMs);
+}
 
 export const activity = {
   get: (): Activity => current,
+  getGeneration: (): number => currentGeneration,
+
   /** Human label for the current (or a given) activity. */
   label(a: Activity = current): string {
     return a.detail || LABELS[a.kind] || "";
   },
-  set(kind: ActivityKind, detail?: string) {
-    if (current.kind === kind && current.detail === detail) return;
-    current = { kind, detail };
+
+  /**
+   * Start a new operation session. Increments the generation counter and
+   * transitions activity out of idle/error. Returns a session handle tied
+   * to this generation.
+   */
+  start(kind: ActivityKind = "thinking", detail?: string): ActivitySession {
+    clearAutoRecoveryTimer();
+    currentGeneration += 1;
+    const sessionGen = currentGeneration;
+    current = { kind, detail, generation: sessionGen };
+    listeners.forEach((l) => l(current));
+
+    return {
+      generation: sessionGen,
+      set: (k: ActivityKind, d?: string) => activity.set(k, d, sessionGen),
+      error: (d?: string, ms?: number) => {
+        if (sessionGen !== currentGeneration) return false;
+        return activity.set("error", d, sessionGen, ms);
+      },
+      clear: () => activity.clear(sessionGen),
+      isCurrent: () => sessionGen === currentGeneration,
+    };
+  },
+
+  /**
+   * Update the activity status.
+   * If a token/generation is provided, updates from stale generations are rejected.
+   */
+  set(
+    kind: ActivityKind,
+    detail?: string,
+    token?: number,
+    autoClearMs = DEFAULT_ERROR_AUTOCLEAR_MS,
+  ): boolean {
+    if (token !== undefined && token !== currentGeneration) {
+      // Stale update rejected
+      return false;
+    }
+
+    if (current.kind === kind && current.detail === detail) {
+      return true;
+    }
+
+    clearAutoRecoveryTimer();
+
+    // If no token was provided and this transitions from idle/error to an active state,
+    // advance generation to establish a new active window.
+    if (
+      token === undefined &&
+      (current.kind === "idle" || current.kind === "error" || current.kind === "action_failed") &&
+      kind !== "idle" &&
+      kind !== "error" &&
+      kind !== "action_failed"
+    ) {
+      currentGeneration += 1;
+    }
+
+    current = { kind, detail, generation: currentGeneration };
+    listeners.forEach((l) => l(current));
+
+    if (kind === "error" || kind === "action_failed") {
+      scheduleErrorRecovery(currentGeneration, autoClearMs);
+    }
+
+    return true;
+  },
+
+  /**
+   * Clears activity to idle.
+   * If a token/generation is passed, stale clears are rejected.
+   */
+  clear(token?: number): boolean {
+    if (token !== undefined && token !== currentGeneration) {
+      return false;
+    }
+    clearAutoRecoveryTimer();
+    if (current.kind === "idle" && !current.detail) {
+      return true;
+    }
+    current = { kind: "idle", generation: currentGeneration };
+    listeners.forEach((l) => l(current));
+    return true;
+  },
+
+  /**
+   * Hard reset of activity state and timer, advancing generation.
+   */
+  reset(): void {
+    clearAutoRecoveryTimer();
+    currentGeneration += 1;
+    current = { kind: "idle", generation: currentGeneration };
     listeners.forEach((l) => l(current));
   },
-  clear() {
-    activity.set("idle");
-  },
-  sub(l: (a: Activity) => void) {
+
+  sub(l: (a: Activity) => void): () => void {
     listeners.add(l);
     l(current);
     return () => {
       listeners.delete(l);
     };
   },
+
   isBusy(): boolean {
     return current.kind !== "idle" && current.kind !== "listening";
   },

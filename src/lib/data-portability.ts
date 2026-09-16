@@ -1,16 +1,41 @@
 import { toast } from "sonner";
+import { z } from "zod";
+import {
+  K,
+  ChatMessageSchema,
+  NoteSchema,
+  BillSchema,
+  ReminderSchema,
+  MemorySchema,
+  ProfileSchema,
+  SettingsSchema,
+} from "./alpha-store";
+import {
+  GoalSchema,
+  TaskSchema,
+  RunSchema,
+  StepSchema,
+  ObservationSchema,
+  ResultSchema
+} from "./execution";
+import { sanitizeUserPersonalization } from "./alpha-identity";
 
-const LS_KEYS = [
-  "alpha.chat.v1",
-  "alpha.notes.v1",
-  "alpha.bills.v1",
-  "alpha.reminders.v1",
-  "alpha.plans.v1",
-  "alpha.memories.v1",
-  "alpha.profile.v1",
-  "alpha.settings.v1",
-  "alpha.summary.v1",
-];
+const STORE_SCHEMAS: Record<string, z.ZodType<any>> = {
+  [K.chat]: z.array(ChatMessageSchema),
+  [K.notes]: z.array(NoteSchema),
+  [K.bills]: z.array(BillSchema),
+  [K.reminders]: z.array(ReminderSchema),
+  [K.goals]: z.array(GoalSchema),
+  [K.tasks]: z.array(TaskSchema),
+  [K.runs]: z.array(RunSchema),
+  [K.steps]: z.array(StepSchema),
+  [K.observations]: z.array(ObservationSchema),
+  [K.results]: z.array(ResultSchema),
+  [K.memories]: z.array(MemorySchema),
+  [K.profile]: ProfileSchema,
+  [K.settings]: SettingsSchema,
+  // summary is unstructured string, no strict schema beyond string
+};
 
 const DB_NAME = "alpha.music.v1";
 const STORE = "tracks";
@@ -65,9 +90,31 @@ function dataUrlToBlob(dataUrl: string): Blob {
 
 export async function exportAlphaData(): Promise<AlphaDataExport> {
   const localStorage: Record<string, string | null> = {};
-  for (const key of LS_KEYS) {
+  for (const key of Object.values(K)) {
     try {
-      localStorage[key] = window.localStorage.getItem(key);
+      let val = window.localStorage.getItem(key);
+      if (val && key === K.settings) {
+        // Scrub secrets
+        const settings = JSON.parse(val);
+        delete settings.groqApiKey;
+        delete settings.openaiCompatKey;
+        delete settings.openRouterKey;
+        val = JSON.stringify(settings);
+      } else if (val && key === K.chat) {
+        // Scrub camera/upload base64 data to keep exports slim and clean
+        const chat = JSON.parse(val);
+        const scrubbed = chat.map((m: any) => {
+          if (m.images && m.images.length > 0) {
+            return {
+              ...m,
+              images: m.images.map((img: string) => img.startsWith("data:") && img.length > 200 ? "[image_transient]" : img)
+            };
+          }
+          return m;
+        });
+        val = JSON.stringify(scrubbed);
+      }
+      localStorage[key] = val;
     } catch {
       localStorage[key] = null;
     }
@@ -114,19 +161,61 @@ export function downloadAlphaData(data: AlphaDataExport) {
   URL.revokeObjectURL(url);
 }
 
-export async function importAlphaData(file: File): Promise<{ restored: string[] }> {
-  const text = await file.text();
+export async function importAlphaData(fileOrJson: File | string): Promise<{ restored: string[] }> {
+  const text = typeof fileOrJson === "string" ? fileOrJson : await fileOrJson.text();
   const data: AlphaDataExport = JSON.parse(text);
   if (!data || data.version !== 1) throw new Error("Unrecognized Alpha backup format.");
 
   const restored: string[] = [];
 
+  // Remove existing keys to perform an exact replacement (A-192)
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const key = window.localStorage.key(i);
+    if (key && key.startsWith("alpha.")) {
+      window.localStorage.removeItem(key);
+      i--; // Adjust index after removal
+    }
+  }
+
   // Restore localStorage
-  for (const key of LS_KEYS) {
+  for (const key of Object.values(K)) {
     const value = data.localStorage?.[key];
     if (value !== undefined && value !== null) {
       try {
-        window.localStorage.setItem(key, value);
+        if (STORE_SCHEMAS[key]) {
+          const parsed = JSON.parse(value);
+          const result = STORE_SCHEMAS[key].safeParse(parsed);
+          if (!result.success) {
+            console.warn(`Schema validation failed for ${key} during import:`, result.error);
+            throw new Error(`Invalid data in backup for ${key}.`);
+          }
+          let sanitizedData = result.data;
+          if (key === K.settings && sanitizedData?.personaExtra) {
+            sanitizedData = {
+              ...sanitizedData,
+              personaExtra: sanitizeUserPersonalization(sanitizedData.personaExtra),
+            };
+          } else if (key === K.profile && sanitizedData) {
+            sanitizedData = {
+              ...sanitizedData,
+              bio: sanitizeUserPersonalization(sanitizedData.bio || ""),
+              name: (sanitizedData.name || "").replace(/\[\[[\s\S]*?\]\]/g, "").slice(0, 100).trim() || "Creator",
+            };
+          } else if (key === K.memories && Array.isArray(sanitizedData)) {
+            sanitizedData = sanitizedData.map((m: any) => ({
+              ...m,
+              topic: sanitizeUserPersonalization(m.topic || ""),
+              detail: sanitizeUserPersonalization(m.detail || ""),
+              provenance: m.provenance || "imported_user_data",
+              confidence: m.confidence || "high",
+              status: m.status || "active",
+              updatedAt: m.updatedAt || Date.now(),
+            }));
+          }
+          window.localStorage.setItem(key, JSON.stringify(sanitizedData));
+        } else {
+          window.localStorage.setItem(key, value);
+        }
         restored.push(key);
       } catch (e) {
         console.warn("Could not restore key:", key, e);
@@ -140,6 +229,7 @@ export async function importAlphaData(file: File): Promise<{ restored: string[] 
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE, "readwrite");
       const store = tx.objectStore(STORE);
+      store.clear(); // A-192: exact replacement
       for (const track of data.music) {
         try {
           const blob = dataUrlToBlob(track.dataUrl);
@@ -168,7 +258,7 @@ export async function importAlphaData(file: File): Promise<{ restored: string[] 
   }
 
   // Reload from localStorage so the live store reflects the import
-  if (typeof window !== "undefined") {
+  if (typeof window !== "undefined" && typeof window.location?.reload === "function") {
     window.location.reload();
   }
 
@@ -176,11 +266,20 @@ export async function importAlphaData(file: File): Promise<{ restored: string[] 
 }
 
 export async function wipeAlphaData() {
-  for (const key of LS_KEYS) {
+  const keysToRemove: string[] = [];
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const key = window.localStorage.key(i);
+    if (key && key.startsWith("alpha.")) {
+      keysToRemove.push(key);
+    }
+  }
+  
+  for (const key of keysToRemove) {
     try {
       window.localStorage.removeItem(key);
     } catch {}
   }
+  
   try {
     const db = await openDb();
     await new Promise<void>((resolve, reject) => {
@@ -192,5 +291,6 @@ export async function wipeAlphaData() {
       tx.oncomplete = () => db.close();
     });
   } catch {}
+  
   window.location.reload();
 }
