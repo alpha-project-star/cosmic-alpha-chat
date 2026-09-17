@@ -1,3 +1,4 @@
+import { expressSignatureTrait } from "./signature-trait";
 import { alphaStore, conversationSummary, uid, type ChatMessage } from "./alpha-store";
 import { tryLocalIntent } from "./local-intents";
 import { handleEyeCommand } from "./vision-command";
@@ -360,6 +361,8 @@ ${BEHAVIORAL_PRIORITY_HIERARCHY.join("\n")}
 
 ${behavioralCtx.styleGuidance}
 
+${expressSignatureTrait(behavioralCtx)}
+
 ADVANCED-REASONING BEHAVIOUR
 For every request, internally determine:
 1. What is the user actually asking?
@@ -671,7 +674,7 @@ export interface NativeToolExecutionSummary {
   results: Array<{ name: string; success: boolean; isMutation: boolean; error?: any }>;
 }
 
-async function executeTool(call: any, context: ToolContext) {
+export async function executeTool(call: any, context: ToolContext) {
   const { name, arguments: argsRaw } = call.function;
   let args: any = {};
   try {

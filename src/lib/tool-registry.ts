@@ -19,7 +19,11 @@ export const toolRegistry = {
     const repo = new FirestoreReminderRepository();
     return new ReminderTool(ctx.userId, repo);
   },
-  // Future tools can be added here
+  listAvailable: () => [
+    { id: "reminders.create", riskLevel: "WRITE" },
+    { id: "reminders.list", riskLevel: "READ" },
+    { id: "reminders.delete", riskLevel: "DESTRUCTIVE" },
+  ],
 };
 
 /**
