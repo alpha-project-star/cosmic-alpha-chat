@@ -35,8 +35,8 @@ export function AlphaLock({ children }: { children: ReactNode }) {
       setReady(true);
       return;
     }
-    const sess = sessionStorage.getItem(UNLOCKED_KEY) === "1";
-    setHasPass(!!localStorage.getItem(PASS_KEY));
+    const sess = window.sessionStorage.getItem(UNLOCKED_KEY) === "1";
+    setHasPass(!!window.localStorage.getItem(PASS_KEY));
     setUnlocked(sess);
     setReady(true);
   }, []);
@@ -51,7 +51,7 @@ export function AlphaLock({ children }: { children: ReactNode }) {
       await (navigator.credentials as any).get({
         publicKey: { challenge, timeout: 30000, userVerification: "required" },
       });
-      sessionStorage.setItem(UNLOCKED_KEY, "1");
+      window.sessionStorage.setItem(UNLOCKED_KEY, "1");
       setUnlocked(true);
     } catch {
       /* user can still type password */
@@ -61,14 +61,14 @@ export function AlphaLock({ children }: { children: ReactNode }) {
   async function setPassword() {
     if (pw.length < 6) return setErr("Use at least 6 characters.");
     if (pw !== confirm) return setErr("Passwords don't match.");
-    localStorage.setItem(PASS_KEY, await sha256(pw));
-    sessionStorage.setItem(UNLOCKED_KEY, "1");
+    window.localStorage.setItem(PASS_KEY, await sha256(pw));
+    window.sessionStorage.setItem(UNLOCKED_KEY, "1");
     setUnlocked(true);
   }
   async function checkPassword() {
-    const stored = localStorage.getItem(PASS_KEY);
+    const stored = window.localStorage.getItem(PASS_KEY);
     if (stored && (await sha256(pw)) === stored) {
-      sessionStorage.setItem(UNLOCKED_KEY, "1");
+      window.sessionStorage.setItem(UNLOCKED_KEY, "1");
       setUnlocked(true);
     } else setErr("Incorrect password.");
   }

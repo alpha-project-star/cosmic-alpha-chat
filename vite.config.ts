@@ -17,6 +17,16 @@ export default defineConfig({
     preset: "node-server",
   },
   vite: {
+    build: {
+      rollupOptions: {
+        onwarn(warning, warn) {
+          if (warning.code === 'MODULE_LEVEL_DIRECTIVE' || warning.message?.includes('"use client"')) {
+            return;
+          }
+          warn(warning);
+        },
+      },
+    },
     server: {
       host: "0.0.0.0",
       port: 3000,

@@ -2,7 +2,7 @@
  * Vision Ambient — opt-in loop that watches the camera and only calls the
  * vision model when the scene actually changes. Debounced + hard-capped.
  */
-import { alphaStore, uid } from "./alpha-store";
+import { alphaStore, uid, getStorage } from "./alpha-store";
 import { captureFrame, isActive as eyeActive, subscribeBrightness } from "./vision-stream";
 import { sendChat } from "./alpha.functions";
 import { speakWith } from "./voice";
@@ -23,8 +23,10 @@ let currentAmbientExecutionId = 0;
 
 function getHourlyState(): { count: number; resetAt: number } {
   try {
-    const count = Number(localStorage.getItem(AMBIENT_COUNTER_KEY) || "0");
-    const resetAt = Number(localStorage.getItem(AMBIENT_RESET_KEY) || "0");
+    const storage = getStorage();
+    if (!storage) return { count: 0, resetAt: 0 };
+    const count = Number(storage.getItem(AMBIENT_COUNTER_KEY) || "0");
+    const resetAt = Number(storage.getItem(AMBIENT_RESET_KEY) || "0");
     return { count, resetAt };
   } catch {
     return { count: 0, resetAt: 0 };
@@ -33,8 +35,10 @@ function getHourlyState(): { count: number; resetAt: number } {
 
 function updateHourlyState(count: number, resetAt: number) {
   try {
-    localStorage.setItem(AMBIENT_COUNTER_KEY, String(count));
-    localStorage.setItem(AMBIENT_RESET_KEY, String(resetAt));
+    const storage = getStorage();
+    if (!storage) return;
+    storage.setItem(AMBIENT_COUNTER_KEY, String(count));
+    storage.setItem(AMBIENT_RESET_KEY, String(resetAt));
   } catch {}
 }
 
@@ -44,13 +48,15 @@ function startLeadershipTick() {
   const tick = () => {
     if (!running) return;
     const now = Date.now();
-    const leaderId = localStorage.getItem("alpha_ambient_leader_id");
-    const leaderHb = Number(localStorage.getItem("alpha_ambient_leader_heartbeat") || "0");
+    const storage = getStorage();
+    if (!storage) return;
+    const leaderId = storage.getItem("alpha_ambient_leader_id");
+    const leaderHb = Number(storage.getItem("alpha_ambient_leader_heartbeat") || "0");
     
     if (!leaderId || now - leaderHb > 5000 || leaderId === tabId) {
       try {
-        localStorage.setItem("alpha_ambient_leader_id", tabId);
-        localStorage.setItem("alpha_ambient_leader_heartbeat", String(now));
+        storage.setItem("alpha_ambient_leader_id", tabId);
+        storage.setItem("alpha_ambient_leader_heartbeat", String(now));
         isLeader = true;
       } catch {}
     } else {
@@ -69,9 +75,10 @@ function stopLeadershipTick() {
   }
   isLeader = false;
   try {
-    if (localStorage.getItem("alpha_ambient_leader_id") === tabId) {
-      localStorage.removeItem("alpha_ambient_leader_id");
-      localStorage.removeItem("alpha_ambient_leader_heartbeat");
+    const storage = getStorage();
+    if (storage && storage.getItem("alpha_ambient_leader_id") === tabId) {
+      storage.removeItem("alpha_ambient_leader_id");
+      storage.removeItem("alpha_ambient_leader_heartbeat");
     }
   } catch {}
 }

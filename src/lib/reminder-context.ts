@@ -1,3 +1,23 @@
+/**
+ * ============================================================================
+ * ARCHITECTURAL AUTHORITY DECLARATION — AL-02 RECONCILIATION
+ * ============================================================================
+ * ROLE: Conversational Reminder Context Manager
+ * AUTHORITATIVE SYMBOL: ReminderContextManager (reminderContextManager)
+ *
+ * RESPONSIBILITIES:
+ *  - Tracks the currently active conversational focus/context for reminders
+ *    per authenticated user in-memory.
+ *  - Enforces strict user isolation (clears context on mismatched user ID access).
+ *  - Provides immediate conversational lookup and context clearing/invalidation.
+ *
+ * NOT RESPONSIBLE FOR:
+ *  - Planning or decomposition structures (owned by `src/lib/execution.ts`).
+ *  - Action-tag coordination and execution sequencing (owned by `src/lib/actions.ts`).
+ *  - Durable, canonical reminder database persistence (owned by `src/lib/reminder-repo.ts`).
+ * ============================================================================
+ */
+
 import { FirestoreReminder } from './reminder-repo';
 import { formatReminderDate } from './reminder-date-utils';
 

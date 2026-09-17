@@ -1,4 +1,21 @@
-// src/lib/reminder-repo.ts
+/**
+ * ============================================================================
+ * ARCHITECTURAL AUTHORITY DECLARATION — AL-02 RECONCILIATION
+ * ============================================================================
+ * ROLE: Durable Reminder Persistence Authority
+ * AUTHORITATIVE SYMBOL: ReminderRepository (FirestoreReminderRepository)
+ *
+ * RESPONSIBILITIES:
+ *  - Serves as the canonical, durable database persistence authority for reminders
+ *    and proactive notification states on Firestore.
+ *  - Handles queries, insertions, updates, and deletions directly with Firestore.
+ *  - Preserves historic, legacy, and proactive reminder event states.
+ *
+ * NOT RESPONSIBLE FOR:
+ *  - Conversational reminder context or active focus tracking (owned by `src/lib/reminder-context.ts`).
+ *  - In-memory application state management or execution schemas (owned by `src/lib/alpha-store.ts` and `src/lib/execution.ts`).
+ * ============================================================================
+ */
 
 import { 
   collection, 

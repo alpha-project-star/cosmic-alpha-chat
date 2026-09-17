@@ -315,10 +315,27 @@ export const MemorySchema = z.object({
   expiresAt: z.number().optional(),
 });
 
-function parseLS<T>(key: string, schema: z.ZodType<T>, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
+export class PersistenceError extends Error {
+  constructor(key: string, originalError: any) {
+    super(`Storage write failed for key "${key}": ${originalError?.message || originalError}`);
+    this.name = "PersistenceError";
+  }
+}
+
+export function getStorage(): Storage | undefined {
+  if (typeof window === "undefined") return undefined;
   try {
-    const v = localStorage.getItem(key);
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+function parseLS<T>(key: string, schema: z.ZodType<T>, fallback: T): T {
+  const storage = getStorage();
+  if (!storage) return fallback;
+  try {
+    const v = storage.getItem(key);
     if (!v) return fallback;
     const parsed = JSON.parse(v);
     const result = schema.safeParse(parsed);
@@ -328,9 +345,13 @@ function parseLS<T>(key: string, schema: z.ZodType<T>, fallback: T): T {
   }
 }
 
-function writeLS<T>(key: string, v: T) {
-  if (typeof window === "undefined") return;
+export function writeLS<T>(key: string, v: T): { status: "success" | "unavailable" } {
+  const storage = getStorage();
+  if (!storage) {
+    return { status: "unavailable" };
+  }
   try {
+    let serialized = "";
     if (key === K.chat) {
       // Clean/strip/replace giant base64 images from ChatMessages to prevent QuotaExceededError
       const cleaned = (v as any).map((m: any) => {
@@ -342,12 +363,14 @@ function writeLS<T>(key: string, v: T) {
         }
         return m;
       });
-      localStorage.setItem(key, JSON.stringify(cleaned));
+      serialized = JSON.stringify(cleaned);
     } else {
-      localStorage.setItem(key, JSON.stringify(v));
+      serialized = JSON.stringify(v);
     }
+    storage.setItem(key, serialized);
+    return { status: "success" };
   } catch (err) {
-    console.error("Failed to write to localStorage:", err);
+    throw new PersistenceError(key, err);
   }
 }
 function notifyReminderChange() {
@@ -498,7 +521,7 @@ export const alphaStore = {
     state = { ...state, chat: [] };
     writeLS(K.chat, state.chat);
     try {
-      localStorage.removeItem(K.summary);
+      getStorage()?.removeItem(K.summary);
     } catch {}
     reminderContextManager.clear();
     try {
@@ -723,24 +746,31 @@ export const alphaStore = {
 // ----- Rolling conversation summary (semantic compactor) -----
 export const conversationSummary = {
   get(): string {
-    if (typeof localStorage === "undefined") return "";
+    const storage = getStorage();
+    if (!storage) return "";
     try {
-      return localStorage.getItem(K.summary) || "";
+      return storage.getItem(K.summary) || "";
     } catch {
       return "";
     }
   },
   set(s: string) {
-    if (typeof localStorage === "undefined") return;
+    const storage = getStorage();
+    if (!storage) return;
     try {
-      localStorage.setItem(K.summary, s.slice(0, 4000));
-    } catch {}
+      storage.setItem(K.summary, s.slice(0, 4000));
+    } catch (err) {
+      throw new PersistenceError(K.summary, err);
+    }
   },
   clear() {
-    if (typeof localStorage === "undefined") return;
+    const storage = getStorage();
+    if (!storage) return;
     try {
-      localStorage.removeItem(K.summary);
-    } catch {}
+      storage.removeItem(K.summary);
+    } catch (err) {
+      throw new PersistenceError(K.summary, err);
+    }
   },
 };
 

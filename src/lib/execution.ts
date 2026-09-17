@@ -1,3 +1,22 @@
+/**
+ * ============================================================================
+ * ARCHITECTURAL AUTHORITY DECLARATION — AL-02 RECONCILIATION
+ * ============================================================================
+ * ROLE: Canonical Planning & Execution Structures
+ * AUTHORITATIVE SYMBOLS: Goal, Task, Step, Run, Observation, Result, Evaluation
+ *
+ * RESPONSIBILITIES:
+ *  - Defines the core relational/decomposition schemas for Phase 9 Goal Planning,
+ *    Task decomposition, Step execution, and dependencies.
+ *  - Enforces structure, status transitions, and relational validity for execution.
+ *  - Manages dependency resolution state and step-level outcomes.
+ *
+ * NOT RESPONSIBLE FOR:
+ *  - Conversational reminder context or focus tracking (owned by `src/lib/reminder-context.ts`).
+ *  - Active action execution sequencing or runtime tool coordination (owned by `src/lib/actions.ts`).
+ * ============================================================================
+ */
+
 import { z } from "zod";
 
 export const GoalSchema = z.object({

@@ -1,4 +1,4 @@
-import { alphaStore, uid } from "./alpha-store";
+import { alphaStore, uid, getStorage } from "./alpha-store";
 import { speakWith, prepareUtterance } from "./voice";
 import { getAuth } from "firebase/auth";
 import {
@@ -31,8 +31,10 @@ function todayKey(): string {
 }
 function readOnce(key: string): boolean {
   try {
-    if (localStorage.getItem(key) === todayKey()) return false;
-    localStorage.setItem(key, todayKey());
+    const storage = getStorage();
+    if (!storage) return false;
+    if (storage.getItem(key) === todayKey()) return false;
+    storage.setItem(key, todayKey());
     return true;
   } catch { return false; }
 }
